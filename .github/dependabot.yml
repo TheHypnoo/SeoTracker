@@ -1,0 +1,72 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Madrid
+    open-pull-requests-limit: 5
+    groups:
+      dev-tooling:
+        patterns:
+          - turbo
+          - oxlint
+          - oxfmt
+          - ultracite
+          - simple-git-hooks
+          - typescript
+          - vitest
+          - '@vitejs/*'
+          - jsdom
+          - '@testing-library/*'
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+          - 'nestjs-*'
+      tanstack:
+        patterns:
+          - '@tanstack/*'
+      react:
+        patterns:
+          - react
+          - react-dom
+          - '@types/react'
+          - '@types/react-dom'
+      drizzle:
+        patterns:
+          - drizzle-orm
+          - drizzle-kit
+      opentelemetry:
+        patterns:
+          - '@opentelemetry/*'
+      types:
+        patterns:
+          - '@types/*'
+        exclude-patterns:
+          - '@types/react'
+          - '@types/react-dom'
+    # Ignore strategic deps that we manage manually.
+    ignore:
+      - dependency-name: drizzle-orm
+      - dependency-name: drizzle-kit
+      - dependency-name: nitro
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Madrid
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: docker
+    directory: /infra/docker
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Madrid
+    open-pull-requests-limit: 3
