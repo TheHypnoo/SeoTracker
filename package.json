@@ -6,10 +6,18 @@
   "packageManager": "pnpm@11.0.8",
   "scripts": {
     "dev": "turbo run dev",
-    "build": "turbo run build"
+    "build": "turbo run build",
+    "lint": "NODE_OPTIONS=--experimental-strip-types ultracite check",
+    "format": "NODE_OPTIONS=--experimental-strip-types oxfmt --write .",
+    "format:check": "NODE_OPTIONS=--experimental-strip-types oxfmt --check .",
+    "check": "NODE_OPTIONS=--experimental-strip-types ultracite check",
+    "fix": "NODE_OPTIONS=--experimental-strip-types ultracite fix"
   },
   "devDependencies": {
+    "oxfmt": "0.48.0",
+    "oxlint": "1.63.0",
     "turbo": "^2.9.9",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "ultracite": "7.6.3"
   }
 }
