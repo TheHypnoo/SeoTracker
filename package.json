@@ -12,7 +12,8 @@
     "format": "NODE_OPTIONS=--experimental-strip-types oxfmt --write .",
     "format:check": "NODE_OPTIONS=--experimental-strip-types oxfmt --check .",
     "check": "NODE_OPTIONS=--experimental-strip-types ultracite check",
-    "fix": "NODE_OPTIONS=--experimental-strip-types ultracite fix"
+    "fix": "NODE_OPTIONS=--experimental-strip-types ultracite fix",
+    "verify": "pnpm format:check && pnpm lint"
   },
   "devDependencies": {
     "oxfmt": "0.48.0",
@@ -23,6 +24,7 @@
     "ultracite": "7.6.3"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm format:check && pnpm lint"
+    "pre-commit": "pnpm format:check && pnpm lint",
+    "pre-push": "pnpm verify"
   }
 }

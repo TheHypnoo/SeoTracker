@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.3-alpine3.23
+        env:
+          POSTGRES_DB: seotracker_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d seotracker_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:8.6.2-alpine3.23
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      APP_URL: http://localhost:3000
+      COOKIE_DOMAIN: localhost
+      COOKIE_SECURE: 'false'
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/seotracker_test
+      JWT_ACCESS_SECRET: ci-access-secret-value-that-is-long-enough-for-tests
+      JWT_REFRESH_SECRET: ci-refresh-secret-value-that-is-long-enough-for-tests
+      NODE_ENV: test
+      REDIS_URL: redis://localhost:6379
+      SMTP_HOST: localhost
+      SMTP_PORT: '1025'
+      SMTP_SECURE: 'false'
+      TRUST_PROXY: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.0.8
+
+      - name: Setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26.0.0
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm audit --audit-level moderate
+
+      - name: Run database migrations
+        run: pnpm --filter api db:migrate
+
+      - name: Verify monorepo
+        run: pnpm verify
+
+      - name: Run API e2e tests
+        run: pnpm --filter api test:e2e
