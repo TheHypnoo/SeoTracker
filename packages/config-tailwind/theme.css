@@ -1,0 +1,82 @@
+@theme {
+  /* Brand palette — primary action and focus colour */
+  --color-brand-50: #eef5fb;
+  --color-brand-100: #d6e7f2;
+  --color-brand-200: #bfd7e9;
+  --color-brand-300: #8fb7d3;
+  --color-brand-400: #4f87ac;
+  --color-brand-500: #004370;
+  --color-brand-600: #003b63;
+  --color-brand-700: #003255;
+  --color-brand-800: #002841;
+  --color-brand-900: #001e31;
+
+  --color-brand-subtle: #f8fbfe;
+  --color-brand-border: #ddeaf2;
+
+  /* Dark CTA palette — inherits slate values for high-contrast dark buttons */
+  --color-surface-ink-50: #f8fafc;
+  --color-surface-ink-100: #e2e8f0;
+  --color-surface-ink-500: #334155;
+  --color-surface-ink-700: #1e293b;
+  --color-surface-ink-900: #0f172a;
+
+  /* App surfaces — semantic backgrounds for the shell and authentication pages */
+  --color-surface-app: #f4faff;
+  --color-surface-auth-overlay: #cfe7f5;
+
+  /* Semantic text colours */
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #334155;
+  --color-text-muted: #64748b;
+  --color-text-inverted: #f8fafc;
+
+  /* Status palette — align with Tailwind's emerald/amber/rose/sky tokens so
+     Badge/Notice/Toast can use tokens instead of raw Tailwind colours. */
+  --color-status-success-bg: #ecfdf5;
+  --color-status-success-fg: #047857;
+  --color-status-success-border: #a7f3d0;
+  --color-status-warning-bg: #fffbeb;
+  --color-status-warning-fg: #92400e;
+  --color-status-warning-border: #fde68a;
+  --color-status-danger-bg: #fff1f2;
+  --color-status-danger-fg: #be123c;
+  --color-status-danger-border: #fecdd3;
+  --color-status-info-bg: #f0f9ff;
+  --color-status-info-fg: #0369a1;
+  --color-status-info-border: #bae6fd;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgb(17 29 35 / 0.05);
+  --shadow-sm: 0 2px 8px -2px rgb(17 29 35 / 0.06);
+  --shadow-md: 0 12px 24px -12px rgb(17 29 35 / 0.1);
+  --shadow-lg: 0 24px 48px -12px rgb(17 29 35 / 0.12);
+  --shadow-xl: 0 36px 80px -24px rgb(17 29 35 / 0.3);
+  --shadow-brand: 0 18px 38px -18px rgb(0 67 112 / 0.55);
+
+  /* Radius — limited scale to avoid 3 different rounded-[1.XXrem] values across the app */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Fonts — keep in sync with apps/web global @theme */
+  --font-sans: 'Archivo', ui-sans-serif, system-ui;
+  --font-heading: 'Space Grotesk', ui-sans-serif, system-ui;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Semantic type scale — base sizes for unclassed headings/body.
+     Tailwind utilities (text-2xl, etc.) still override when explicit. */
+  --text-heading-1: 2rem;
+  --text-heading-2: 1.5rem;
+  --text-heading-3: 1.25rem;
+  --text-heading-4: 1.0625rem;
+  --text-body: 0.9375rem;
+  --text-muted: 0.8125rem;
+
+  --leading-heading: 1.2;
+  --leading-body: 1.55;
+}
