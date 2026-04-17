@@ -7,10 +7,20 @@
     },
     "dev": {
       "cache": false,
+      "dependsOn": ["^build"],
+      "persistent": true
+    },
+    "@seotracker/server#dev": {
+      "cache": false,
+      "dependsOn": ["build", "^build"],
       "persistent": true
     },
     "lint": {
       "dependsOn": ["^lint"],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "^typecheck"],
       "outputs": []
     },
     "format": {
