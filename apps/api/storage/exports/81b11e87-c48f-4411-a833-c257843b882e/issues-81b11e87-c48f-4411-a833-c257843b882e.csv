@@ -1,0 +1,5 @@
+issueId,issueCode,category,severity,message,resourceUrl,createdAt
+16804664-72e1-422c-836e-072d386c16c8,IMAGE_WITHOUT_ALT,MEDIA,LOW,11 images without alt attribute,,2026-04-21T14:11:59.516Z
+dfc1be26-b9cb-4e4c-9c3a-434d2620d474,MISSING_SITEMAP,CRAWLABILITY,MEDIUM,sitemap.xml not found,https://arbolparts.com/sitemap.xml,2026-04-21T14:11:59.516Z
+ffee5f0d-0c6f-4473-9b42-eb713dba587a,BROKEN_LINK,CRAWLABILITY,LOW,Broken link detected: https://arbolparts.com//arbolparts.com/carrito?action=show,https://arbolparts.com//arbolparts.com/carrito?action=show,2026-04-21T14:11:59.516Z
+d5c1b23b-006e-4177-b3f5-4054b1aa0cd3,BROKEN_LINK,CRAWLABILITY,LOW,Broken link detected: https://arbolparts.com//arbolparts.com/carrito?action=show,https://arbolparts.com//arbolparts.com/carrito?action=show,2026-04-21T14:11:59.516Z
