@@ -3,7 +3,12 @@ node_modules
 .pnpm-store
 
 # builds
+.dist
+.output
+.tanstack
+coverage
 dist
+*.tsbuildinfo
 
 # env
 .env
@@ -15,3 +20,12 @@ dist
 
 # misc
 .DS_Store
+.turbo
+
+# runtime storage (kept as empty dirs via .gitkeep)
+apps/api/storage/**
+!apps/api/storage/
+!apps/api/storage/.gitkeep
+apps/jobs/storage/**
+!apps/jobs/storage/
+!apps/jobs/storage/.gitkeep

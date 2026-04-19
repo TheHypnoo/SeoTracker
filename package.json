@@ -8,13 +8,17 @@
     "prepare": "node scripts/setup-git-hooks.mjs",
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "lint": "NODE_OPTIONS=--experimental-strip-types ultracite check",
     "format": "NODE_OPTIONS=--experimental-strip-types oxfmt --write .",
     "format:check": "NODE_OPTIONS=--experimental-strip-types oxfmt --check .",
     "check": "NODE_OPTIONS=--experimental-strip-types ultracite check",
     "fix": "NODE_OPTIONS=--experimental-strip-types ultracite fix",
-    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm build"
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "db:generate": "pnpm --filter api db:generate",
+    "db:migrate": "pnpm --filter api db:migrate",
+    "db:studio": "pnpm --filter api db:studio"
   },
   "devDependencies": {
     "oxfmt": "0.48.0",
