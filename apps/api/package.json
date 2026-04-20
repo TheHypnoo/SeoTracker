@@ -33,6 +33,7 @@
     "@nestjs/platform-express": "^11.1.19",
     "@nestjs/swagger": "^11.4.2",
     "@nestjs/throttler": "^6.5.0",
+    "@node-rs/argon2": "^2.0.2",
     "@seotracker/server": "workspace:*",
     "@seotracker/shared-types": "workspace:*",
     "class-transformer": "^0.5.1",
