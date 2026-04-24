@@ -40,6 +40,7 @@
     "@node-rs/argon2": "^2.0.2",
     "@seotracker/server": "workspace:*",
     "@seotracker/shared-types": "workspace:*",
+    "cheerio": "^1.2.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
