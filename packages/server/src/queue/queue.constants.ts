@@ -1,0 +1,10 @@
+export const REDIS_CONNECTION = Symbol('REDIS_CONNECTION');
+export const AUDIT_QUEUE = Symbol('AUDIT_QUEUE');
+export const EXPORT_QUEUE = Symbol('EXPORT_QUEUE');
+export const OUTBOUND_DELIVERIES_QUEUE = Symbol('OUTBOUND_DELIVERIES_QUEUE');
+export const EMAIL_DELIVERIES_QUEUE = Symbol('EMAIL_DELIVERIES_QUEUE');
+export const DISTRIBUTED_LOCK = Symbol('DISTRIBUTED_LOCK');
+export const AUDIT_QUEUE_NAME = 'seo-audits';
+export const EXPORT_QUEUE_NAME = 'seo-exports';
+export const OUTBOUND_DELIVERIES_QUEUE_NAME = 'seo-outbound-deliveries';
+export const EMAIL_DELIVERIES_QUEUE_NAME = 'seo-email-deliveries';
