@@ -24,27 +24,36 @@
     "@seotracker/shared-types": "workspace:*",
     "@tailwindcss/vite": "^4.2.4",
     "@tanstack/react-devtools": "^0.10.2",
+    "@tanstack/react-form": "^1.29.1",
     "@tanstack/react-query": "^5.100.9",
     "@tanstack/react-router": "^1.169.2",
     "@tanstack/react-router-devtools": "^1.166.13",
     "@tanstack/react-start": "^1.167.65",
     "@tanstack/router-plugin": "^1.167.35",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "cookie-es": "^3.1.1",
     "lucide-react": "^1.14.0",
     "nitro": "npm:nitro-nightly@3.0.260429-beta",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "recharts": "^3.8.1",
     "tailwindcss": "^4.2.4",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@tanstack/devtools-vite": "^0.6.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.5",
+    "jsdom": "^29.1.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.11"
+    "vite": "^8.0.11",
+    "vitest": "^4.1.5",
+    "zod": "^4.4.3"
   }
 }
