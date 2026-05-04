@@ -1,0 +1,49 @@
+# Dev-only stack: spins up only the infra services (Postgres, Redis, MailHog)
+# so you can run apps via `pnpm dev` against them. Reuses the `postgres18_data`
+# volume created by the full `docker-compose.yml` so dev data survives stack
+# swaps.
+services:
+  postgres:
+    image: postgres:18.3-alpine3.23
+    container_name: seotracker-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: seotracker
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres18_data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d seotracker']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  redis:
+    image: redis:8.6.2-alpine3.23
+    container_name: seotracker-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: seotracker-mailhog
+    restart: unless-stopped
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+
+volumes:
+  postgres18_data:
+    external: true
+    name: docker_postgres18_data
