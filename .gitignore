@@ -8,7 +8,6 @@ node_modules
 .tanstack
 coverage
 dist
-*.tsbuildinfo
 
 # env
 .env
@@ -29,3 +28,8 @@ apps/api/storage/**
 apps/jobs/storage/**
 !apps/jobs/storage/
 !apps/jobs/storage/.gitkeep
+
+# local-only documentation (not published)
+docs/
+Documentación_sin_acabar.pdf
+

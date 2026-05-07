@@ -3,22 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.0.8",
   "scripts": {
     "prepare": "node scripts/setup-git-hooks.mjs",
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "lint": "NODE_OPTIONS=--experimental-strip-types ultracite check",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "lint": "NODE_OPTIONS=--experimental-strip-types ultracite check",
     "format": "NODE_OPTIONS=--experimental-strip-types oxfmt --write .",
     "format:check": "NODE_OPTIONS=--experimental-strip-types oxfmt --check .",
     "check": "NODE_OPTIONS=--experimental-strip-types ultracite check",
-    "fix": "NODE_OPTIONS=--experimental-strip-types ultracite fix",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "db:generate": "pnpm --filter api db:generate",
     "db:migrate": "pnpm --filter api db:migrate",
-    "db:studio": "pnpm --filter api db:studio"
+    "db:studio": "pnpm --filter api db:studio",
+    "fix": "NODE_OPTIONS=--experimental-strip-types ultracite fix"
   },
   "devDependencies": {
     "oxfmt": "0.48.0",
@@ -31,5 +30,6 @@
   "simple-git-hooks": {
     "pre-commit": "pnpm format:check && pnpm lint",
     "pre-push": "pnpm verify"
-  }
+  },
+  "packageManager": "pnpm@11.0.8"
 }

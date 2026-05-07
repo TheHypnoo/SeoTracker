@@ -1,3 +1,11 @@
 packages:
   - apps/*
   - packages/*
+allowBuilds:
+  '@nestjs/core': false
+  '@scarf/scarf': false
+  esbuild: true
+  msgpackr-extract: true
+  protobufjs: true
+  simple-git-hooks: false
+  unrs-resolver: true
