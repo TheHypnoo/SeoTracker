@@ -2,7 +2,7 @@
 
 NestJS HTTP entrypoint for SEOTracker. Exposes the public REST surface under `/api/v1` and OpenAPI docs at `/docs`.
 
-Most reusable backend code (modules, services, the Drizzle schema, queue bindings) lives in the [`@seotracker/server`](../../packages/server) package and is consumed by both this app and `apps/jobs` / `apps/scheduler`.
+Most reusable backend code (modules, services, the Drizzle schema, queue bindings) lives in the [`@seotracker/server`](../../packages/server) package and is consumed by both this app and `apps/worker`.
 
 ## What it does
 
@@ -59,7 +59,7 @@ Migrations are **not** executed at process boot. Run them as a one-shot deploy s
 pnpm db:migrate
 ```
 
-This avoids races between concurrent api/jobs/scheduler instances trying to apply the same DDL.
+This avoids races between concurrent api/worker instances trying to apply the same DDL.
 
 ## API docs
 

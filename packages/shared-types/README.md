@@ -1,6 +1,6 @@
 # `@seotracker/shared-types`
 
-Pure TypeScript module with the types and enums shared between backend (`apps/api`, `apps/jobs`, `apps/scheduler`, `packages/server`) and frontend (`apps/web`).
+Pure TypeScript module with the types and enums shared between backend (`apps/api`, `apps/worker`, `packages/server`) and frontend (`apps/web`).
 
 Keeping these in their own package guarantees a single source of truth: a backend rename surfaces as a frontend type error at build time.
 

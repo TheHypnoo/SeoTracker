@@ -2,7 +2,7 @@
 
 > Spanish version: [README.es.md](README.es.md)
 
-SEOTracker is a full-stack monorepo for running, scheduling and comparing SEO audits against your own sites. It is split into a NestJS HTTP API, a BullMQ workers service, a cron scheduler, and a TanStack Start frontend, all built on top of a shared backend runtime and a typed-domain shared package.
+SEOTracker is a full-stack monorepo for running, scheduling and comparing SEO audits against your own sites. It is split into a NestJS HTTP API, a unified BullMQ worker/scheduler service, and a TanStack Start frontend, all built on top of a shared backend runtime and a typed-domain shared package.
 
 ## Repository structure
 
@@ -10,8 +10,7 @@ SEOTracker is a full-stack monorepo for running, scheduling and comparing SEO au
 seotracker/
 ├── apps/
 │   ├── api/           # NestJS HTTP entrypoint (REST /api/v1, Swagger, auth)
-│   ├── jobs/          # BullMQ workers (audits, exports, outbound webhooks)
-│   ├── scheduler/     # Cron dispatcher with Redis-backed distributed lock
+│   ├── worker/        # BullMQ processors + cron scheduler
 │   └── web/           # TanStack Start + React + Tailwind v4 frontend
 ├── packages/
 │   ├── server/        # Shared backend runtime (Drizzle schema, Nest modules, queue, lock)
@@ -55,8 +54,7 @@ pnpm install
 
 # Set up env files (copy and fill the placeholders)
 cp apps/api/.env.example apps/api/.env
-cp apps/jobs/.env.example apps/jobs/.env
-cp apps/scheduler/.env.example apps/scheduler/.env
+cp apps/worker/.env.example apps/worker/.env
 cp apps/web/.env.example apps/web/.env
 
 # Generate JWT secrets and paste them into apps/api/.env

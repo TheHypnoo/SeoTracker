@@ -30,7 +30,7 @@ const COMMON_REMOVE_OPTS = {
 /**
  * Producer-side facade over the three BullMQ queues used by the platform:
  *
- * - `audit`: runs the SEO engine against a site (consumed by `apps/jobs`).
+ * - `audit`: runs the SEO engine against a site (consumed by `apps/worker`).
  * - `export`: builds CSV/PDF/JSON files asynchronously.
  * - `outbound-deliveries`: posts events to user-registered webhook URLs.
  *
