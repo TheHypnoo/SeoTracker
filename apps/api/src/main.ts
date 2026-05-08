@@ -8,12 +8,14 @@ import { Logger } from 'nestjs-pino';
 
 import { AppModule } from './app.module';
 import { configureApiApp } from './configure-api-app';
+import { runDatabaseMigrations } from './run-migrations';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
   const configService = app.get(ConfigService<Env, true>);
   configureApiApp(app);
+  await runDatabaseMigrations(app);
 
   const port = configService.get('PORT', { infer: true });
   await app.listen(port, '::');

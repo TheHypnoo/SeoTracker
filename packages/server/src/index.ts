@@ -7,6 +7,7 @@ export { AuditsProcessor } from './audits/audits.processor';
 export { AuthModule } from './auth/auth.module';
 export type { Env } from './config/env.schema';
 export { envSchema } from './config/env.schema';
+export { DRIZZLE } from './database/database.constants';
 export { DatabaseModule } from './database/database.module';
 export { ExportsModule } from './exports/exports.module';
 export { ExportsProcessor } from './exports/exports.processor';
