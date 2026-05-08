@@ -1,4 +1,4 @@
-FROM node:26.0.0-alpine3.23 AS builder
+FROM node:26.1.0-alpine3.23 AS builder
 WORKDIR /app
 RUN npm install -g pnpm@11.0.8
 
@@ -10,7 +10,7 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 RUN pnpm turbo run build --filter=worker...
 RUN pnpm --filter worker --prod --ignore-scripts --legacy deploy /deploy
 
-FROM node:26.0.0-alpine3.23 AS runtime
+FROM node:26.1.0-alpine3.23 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apk add --no-cache wget
