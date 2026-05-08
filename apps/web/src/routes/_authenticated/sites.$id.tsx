@@ -430,10 +430,7 @@ function ProjectDetailPage() {
         </div>
 
         {trends.data && trends.data.points.length > 1 ? (
-          <TrendsPanel
-            points={trends.data.points}
-            onCompare={openComparison}
-          />
+          <TrendsPanel points={trends.data.points} onCompare={openComparison} />
         ) : null}
 
         <CompareAuditsPanel
@@ -527,11 +524,11 @@ function ProjectDetailPage() {
                               {audit.criticalIssuesCount} críticas
                             </span>
                           ) : null}
-	                        </div>
-	                        <div className="mt-0.5 text-xs text-slate-500">
-	                          {formatDisplayDateTime(audit.createdAt)} · #{audit.id.slice(0, 8)} ·{' '}
-	                          {audit.issuesCount} hallazgos
-	                        </div>
+                        </div>
+                        <div className="mt-0.5 text-xs text-slate-500">
+                          {formatDisplayDateTime(audit.createdAt)} · #{audit.id.slice(0, 8)} ·{' '}
+                          {audit.issuesCount} hallazgos
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-1 text-slate-500">
@@ -617,34 +614,34 @@ function ProjectDetailPage() {
       >
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
-              <SelectInput
-                id="schedule-frequency"
-                label="Frecuencia"
-                value={scheduleForm.frequency}
-                onValueChange={(value) =>
-                  setScheduleForm((current) => ({
-                    ...current,
-                    frequency: value as 'DAILY' | 'WEEKLY',
-                  }))
-                }
-                options={[
-                  { value: 'DAILY', label: 'Diaria' },
-                  { value: 'WEEKLY', label: 'Semanal' },
-                ]}
-              />
+            <SelectInput
+              id="schedule-frequency"
+              label="Frecuencia"
+              value={scheduleForm.frequency}
+              onValueChange={(value) =>
+                setScheduleForm((current) => ({
+                  ...current,
+                  frequency: value as 'DAILY' | 'WEEKLY',
+                }))
+              }
+              options={[
+                { value: 'DAILY', label: 'Diaria' },
+                { value: 'WEEKLY', label: 'Semanal' },
+              ]}
+            />
             {scheduleForm.frequency === 'WEEKLY' ? (
-                <SelectInput
-                  id="schedule-day"
-                  label="Día de la semana"
-                  value={scheduleForm.dayOfWeek}
-                  onValueChange={(value) =>
-                    setScheduleForm((current) => ({ ...current, dayOfWeek: value }))
-                  }
-                  options={DAY_LABELS.map((label, index) => ({
-                    value: String(index),
-                    label,
-                  }))}
-                />
+              <SelectInput
+                id="schedule-day"
+                label="Día de la semana"
+                value={scheduleForm.dayOfWeek}
+                onValueChange={(value) =>
+                  setScheduleForm((current) => ({ ...current, dayOfWeek: value }))
+                }
+                options={DAY_LABELS.map((label, index) => ({
+                  value: String(index),
+                  label,
+                }))}
+              />
             ) : null}
             <div>
               <label
@@ -681,7 +678,11 @@ function ProjectDetailPage() {
             <Button type="button" variant="ghost" onClick={() => setScheduleModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="button" onClick={() => saveSchedule.mutate()} disabled={saveSchedule.isPending}>
+            <Button
+              type="button"
+              onClick={() => saveSchedule.mutate()}
+              disabled={saveSchedule.isPending}
+            >
               <Save size={14} />
               {saveSchedule.isPending ? 'Guardando...' : 'Guardar'}
             </Button>
@@ -957,9 +958,9 @@ function ExportsCard({
                     <div className="truncate font-medium text-slate-800">
                       {item.kind} · {item.format}
                     </div>
-	                    <div className="text-[10px] text-slate-500">
-	                      {formatDisplayDateTime(item.createdAt)}
-	                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {formatDisplayDateTime(item.createdAt)}
+                    </div>
                   </div>
                   {item.status === 'COMPLETED' ? (
                     <button
@@ -1036,15 +1037,13 @@ function ComparisonsSection({
                       {item.regressionsCount} reg.
                     </span>
                   </div>
-	                  <div className="mt-1 text-xs text-slate-500">
-	                    {item.baselineRun?.createdAt
-	                      ? formatDisplayDate(item.baselineRun.createdAt)
-	                      : '--'}{' '}
-	                    →{' '}
-	                    {item.targetRun?.createdAt
-	                      ? formatDisplayDate(item.targetRun.createdAt)
-	                      : '--'}
-	                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {item.baselineRun?.createdAt
+                      ? formatDisplayDate(item.baselineRun.createdAt)
+                      : '--'}{' '}
+                    →{' '}
+                    {item.targetRun?.createdAt ? formatDisplayDate(item.targetRun.createdAt) : '--'}
+                  </div>
                 </button>
               </li>
             );

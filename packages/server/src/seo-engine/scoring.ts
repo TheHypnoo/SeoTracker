@@ -25,9 +25,7 @@ export const SITE_LEVEL_CODES: ReadonlySet<IssueCode> = new Set<IssueCode>([
   IssueCode.PAGE_TOO_HEAVY,
 ]);
 
-const ZERO_SCORE_CODES: ReadonlySet<IssueCode> = new Set<IssueCode>([
-  IssueCode.DOMAIN_UNREACHABLE,
-]);
+const ZERO_SCORE_CODES: ReadonlySet<IssueCode> = new Set<IssueCode>([IssueCode.DOMAIN_UNREACHABLE]);
 
 const SEVERITY_WEIGHTS: Record<Severity, number> = {
   [Severity.CRITICAL]: 25,

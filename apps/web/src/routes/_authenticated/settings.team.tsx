@@ -433,14 +433,14 @@ function EditMemberPermissionsModal({
         </div>
       }
     >
-              <RolePermissionsEditor
-                role={role}
-                onRoleChange={(nextRole) => dispatch({ type: 'role', role: nextRole })}
-                effective={effective}
-                onEffectiveChange={(nextEffective) =>
-                  dispatch({ type: 'effective', effective: nextEffective })
-                }
-              />
+      <RolePermissionsEditor
+        role={role}
+        onRoleChange={(nextRole) => dispatch({ type: 'role', role: nextRole })}
+        effective={effective}
+        onEffectiveChange={(nextEffective) =>
+          dispatch({ type: 'effective', effective: nextEffective })
+        }
+      />
       {error ? (
         <div className="mt-4">
           <Notice tone="danger">{error}</Notice>

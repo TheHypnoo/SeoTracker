@@ -47,10 +47,7 @@ const initialSecretModalState: SecretModalState = {
   visible: false,
 };
 
-function secretModalReducer(
-  state: SecretModalState,
-  action: SecretModalAction,
-): SecretModalState {
+function secretModalReducer(state: SecretModalState, action: SecretModalAction): SecretModalState {
   switch (action.type) {
     case 'closed':
       return initialSecretModalState;

@@ -67,14 +67,14 @@ export function pollWhileAnyAuditActive<T extends { status?: string }>(query: {
   return hasActive ? REFETCH_INTERVALS.ACTIVE_AUDIT_MS : REFETCH_INTERVALS.SLOW_REFRESH_MS;
 }
 
-export function pollWhileAnyLatestAuditActive<T extends { latestAuditStatus?: string | null }>(
-  query: {
-    state: {
-      data: { items?: T[] } | undefined;
-      error?: unknown;
-    };
-  },
-): number | false {
+export function pollWhileAnyLatestAuditActive<
+  T extends { latestAuditStatus?: string | null },
+>(query: {
+  state: {
+    data: { items?: T[] } | undefined;
+    error?: unknown;
+  };
+}): number | false {
   const rateLimitDelay = rateLimitCooldownMs(query.state.error);
   if (rateLimitDelay) {
     return rateLimitDelay;

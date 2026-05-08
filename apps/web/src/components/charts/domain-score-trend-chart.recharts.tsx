@@ -110,7 +110,9 @@ export default function DomainScoreTrendChartRecharts({
           onMouseLeave={() => setActivePoint(null)}
           onMouseMove={(state: ChartMouseState) => {
             const index =
-              state.activeTooltipIndex === undefined ? Number.NaN : Number(state.activeTooltipIndex);
+              state.activeTooltipIndex === undefined
+                ? Number.NaN
+                : Number(state.activeTooltipIndex);
             const coordinate = state.activeCoordinate;
             if (!Number.isInteger(index) || !coordinate || !data[index]) {
               setActivePoint(null);

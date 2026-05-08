@@ -206,9 +206,10 @@ function AuditDetailPage() {
     () => filterIssues(issueData, issueSearch, severityFilter, stateFilter),
     [issueData, issueSearch, severityFilter, stateFilter],
   );
-  const issuesBySeverity = useMemo(() => groupIssuesBySeverity(filteredIssueData), [
-    filteredIssueData,
-  ]);
+  const issuesBySeverity = useMemo(
+    () => groupIssuesBySeverity(filteredIssueData),
+    [filteredIssueData],
+  );
   const issueGroups = useMemo(() => {
     return SEVERITY_ORDER.flatMap((severity) =>
       issuesBySeverity[severity].map((group) => ({ group, severity })),
@@ -650,10 +651,7 @@ function IssuePagination({
   );
 }
 
-function findIssueGroup(
-  buckets: Record<Severity, IssueGroup[]>,
-  code: string,
-): IssueGroup | null {
+function findIssueGroup(buckets: Record<Severity, IssueGroup[]>, code: string): IssueGroup | null {
   for (const groups of Object.values(buckets)) {
     for (const group of groups) {
       if (group.code === code) return group;

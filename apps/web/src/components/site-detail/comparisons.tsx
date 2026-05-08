@@ -54,8 +54,8 @@ export function CompareAuditsPanel({
         </div>
       ) : audits.length < 2 ? (
         <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-          Necesitas al menos dos auditorías completadas para comparar. Las auditorías fallidas,
-          en cola o en ejecución no se usan como base de comparativa.
+          Necesitas al menos dos auditorías completadas para comparar. Las auditorías fallidas, en
+          cola o en ejecución no se usan como base de comparativa.
         </div>
       ) : (
         <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
@@ -152,9 +152,7 @@ export function ComparisonsSection({
                       ? formatDisplayDate(item.baselineRun.createdAt)
                       : '--'}{' '}
                     →{' '}
-                    {item.targetRun?.createdAt
-                      ? formatDisplayDate(item.targetRun.createdAt)
-                      : '--'}
+                    {item.targetRun?.createdAt ? formatDisplayDate(item.targetRun.createdAt) : '--'}
                   </div>
                 </button>
               </li>

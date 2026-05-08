@@ -68,7 +68,9 @@ export default function ScoreTrendChartRecharts({
           onMouseLeave={() => setActivePoint(null)}
           onMouseMove={(state: ChartMouseState) => {
             const index =
-              state.activeTooltipIndex === undefined ? Number.NaN : Number(state.activeTooltipIndex);
+              state.activeTooltipIndex === undefined
+                ? Number.NaN
+                : Number(state.activeTooltipIndex);
             const coordinate = state.activeCoordinate;
             if (!Number.isInteger(index) || !coordinate || !data[index]) {
               setActivePoint(null);
@@ -138,7 +140,9 @@ export default function ScoreTrendChartRecharts({
 
 function ScoreTooltip({ point, x, y }: { point: ChartDatum; x: number; y: number }) {
   const deltaLabel =
-    point.delta === null ? 'Primer punto' : `${point.delta > 0 ? '+' : ''}${point.delta} vs. anterior`;
+    point.delta === null
+      ? 'Primer punto'
+      : `${point.delta > 0 ? '+' : ''}${point.delta} vs. anterior`;
 
   return (
     <div

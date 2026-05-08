@@ -249,9 +249,7 @@ function ProjectIssuesPage() {
                         {issue.lastSeenAt ? (
                           <>
                             <span aria-hidden="true">·</span>
-                            <span>
-                              Vista por última vez {formatDisplayDate(issue.lastSeenAt)}
-                            </span>
+                            <span>Vista por última vez {formatDisplayDate(issue.lastSeenAt)}</span>
                           </>
                         ) : null}
                       </div>

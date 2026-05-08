@@ -225,7 +225,10 @@ export function CreateWebhookForm({ onCreate }: Props) {
                         }}
                       />
                       <div>
-                        <label htmlFor={eventInputId} className="cursor-pointer font-semibold text-slate-900">
+                        <label
+                          htmlFor={eventInputId}
+                          className="cursor-pointer font-semibold text-slate-900"
+                        >
                           {EVENT_LABELS[event] ?? event}
                         </label>
                         <div className="font-mono text-[11px] text-slate-500">{event}</div>

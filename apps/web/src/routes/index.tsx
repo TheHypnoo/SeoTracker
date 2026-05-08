@@ -125,10 +125,34 @@ const heroMetrics = [
 ] as const;
 
 const recentAudits = [
-  { delta: '+4', deltaTone: 'text-emerald-600', domain: 'tienda.com', score: 92, when: 'hace 2 min' },
-  { delta: '−3', deltaTone: 'text-rose-600', domain: 'blog.ejemplo.io', score: 78, when: 'hace 14 min' },
-  { delta: '+1', deltaTone: 'text-emerald-600', domain: 'app.saas.dev', score: 88, when: 'hace 38 min' },
-  { delta: '+7', deltaTone: 'text-emerald-600', domain: 'docs.devshop.io', score: 95, when: 'hace 1 h' },
+  {
+    delta: '+4',
+    deltaTone: 'text-emerald-600',
+    domain: 'tienda.com',
+    score: 92,
+    when: 'hace 2 min',
+  },
+  {
+    delta: '−3',
+    deltaTone: 'text-rose-600',
+    domain: 'blog.ejemplo.io',
+    score: 78,
+    when: 'hace 14 min',
+  },
+  {
+    delta: '+1',
+    deltaTone: 'text-emerald-600',
+    domain: 'app.saas.dev',
+    score: 88,
+    when: 'hace 38 min',
+  },
+  {
+    delta: '+7',
+    deltaTone: 'text-emerald-600',
+    domain: 'docs.devshop.io',
+    score: 95,
+    when: 'hace 1 h',
+  },
 ] as const;
 
 const painPoints = [
@@ -348,10 +372,7 @@ function HomePage() {
 
           <h1 className="mt-6 text-5xl leading-[1.05] font-extrabold tracking-tight text-slate-950 sm:text-6xl md:text-7xl">
             El SEO técnico de tu sitio,{' '}
-            <span className="text-brand-600">
-              bajo vigilancia continua
-            </span>
-            .
+            <span className="text-brand-600">bajo vigilancia continua</span>.
           </h1>
 
           <p className="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-slate-600 sm:text-xl">
@@ -721,10 +742,16 @@ function HomePage() {
 
               <dl className="mt-8 grid gap-3 sm:grid-cols-2">
                 {[
-                  { body: 'Cuando un crawl termina con score y deltas listos.', label: 'audit.completed' },
+                  {
+                    body: 'Cuando un crawl termina con score y deltas listos.',
+                    label: 'audit.completed',
+                  },
                   { body: 'Cuando un crawl no logra completarse.', label: 'audit.failed' },
                   { body: 'Aparece un issue de severidad crítica.', label: 'issue.critical' },
-                  { body: 'El score baja respecto a la auditoría anterior.', label: 'site.regression' },
+                  {
+                    body: 'El score baja respecto a la auditoría anterior.',
+                    label: 'site.regression',
+                  },
                 ].map((row) => (
                   <div
                     key={row.label}
@@ -828,11 +855,7 @@ Content-Type: application/json
         <div className="relative mx-auto max-w-2xl">
           <SectionEyebrow>empieza ya</SectionEyebrow>
           <h2 className="mt-5 text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl md:text-6xl">
-            Empieza a vigilar tu SEO{' '}
-            <span className="text-brand-600">
-              hoy
-            </span>
-            .
+            Empieza a vigilar tu SEO <span className="text-brand-600">hoy</span>.
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
             La primera auditoría es gratis y queda en tu histórico. Sin tarjeta, sin fricción.
