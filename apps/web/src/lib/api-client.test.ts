@@ -78,6 +78,48 @@ describe('ApiClient', () => {
     expect(result).toEqual({ ok: true });
   });
 
+  it('refreshes before protected requests when no access token is in memory', async () => {
+    let token: string | null = null;
+    const refreshSession = vi.fn().mockImplementation(() => {
+      token = 'token-after-refresh';
+      return Promise.resolve(true);
+    });
+    const client = new ApiClient({
+      baseUrl: 'http://api.test',
+      getAccessToken: () => token,
+      refreshSession,
+      maxRetries: 0,
+    });
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+
+    const result = await client.get<{ ok: boolean }>('/projects');
+
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0];
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      'Bearer token-after-refresh',
+    );
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('does not pre-refresh credential bootstrap requests', async () => {
+    const refreshSession = vi.fn().mockResolvedValue(true);
+    const client = new ApiClient({
+      baseUrl: 'http://api.test',
+      getAccessToken: () => null,
+      refreshSession,
+      maxRetries: 0,
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { accessToken: 't', user: { id: 'u1' } }));
+
+    await client.post('/auth/login', { email: 'a@b.c', password: 'pw' });
+
+    expect(refreshSession).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('does not refresh when the failing request is /auth/refresh itself', async () => {
     const refreshSession = vi.fn().mockResolvedValue(true);
     const client = new ApiClient({
@@ -132,16 +174,18 @@ describe('ApiClient', () => {
     expect(err.retryAfterMs).toBe(7000);
   });
 
-  it('retries on 429 then succeeds', async () => {
+  it('does not retry 429 so callers can enter a shared cooldown', async () => {
     const client = new ApiClient({ baseUrl: 'http://api.test', maxRetries: 1, timeoutMs: 5000 });
     fetchMock
       .mockResolvedValueOnce(jsonResponse(429, { message: 'slow' }))
       .mockResolvedValueOnce(jsonResponse(200, { ok: true }));
 
-    const result = await client.get<{ ok: boolean }>('/x');
+    await expect(client.get<{ ok: boolean }>('/x')).rejects.toMatchObject({
+      status: 429,
+      message: 'slow',
+    });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('retries transient 5xx on GET but not on POST', async () => {

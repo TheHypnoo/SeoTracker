@@ -36,7 +36,6 @@ export class ApiClientError extends Error {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RETRIES = 2;
-const RATE_LIMIT_STATUS = 429;
 const TRANSIENT_GET_STATUS = new Set([408, 500, 502, 503, 504]);
 
 /**
@@ -48,8 +47,9 @@ const TRANSIENT_GET_STATUS = new Set([408, 500, 502, 503, 504]);
  * - On 401 + successful refresh, the original request is replayed once.
  * - GET responses are deduplicated while in-flight to avoid duplicate fetches when
  *   multiple components mount at the same time.
- * - Retries: 429 on any method (honours `Retry-After`), 408/5xx only on GET, with
- *   exponential backoff and jitter.
+ * - Retries: 408/5xx only on GET, with exponential backoff and jitter.
+ *   429 is surfaced immediately so polling callers can enter a shared cooldown
+ *   instead of each request sleeping and replaying independently.
  * - Errors surface as `ApiClientError` with the original status code preserved.
  */
 export class ApiClient {
@@ -111,12 +111,6 @@ export class ApiClient {
       try {
         const response = await attemptFetch();
 
-        // Rate-limit: retry on any method, honoring Retry-After if present.
-        if (response.status === RATE_LIMIT_STATUS && attempt < this.maxRetries) {
-          await sleep(parseRetryAfterMs(response) ?? backoffMs(attempt));
-          continue;
-        }
-
         // Transient 5xx / 408: only safe to retry on GET.
         if (isGet && TRANSIENT_GET_STATUS.has(response.status) && attempt < this.maxRetries) {
           await sleep(backoffMs(attempt));
@@ -142,6 +136,10 @@ export class ApiClient {
     body?: unknown,
     extraHeaders?: HeadersInit,
   ): Promise<T> {
+    if (this.shouldRefreshBeforeRequest(path)) {
+      await this.tryRefresh();
+    }
+
     let response = await this.request(path, method, body, extraHeaders);
 
     // 401 with auto-refresh: try a single refresh and replay the request once
@@ -212,6 +210,10 @@ export class ApiClient {
   }
 
   async getBlob(path: string) {
+    if (this.shouldRefreshBeforeRequest(path)) {
+      await this.tryRefresh();
+    }
+
     const response = await this.request(path, 'GET');
 
     if (!response.ok) {
@@ -228,6 +230,25 @@ export class ApiClient {
 
     return response.blob();
   }
+
+  private shouldRefreshBeforeRequest(path: string): boolean {
+    return (
+      Boolean(this.options.refreshSession) &&
+      Boolean(this.options.getAccessToken) &&
+      !this.options.getAccessToken?.() &&
+      !isAuthBootstrapPath(path)
+    );
+  }
+}
+
+function isAuthBootstrapPath(path: string): boolean {
+  return (
+    path.startsWith('/auth/login') ||
+    path.startsWith('/auth/register') ||
+    path.startsWith('/auth/refresh') ||
+    path.startsWith('/auth/session') ||
+    path.startsWith('/auth/password/')
+  );
 }
 
 function backoffMs(attempt: number): number {
