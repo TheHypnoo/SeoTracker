@@ -9,6 +9,7 @@ import { Pagination } from '#/components/pagination';
 import { Skeleton } from '#/components/skeleton';
 import { downloadExport } from '#/components/site-detail/helpers';
 import { useAuth } from '../../lib/auth-context';
+import { formatDisplayDateTime } from '../../lib/date-format';
 import { useToast } from '../../components/toast';
 
 interface ProjectExportRow {
@@ -141,7 +142,7 @@ function ProjectExportsPage() {
                     </Link>
                     <span className="font-mono">{exp.siteDomain}</span>
                     <span aria-hidden="true">·</span>
-                    <span>{new Date(exp.createdAt).toLocaleString()}</span>
+                    <span>{formatDisplayDateTime(exp.createdAt)}</span>
                   </div>
                 </div>
 

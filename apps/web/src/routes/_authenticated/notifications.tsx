@@ -6,6 +6,7 @@ import { EmptyState } from '#/components/empty-state';
 import { QueryState } from '#/components/query-state';
 import { Skeleton } from '#/components/skeleton';
 import { useAuth } from '../../lib/auth-context';
+import { formatDisplayDateTime, toTimestamp } from '../../lib/date-format';
 import { REFETCH_INTERVALS } from '../../lib/refetch-intervals';
 
 type Notification = {
@@ -41,11 +42,11 @@ function NotificationsPage() {
 
   const sorted = useMemo(() => {
     if (!notifications.data) return notifications.data;
-    return [...notifications.data].sort((a, b) => {
+    return notifications.data.toSorted((a, b) => {
       const aUnread = a.readAt === null;
       const bUnread = b.readAt === null;
       if (aUnread !== bUnread) return aUnread ? -1 : 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return toTimestamp(b.createdAt) - toTimestamp(a.createdAt);
     });
   }, [notifications.data]);
 
@@ -116,7 +117,7 @@ function NotificationsPage() {
                         </div>
                         <p className="mt-1 text-sm text-slate-600">{item.body}</p>
                         <p className="mt-1 text-xs text-slate-400">
-                          {new Date(item.createdAt).toLocaleString()}
+                          {formatDisplayDateTime(item.createdAt)}
                         </p>
                       </div>
                       {unread ? (

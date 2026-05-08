@@ -15,6 +15,8 @@ import {
   triggerLabel,
 } from '#/components/site-detail/helpers';
 import { useAuth } from '../../lib/auth-context';
+import { formatDisplayDateTime } from '../../lib/date-format';
+import { pollWhileAnyAuditActive } from '../../lib/refetch-intervals';
 
 interface ProjectAuditRow {
   id: string;
@@ -70,11 +72,7 @@ function ProjectAuditsPage() {
       );
     },
     queryKey: ['project-audits', id, statusFilter, triggerFilter, siteFilter, offset],
-    refetchInterval: (query) => {
-      const items = query.state.data?.items ?? [];
-      const hasActive = items.some((it) => it.status === 'QUEUED' || it.status === 'RUNNING');
-      return hasActive ? 3_000 : 30_000;
-    },
+    refetchInterval: pollWhileAnyAuditActive,
   });
 
   const items = audits.data?.items ?? [];
@@ -211,7 +209,7 @@ function ProjectAuditsPage() {
                         · {audit.issuesCount} hallazgos
                       </span>
                       <span className="text-xs text-slate-400">
-                        · {new Date(audit.createdAt).toLocaleString()}
+                        · {formatDisplayDateTime(audit.createdAt)}
                       </span>
                     </div>
                   </div>

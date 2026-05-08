@@ -1,5 +1,5 @@
 import { Copy, Eye, EyeOff, RotateCcw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer } from 'react';
 
 import { Button } from '../button';
 import { Modal } from '../modal';
@@ -17,6 +17,66 @@ type Props = {
   onRotated: () => void;
 };
 
+type SecretModalState = {
+  secret: string | null;
+  error: string | null;
+  copied: boolean;
+  loading: boolean;
+  rotating: boolean;
+  visible: boolean;
+};
+
+type SecretModalAction =
+  | { type: 'closed' }
+  | { type: 'loading' }
+  | { type: 'loaded'; secret: string }
+  | { type: 'failed'; message: string }
+  | { type: 'copy-success' }
+  | { type: 'copy-reset' }
+  | { type: 'toggle-visible' }
+  | { type: 'rotate-start' }
+  | { type: 'rotate-success'; secret: string }
+  | { type: 'rotate-failed'; message: string };
+
+const initialSecretModalState: SecretModalState = {
+  secret: null,
+  error: null,
+  copied: false,
+  loading: false,
+  rotating: false,
+  visible: false,
+};
+
+function secretModalReducer(
+  state: SecretModalState,
+  action: SecretModalAction,
+): SecretModalState {
+  switch (action.type) {
+    case 'closed':
+      return initialSecretModalState;
+    case 'loading':
+      return { ...state, error: null, loading: true };
+    case 'loaded':
+      return { ...state, secret: action.secret, loading: false };
+    case 'failed':
+      return { ...state, error: action.message, loading: false };
+    case 'copy-success':
+      return { ...state, copied: true };
+    case 'copy-reset':
+      return { ...state, copied: false };
+    case 'toggle-visible':
+      return { ...state, visible: !state.visible };
+    case 'rotate-start':
+      return { ...state, error: null, rotating: true };
+    case 'rotate-success':
+      return { ...state, secret: action.secret, rotating: false };
+    case 'rotate-failed':
+      return { ...state, error: action.message, rotating: false };
+    default:
+      return state;
+  }
+}
+
 /**
  * Modal that fetches the shared signing secret for a webhook on open and
  * offers copy / show-hide / rotate actions. Each open re-fetches the value
@@ -24,35 +84,28 @@ type Props = {
  */
 export function SecretModal({ open, onOpenChange, webhook, basePath, onRotated }: Props) {
   const auth = useAuth();
-  const [secret, setSecret] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [rotating, setRotating] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [state, dispatch] = useReducer(secretModalReducer, initialSecretModalState);
+  const { secret, error, copied, loading, rotating, visible } = state;
 
   useEffect(() => {
     if (!open) {
-      setSecret(null);
-      setError(null);
-      setCopied(false);
-      setVisible(false);
+      dispatch({ type: 'closed' });
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    dispatch({ type: 'loading' });
     auth.api
       .get<{ secret: string }>(`${basePath}/${webhook.id}/secret`)
       .then((res) => {
-        if (!cancelled) setSecret(res.secret);
+        if (!cancelled) dispatch({ type: 'loaded', secret: res.secret });
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'No se pudo cargar el secreto');
+          dispatch({
+            type: 'failed',
+            message: err instanceof Error ? err.message : 'No se pudo cargar el secreto',
+          });
         }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -63,25 +116,25 @@ export function SecretModal({ open, onOpenChange, webhook, basePath, onRotated }
     if (!secret) return;
     try {
       await navigator.clipboard.writeText(secret);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      dispatch({ type: 'copy-success' });
+      setTimeout(() => dispatch({ type: 'copy-reset' }), 2000);
     } catch {
-      setError('No se pudo copiar al portapapeles');
+      dispatch({ type: 'failed', message: 'No se pudo copiar al portapapeles' });
     }
   };
 
   const rotate = async () => {
-    setRotating(true);
-    setError(null);
+    dispatch({ type: 'rotate-start' });
     try {
       await auth.api.post(`${basePath}/${webhook.id}/rotate-secret`);
       const res = await auth.api.get<{ secret: string }>(`${basePath}/${webhook.id}/secret`);
-      setSecret(res.secret);
+      dispatch({ type: 'rotate-success', secret: res.secret });
       onRotated();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo rotar el secreto');
-    } finally {
-      setRotating(false);
+      dispatch({
+        type: 'rotate-failed',
+        message: err instanceof Error ? err.message : 'No se pudo rotar el secreto',
+      });
     }
   };
 
@@ -111,7 +164,7 @@ export function SecretModal({ open, onOpenChange, webhook, basePath, onRotated }
               </div>
               <button
                 type="button"
-                onClick={() => setVisible((v) => !v)}
+                onClick={() => dispatch({ type: 'toggle-visible' })}
                 aria-label={visible ? 'Ocultar secreto' : 'Mostrar secreto'}
                 className="inline-flex w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
               >

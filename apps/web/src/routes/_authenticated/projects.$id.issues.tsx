@@ -9,6 +9,7 @@ import { SelectInput } from '#/components/select-input';
 import { Skeleton } from '#/components/skeleton';
 import { CATEGORY_LABELS, getIssueCodeInfo } from '../../lib/issue-codes';
 import { useAuth } from '../../lib/auth-context';
+import { formatDisplayDate } from '../../lib/date-format';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 type IssueState = 'OPEN' | 'IGNORED' | 'FIXED';
@@ -249,7 +250,7 @@ function ProjectIssuesPage() {
                           <>
                             <span aria-hidden="true">·</span>
                             <span>
-                              Vista por última vez {new Date(issue.lastSeenAt).toLocaleDateString()}
+                              Vista por última vez {formatDisplayDate(issue.lastSeenAt)}
                             </span>
                           </>
                         ) : null}

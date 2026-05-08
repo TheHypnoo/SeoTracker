@@ -6,6 +6,7 @@ import { Button } from '../button';
 import { QueryState } from '../query-state';
 import { Skeleton } from '../skeleton';
 import { useAuth } from '../../lib/auth-context';
+import { formatDisplayDateTime } from '../../lib/date-format';
 import { REFETCH_INTERVALS } from '../../lib/refetch-intervals';
 import { type OutboundDelivery, STATUS_TONE, statusLabel } from './integrations-types';
 
@@ -95,7 +96,7 @@ export function DeliveriesHistory({ webhookId, basePath, enabled }: Props) {
                     ) : null}
                   </div>
                   <div className="text-[11px] text-slate-400">
-                    {new Date(delivery.createdAt).toLocaleString()} ·{' '}
+                    {formatDisplayDateTime(delivery.createdAt)} ·{' '}
                     {delivery.attemptCount === 1
                       ? '1 intento'
                       : `${delivery.attemptCount} intentos`}

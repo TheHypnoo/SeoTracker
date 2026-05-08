@@ -29,6 +29,7 @@ import {
 } from '#/components/dashboard/trend-chart';
 
 import { useAuth } from '../../lib/auth-context';
+import { formatDisplayDate, formatDisplayDateTime } from '../../lib/date-format';
 import { useFormSubmitHandler } from '../../lib/forms';
 import { useProject } from '../../lib/project-context';
 
@@ -44,7 +45,7 @@ function DashboardPage() {
   const dashboard = useQuery({
     queryKey: ['project-dashboard', project.activeProjectId],
     queryFn: () => auth.api.get<DashboardPayload>(`/projects/${project.activeProjectId}/dashboard`),
-    enabled: Boolean(auth.accessToken && project.activeProjectId),
+    enabled: Boolean(auth.user && project.activeProjectId),
   });
 
   const createProject = useMutation({
@@ -72,13 +73,8 @@ function DashboardPage() {
   });
 
   const quickAudit = useMutation({
-    // Sequential to play nice with the API rate-limiter; the ApiClient already
-    // retries on 429 honoring Retry-After, so the worst case is a slower run
-    // — not a failed batch.
     mutationFn: async (siteIds: string[]) => {
-      for (const id of siteIds) {
-        await auth.api.post(`/sites/${id}/audits/run`);
-      }
+      await Promise.all(siteIds.map((siteId) => auth.api.post(`/sites/${siteId}/audits/run`)));
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -346,18 +342,23 @@ function DashboardPage() {
                     description="Las auditorías, invitaciones y alertas aparecerán aquí."
                   />
                 ) : (
-                  <ol className="relative space-y-4 border-l border-slate-200 pl-5">
+                  <ol className="space-y-4">
                     {data.activity.map((item) => (
-                      <li key={`${item.kind}-${item.createdAt}`} className="relative">
+                      <li
+                        key={`${item.kind}-${item.createdAt}`}
+                        className="grid grid-cols-[0.875rem_1fr] gap-3"
+                      >
                         <span
                           aria-hidden="true"
-                          className={`absolute -left-[27px] top-1 inline-flex h-3 w-3 rounded-full ring-4 ring-white ${activityDot(item.kind)}`}
+                          className={`mt-1.5 inline-flex h-3 w-3 rounded-full ring-4 ring-white ${activityDot(item.kind)}`}
                         />
-                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                        <p className="mt-1 text-sm text-slate-600">{item.body}</p>
-                        <p className="mt-1.5 text-xs text-slate-400">
-                          {new Date(item.createdAt).toLocaleString()}
-                        </p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                          <p className="mt-1 text-sm text-slate-600">{item.body}</p>
+                          <p className="mt-1.5 text-xs text-slate-400">
+                            {formatDisplayDateTime(item.createdAt)}
+                          </p>
+                        </div>
                       </li>
                     ))}
                   </ol>
@@ -416,7 +417,7 @@ function DashboardPage() {
                       </div>
                       <div className="mt-6 text-sm text-slate-500">
                         {site.latestAuditAt
-                          ? `Auditado: ${new Date(site.latestAuditAt).toLocaleDateString()}`
+                          ? `Auditado: ${formatDisplayDate(site.latestAuditAt)}`
                           : 'Sin auditorías todavía'}
                       </div>
                     </Link>
@@ -478,7 +479,7 @@ function DashboardPage() {
                           </td>
                           <td className="px-4 py-4 text-slate-800">{audit.projectName}</td>
                           <td className="px-4 py-4 text-slate-600">
-                            {new Date(audit.createdAt).toLocaleString()}
+                            {formatDisplayDateTime(audit.createdAt)}
                           </td>
                           <td className="px-4 py-4 text-slate-700">{audit.issuesCount}</td>
                           <td className="px-4 py-4">

@@ -1,7 +1,7 @@
 import { OutboundEvent } from '@seotracker/shared-types';
 import { useForm } from '@tanstack/react-form';
 import { Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import { Button } from '../button';
 import { Notice } from '../notice';
@@ -28,6 +28,7 @@ type Props = {
  * file owns the mutation + cache invalidation.
  */
 export function CreateWebhookForm({ onCreate }: Props) {
+  const formId = useId();
   const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm({
@@ -82,10 +83,14 @@ export function CreateWebhookForm({ onCreate }: Props) {
         >
           {(field) => (
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor={`${formId}-name`}
+                className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+              >
                 Nombre
               </label>
               <TextInput
+                id={`${formId}-name`}
                 placeholder="Slack alerts"
                 value={field.state.value}
                 onBlur={field.handleBlur}
@@ -119,10 +124,14 @@ export function CreateWebhookForm({ onCreate }: Props) {
         >
           {(field) => (
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <label
+                htmlFor={`${formId}-url`}
+                className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+              >
                 URL destino
               </label>
               <TextInput
+                id={`${formId}-url`}
                 placeholder="https://hooks.example.com/seotracker"
                 value={field.state.value}
                 onBlur={field.handleBlur}
@@ -141,10 +150,14 @@ export function CreateWebhookForm({ onCreate }: Props) {
           <form.Field name="headerName">
             {(field) => (
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <label
+                  htmlFor={`${formId}-header-name`}
+                  className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                >
                   Header (opcional)
                 </label>
                 <TextInput
+                  id={`${formId}-header-name`}
                   placeholder="Authorization"
                   value={field.state.value}
                   onBlur={field.handleBlur}
@@ -156,10 +169,14 @@ export function CreateWebhookForm({ onCreate }: Props) {
           <form.Field name="headerValue">
             {(field) => (
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <label
+                  htmlFor={`${formId}-header-value`}
+                  className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                >
                   Valor del header
                 </label>
                 <TextInput
+                  id={`${formId}-header-value`}
                   placeholder="Bearer ..."
                   value={field.state.value}
                   onBlur={field.handleBlur}
@@ -178,15 +195,16 @@ export function CreateWebhookForm({ onCreate }: Props) {
           }}
         >
           {(field) => (
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <fieldset>
+              <legend className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Eventos a suscribir
-              </label>
+              </legend>
               <div className="grid gap-2 sm:grid-cols-2">
                 {ALL_EVENTS.map((event) => {
                   const active = field.state.value.includes(event);
+                  const eventInputId = `${formId}-event-${event}`;
                   return (
-                    <label
+                    <div
                       key={event}
                       className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2 text-sm transition ${
                         active
@@ -196,6 +214,7 @@ export function CreateWebhookForm({ onCreate }: Props) {
                     >
                       <input
                         type="checkbox"
+                        id={eventInputId}
                         className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                         checked={active}
                         onChange={(e) => {
@@ -206,12 +225,12 @@ export function CreateWebhookForm({ onCreate }: Props) {
                         }}
                       />
                       <div>
-                        <div className="font-semibold text-slate-900">
+                        <label htmlFor={eventInputId} className="cursor-pointer font-semibold text-slate-900">
                           {EVENT_LABELS[event] ?? event}
-                        </div>
+                        </label>
                         <div className="font-mono text-[11px] text-slate-500">{event}</div>
                       </div>
-                    </label>
+                    </div>
                   );
                 })}
               </div>
@@ -220,7 +239,7 @@ export function CreateWebhookForm({ onCreate }: Props) {
                   {firstFormError(field.state.meta.errors)}
                 </p>
               ) : null}
-            </div>
+            </fieldset>
           )}
         </form.Field>
 

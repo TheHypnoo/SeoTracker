@@ -3,7 +3,7 @@ import { useForm } from '@tanstack/react-form';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MailPlus, Pencil, Trash2, Users2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useReducer, useState } from 'react';
 import { Button } from '#/components/button';
 import { EmptyState } from '#/components/empty-state';
 import { Modal } from '#/components/modal';
@@ -38,6 +38,39 @@ type Member = {
   email: string;
   name: string;
 };
+
+type EditMemberState = {
+  role: Role;
+  effective: Set<Permission>;
+  error: string | null;
+};
+
+type EditMemberAction =
+  | { type: 'role'; role: Role }
+  | { type: 'effective'; effective: Set<Permission> }
+  | { type: 'error'; error: string | null };
+
+function initEditMemberState(member: Member): EditMemberState {
+  return {
+    role: member.role,
+    effective: new Set(member.effectivePermissions),
+    error: null,
+  };
+}
+
+function editMemberReducer(state: EditMemberState, action: EditMemberAction): EditMemberState {
+  if (action.type === 'role') {
+    return {
+      ...state,
+      role: action.role,
+      effective: new Set(action.role === state.role ? state.effective : state.effective),
+    };
+  }
+  if (action.type === 'effective') {
+    return { ...state, effective: action.effective };
+  }
+  return { ...state, error: action.error };
+}
 
 export const Route = createFileRoute('/_authenticated/settings/team')({
   validateSearch: (search) => searchSchema.parse(search),
@@ -350,11 +383,9 @@ function EditMemberPermissionsModal({
   onSaved: () => Promise<void> | void;
 }) {
   const auth = useAuth();
-  const [role, setRole] = useState<Role>(member.role);
-  const [effective, setEffective] = useState<Set<Permission>>(
-    () => new Set(member.effectivePermissions),
-  );
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [state, dispatch] = useReducer(editMemberReducer, member, initEditMemberState);
+  const { role, effective, error } = state;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -366,11 +397,15 @@ function EditMemberPermissionsModal({
       });
     },
     onSuccess: async () => {
-      setError(null);
+      dispatch({ type: 'error', error: null });
+      await queryClient.invalidateQueries({ queryKey: ['members', projectId] });
       await onSaved();
     },
     onError: (reason) => {
-      setError(reason instanceof Error ? reason.message : 'No se pudo guardar');
+      dispatch({
+        type: 'error',
+        error: reason instanceof Error ? reason.message : 'No se pudo guardar',
+      });
     },
   });
 
@@ -398,12 +433,14 @@ function EditMemberPermissionsModal({
         </div>
       }
     >
-      <RolePermissionsEditor
-        role={role}
-        onRoleChange={setRole}
-        effective={effective}
-        onEffectiveChange={setEffective}
-      />
+              <RolePermissionsEditor
+                role={role}
+                onRoleChange={(nextRole) => dispatch({ type: 'role', role: nextRole })}
+                effective={effective}
+                onEffectiveChange={(nextEffective) =>
+                  dispatch({ type: 'effective', effective: nextEffective })
+                }
+              />
       {error ? (
         <div className="mt-4">
           <Notice tone="danger">{error}</Notice>

@@ -9,7 +9,6 @@ import { ConfirmDeleteModal } from '#/components/confirm-delete-modal';
 import { EmptyState } from '#/components/empty-state';
 import { Modal } from '#/components/modal';
 import { Notice } from '#/components/notice';
-import { SettingsTabs } from '#/components/settings-tabs';
 import { Skeleton } from '#/components/skeleton';
 import { SwitchField } from '#/components/switch-field';
 import { TextInput } from '#/components/text-input';
@@ -37,22 +36,45 @@ export const Route = createFileRoute('/_authenticated/settings/general')({
   component: GeneralSettingsPage,
 });
 
+function useGeneralSettingsUiState() {
+  return {
+    renameOpenState: useState(false),
+    renameErrorState: useState<string | null>(null),
+    deleteProjectOpenState: useState(false),
+    deleteProjectErrorState: useState<string | null>(null),
+    siteRenameTargetState: useState<SiteListItem | null>(null),
+    siteRenameErrorState: useState<string | null>(null),
+    siteDeleteTargetState: useState<SiteListItem | null>(null),
+    siteDeleteErrorState: useState<string | null>(null),
+  };
+}
+
 function GeneralSettingsPage() {
   const auth = useAuth();
   const project = useProject();
   const projectId = project.activeProjectId;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const goToDashboard = navigate;
 
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [renameError, setRenameError] = useState<string | null>(null);
-  const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
-  const [deleteProjectError, setDeleteProjectError] = useState<string | null>(null);
-
-  const [siteRenameTarget, setSiteRenameTarget] = useState<SiteListItem | null>(null);
-  const [siteRenameError, setSiteRenameError] = useState<string | null>(null);
-  const [siteDeleteTarget, setSiteDeleteTarget] = useState<SiteListItem | null>(null);
-  const [siteDeleteError, setSiteDeleteError] = useState<string | null>(null);
+  const {
+    renameOpenState,
+    renameErrorState,
+    deleteProjectOpenState,
+    deleteProjectErrorState,
+    siteRenameTargetState,
+    siteRenameErrorState,
+    siteDeleteTargetState,
+    siteDeleteErrorState,
+  } = useGeneralSettingsUiState();
+  const [renameOpen, setRenameOpen] = renameOpenState;
+  const [renameError, setRenameError] = renameErrorState;
+  const [deleteProjectOpen, setDeleteProjectOpen] = deleteProjectOpenState;
+  const [deleteProjectError, setDeleteProjectError] = deleteProjectErrorState;
+  const [siteRenameTarget, setSiteRenameTarget] = siteRenameTargetState;
+  const [siteRenameError, setSiteRenameError] = siteRenameErrorState;
+  const [siteDeleteTarget, setSiteDeleteTarget] = siteDeleteTargetState;
+  const [siteDeleteError, setSiteDeleteError] = siteDeleteErrorState;
 
   const sites = useQuery({
     enabled: Boolean(auth.user && projectId),
@@ -86,7 +108,11 @@ function GeneralSettingsPage() {
     onSuccess: async () => {
       setRenameError(null);
       setRenameOpen(false);
-      await project.refresh();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['project-dashboard', projectId] }),
+        project.refresh(),
+      ]);
     },
   });
 
@@ -106,9 +132,12 @@ function GeneralSettingsPage() {
     onSuccess: async () => {
       setDeleteProjectError(null);
       setDeleteProjectOpen(false);
-      await project.refresh();
+      queryClient.removeQueries({ queryKey: ['project', projectId] });
+      queryClient.removeQueries({ queryKey: ['sites-list', projectId] });
+      queryClient.removeQueries({ queryKey: ['sites', projectId] });
       queryClient.removeQueries({ queryKey: ['project-dashboard', projectId] });
-      navigate({ to: '/dashboard' });
+      await project.refresh();
+      goToDashboard({ to: '/dashboard' });
     },
   });
 
@@ -174,11 +203,15 @@ function GeneralSettingsPage() {
   return (
     <section className="space-y-6">
       <header>
-        <p className="text-sm font-medium text-slate-500">Ajustes</p>
-        <h1 className="mt-1 text-balance text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-          General
+        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+          Configuración &gt; General
+        </div>
+        <h1 className="mt-3 text-5xl font-black tracking-tight text-slate-950">
+          Ajustes generales
         </h1>
-        <SettingsTabs />
+        <p className="mt-3 max-w-2xl text-sm text-slate-600">
+          Gestiona el proyecto activo, sus dominios y tus preferencias de notificación.
+        </p>
       </header>
 
       {/* Project section */}

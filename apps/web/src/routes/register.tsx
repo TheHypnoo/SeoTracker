@@ -20,6 +20,7 @@ export const Route = createFileRoute('/register')({
 function RegisterPage() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const goToDashboard = navigate;
   const form = useForm({
     defaultValues: {
       name: '',
@@ -37,7 +38,7 @@ function RegisterPage() {
         email: value.email,
         password: value.password,
       });
-      await navigate({ to: '/dashboard' });
+      await goToDashboard({ to: '/dashboard' });
     },
   });
   const { error, onSubmit } = useFormSubmitHandler(form, {

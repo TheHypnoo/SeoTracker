@@ -25,6 +25,7 @@ export const Route = createFileRoute('/login')({
 function LoginPage() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const goToDashboard = navigate;
   const { redirect: redirectTo } = Route.useSearch();
   const form = useForm({
     defaultValues: {
@@ -33,7 +34,7 @@ function LoginPage() {
     },
     onSubmit: async ({ value }) => {
       await auth.login(value);
-      await navigate({ to: redirectTo ?? '/dashboard' });
+      await goToDashboard({ to: redirectTo ?? '/dashboard' });
     },
   });
   const { error, onSubmit } = useFormSubmitHandler(form, {

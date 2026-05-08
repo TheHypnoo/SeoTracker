@@ -12,6 +12,7 @@ import {
 import { EmptyState } from '#/components/empty-state';
 import { QueryState } from '#/components/query-state';
 import { Skeleton } from '#/components/skeleton';
+import { formatCompactDateTime } from '#/lib/date-format';
 
 import { useAuth } from '../../lib/auth-context';
 import { useProject } from '../../lib/project-context';
@@ -39,16 +40,6 @@ export const Route = createFileRoute('/_authenticated/settings/activity')({
   validateSearch: (search) => searchSchema.parse(search),
   component: ActivityPage,
 });
-
-function formatTimestamp(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleString('es-ES', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 function ActivityPage() {
   const auth = useAuth();
@@ -141,7 +132,7 @@ function ActivityPage() {
                           className="shrink-0 self-center font-mono text-[11px] text-slate-500"
                           title={entry.createdAt}
                         >
-                          {formatTimestamp(entry.createdAt)}
+                          {formatCompactDateTime(entry.createdAt)}
                         </time>
                       </li>
                     );

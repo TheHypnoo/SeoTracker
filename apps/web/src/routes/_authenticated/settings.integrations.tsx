@@ -34,8 +34,6 @@ function IntegrationsSettingsPage() {
     enabled: Boolean(auth.accessToken && projectId),
   });
 
-  const refreshList = () => queryClient.invalidateQueries({ queryKey: listKey });
-
   const createWebhook = useMutation({
     mutationFn: (input: CreateWebhookInput) =>
       auth.api.post<OutboundWebhook>(basePath, {
@@ -46,24 +44,24 @@ function IntegrationsSettingsPage() {
         events: input.events,
         enabled: true,
       }),
-    onSuccess: refreshList,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: listKey }),
   });
 
   const toggleWebhook = useMutation({
     mutationFn: (hook: OutboundWebhook) =>
       auth.api.patch(`${basePath}/${hook.id}`, { enabled: !hook.enabled }),
-    onSuccess: refreshList,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: listKey }),
   });
 
   const updateEvents = useMutation({
     mutationFn: (args: { id: string; events: string[] }) =>
       auth.api.patch(`${basePath}/${args.id}`, { events: args.events }),
-    onSuccess: refreshList,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: listKey }),
   });
 
   const deleteWebhook = useMutation({
     mutationFn: (id: string) => auth.api.delete(`${basePath}/${id}`),
-    onSuccess: refreshList,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: listKey }),
   });
 
   return (
@@ -76,12 +74,9 @@ function IntegrationsSettingsPage() {
           Integraciones salientes
         </h1>
         <p className="mt-3 max-w-3xl text-sm text-slate-600">
-          Registra URLs propias para recibir eventos de SEOTracker (auditorías, regresiones…). Cada
-          petición se firma con HMAC-SHA256 en el encabezado{' '}
-          <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">
-            x-seotracker-signature
-          </code>
-          . Puedes añadir un header extra si tu destino necesita autenticación.
+          Añade la URL donde quieres recibir los eventos y, si tu destino lo necesita, un header de
+          autenticación. SEOTracker enviará los datos automáticamente cuando ocurra cada evento
+          seleccionado.
         </p>
       </div>
 
@@ -139,7 +134,7 @@ function IntegrationsSettingsPage() {
                           }
                         }}
                         onEventsChange={(events) => updateEvents.mutate({ id: hook.id, events })}
-                        onRotated={refreshList}
+                        onRotated={() => queryClient.invalidateQueries({ queryKey: listKey })}
                       />
                     ))}
                   </ul>

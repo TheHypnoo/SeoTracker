@@ -20,6 +20,7 @@ function NewProjectPage() {
   const project = useProject();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const goToDashboard = navigate;
   const [error, setError] = useState<string | null>(null);
 
   const createProject = useMutation({
@@ -27,10 +28,9 @@ function NewProjectPage() {
       auth.api.post<{ id: string; name: string }>('/projects', { name }),
     onSuccess: async (created) => {
       setError(null);
-      await project.refresh();
       await project.setActiveProject(created.id);
-      await queryClient.invalidateQueries();
-      navigate({ to: '/dashboard' });
+      await Promise.all([project.refresh(), queryClient.invalidateQueries()]);
+      goToDashboard({ to: '/dashboard' });
     },
   });
 

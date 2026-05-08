@@ -1,5 +1,6 @@
 import { Permission, Role } from '@seotracker/shared-types';
-import { useMemo } from 'react';
+import { RotateCcw } from 'lucide-react';
+import { useId, useMemo } from 'react';
 
 import {
   PERMISSION_GROUPS,
@@ -27,13 +28,13 @@ type Props = {
 /**
  * Reusable editor for role + per-user permission overrides.
  *
- * Renders 3 role radio buttons + a grouped checklist. The checklist is fully
+ * Renders the editable role buttons + a grouped checklist. The checklist is fully
  * controlled: the parent owns the `effective` set. We intentionally don't
  * track extras/revoked here — the parent computes the diff against role
  * defaults at submit time via diffAgainstRoleDefaults().
  *
- * Owner-exclusive permissions are still rendered for OWNER (informational —
- * checked, disabled), and hidden for MEMBER/VIEWER (cannot be granted).
+ * OWNER is shown only when the current subject already is OWNER. Ownership is
+ * transferred through a dedicated flow, not through invitation/member editing.
  */
 export function RolePermissionsEditor({
   role,
@@ -42,6 +43,7 @@ export function RolePermissionsEditor({
   onEffectiveChange,
   lockRole = false,
 }: Props) {
+  const editorId = useId();
   const defaults = useMemo(() => getRoleDefaults(role), [role]);
 
   const setRole = (nextRole: Role) => {
@@ -63,6 +65,7 @@ export function RolePermissionsEditor({
   };
 
   const isOwner = role === Role.OWNER;
+  const roleOptions = isOwner ? [Role.OWNER] : [Role.MEMBER, Role.VIEWER];
 
   return (
     <div className="space-y-5">
@@ -70,12 +73,16 @@ export function RolePermissionsEditor({
         <legend className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
           Rol
         </legend>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {(Object.values(Role) as Role[]).map((value) => {
+        <div
+          className={`mt-3 grid gap-2 ${roleOptions.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}
+        >
+          {roleOptions.map((value) => {
             const selected = role === value;
+            const roleInputId = `${editorId}-role-${value}`;
             return (
               <label
                 key={value}
+                htmlFor={roleInputId}
                 className={`cursor-pointer rounded-xl border px-3 py-2 text-center text-sm font-semibold transition ${
                   selected
                     ? 'border-brand-500 bg-brand-50 text-brand-700'
@@ -84,8 +91,9 @@ export function RolePermissionsEditor({
               >
                 <input
                   type="radio"
+                  id={roleInputId}
                   className="sr-only"
-                  name="member-role"
+                  name={`${editorId}-member-role`}
                   value={value}
                   checked={selected}
                   onChange={() => setRole(value)}
@@ -111,9 +119,10 @@ export function RolePermissionsEditor({
             <button
               type="button"
               onClick={restoreDefaults}
-              className="text-xs font-semibold text-brand-600 hover:text-brand-700"
+              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             >
-              Restablecer a defaults del rol
+              <RotateCcw size={12} aria-hidden="true" />
+              Restablecer permisos del rol
             </button>
           ) : null}
         </div>
@@ -130,11 +139,17 @@ export function RolePermissionsEditor({
                 const checked = effective.has(perm);
                 const disabled = isOwner || ownerOnly;
                 const isDefault = defaults.has(perm);
+                const permissionInputId = `${editorId}-permission-${perm}`;
                 return (
                   <li key={perm}>
-                    <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
+                    <label
+                      htmlFor={permissionInputId}
+                      className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+                    >
                       <input
                         type="checkbox"
+                        id={permissionInputId}
+                        aria-label={PERMISSION_LABELS[perm]}
                         className="mt-1 h-4 w-4 cursor-pointer rounded border-slate-300 text-brand-500 focus:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
                         checked={checked}
                         disabled={disabled}

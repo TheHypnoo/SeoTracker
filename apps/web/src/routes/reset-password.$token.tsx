@@ -21,6 +21,7 @@ function ResetPasswordPage() {
   const { token } = Route.useParams();
   const auth = useAuth();
   const navigate = useNavigate();
+  const goToLogin = navigate;
   const [completed, setCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const form = useForm({
@@ -38,7 +39,7 @@ function ResetPasswordPage() {
       await auth.resetPassword({ password: value.password, token });
       setCompleted(true);
       setTimeout(() => {
-        void navigate({ to: '/login' });
+        void goToLogin({ to: '/login' });
       }, 1000);
     },
   });
