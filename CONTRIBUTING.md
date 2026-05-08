@@ -96,7 +96,7 @@ touch packages/server/src/billing/{billing.module,billing.service,billing.contro
 # packages/server/src/index.ts → export { BillingModule } from './billing/billing.module';
 
 # 4. Importar en apps/api/src/app.module.ts
-# Y en apps/jobs/src/app.module.ts si tiene un processor.
+# Y en apps/worker/src/worker.module.ts si tiene un processor.
 
 # 5. Si hay endpoint nuevo, asegurar @UseGuards(JwtAuthGuard) por defecto
 #    (los públicos son la excepción, ver ARCHITECTURE.md → "Endpoints públicos")

@@ -12,22 +12,12 @@ services:
       - key: PORT
         value: 4000
   - type: worker
-    name: seotracker-jobs
+    name: seotracker-worker
     env: node
     plan: starter
     rootDir: .
-    buildCommand: pnpm install && pnpm --filter jobs build
-    startCommand: pnpm --filter jobs start
-    envVars:
-      - key: NODE_VERSION
-        value: 22
-  - type: worker
-    name: seotracker-scheduler
-    env: node
-    plan: starter
-    rootDir: .
-    buildCommand: pnpm install && pnpm --filter scheduler build
-    startCommand: pnpm --filter scheduler start
+    buildCommand: pnpm install && pnpm --filter worker build
+    startCommand: pnpm --filter worker start
     envVars:
       - key: NODE_VERSION
         value: 22

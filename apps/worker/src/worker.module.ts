@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import {
   AuditsModule,
   AuditsProcessor,
@@ -15,6 +16,7 @@ import {
   OutboundWebhooksModule,
   OutboundWebhooksProcessor,
   QueueModule,
+  SchedulingModule,
   SystemLogsModule,
 } from '@seotracker/server';
 
@@ -28,6 +30,7 @@ import {
     EventEmitterModule.forRoot({ wildcard: false, ignoreErrors: false }),
     LoggerWorkerModule,
     MetricsModule,
+    ScheduleModule.forRoot(),
     DatabaseModule,
     QueueModule,
     SystemLogsModule,
@@ -35,6 +38,7 @@ import {
     ExportsModule,
     OutboundWebhooksModule,
     NotificationsModule,
+    SchedulingModule,
   ],
   providers: [
     AuditsProcessor,
@@ -43,4 +47,4 @@ import {
     EmailDeliveriesProcessor,
   ],
 })
-export class JobsModule {}
+export class WorkerModule {}

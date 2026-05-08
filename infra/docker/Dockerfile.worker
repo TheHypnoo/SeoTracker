@@ -4,19 +4,19 @@ RUN npm install -g pnpm@11.0.8
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
 COPY packages ./packages
-COPY apps/jobs ./apps/jobs
+COPY apps/worker ./apps/worker
 
 RUN pnpm install --frozen-lockfile --ignore-scripts
-RUN pnpm turbo run build --filter=jobs...
-RUN pnpm --filter jobs --prod --ignore-scripts --legacy deploy /deploy
+RUN pnpm turbo run build --filter=worker...
+RUN pnpm --filter worker --prod --ignore-scripts --legacy deploy /deploy
 
 FROM node:26.0.0-alpine3.23 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apk add --no-cache wget
 COPY --from=builder --chown=node:node /deploy/node_modules ./node_modules
-COPY --from=builder --chown=node:node /app/apps/jobs/dist ./dist
-COPY --from=builder --chown=node:node /app/apps/jobs/package.json ./package.json
+COPY --from=builder --chown=node:node /app/apps/worker/dist ./dist
+COPY --from=builder --chown=node:node /app/apps/worker/package.json ./package.json
 
 USER node
 EXPOSE 4101

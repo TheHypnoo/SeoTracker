@@ -8,10 +8,10 @@ import { startWorkerHttpServer } from '@seotracker/server';
 import type { Env } from '@seotracker/server';
 import { Logger } from 'nestjs-pino';
 
-import { SchedulerModule } from './scheduler.module';
+import { WorkerModule } from './worker.module';
 
 async function bootstrap() {
-  const app = await NestFactory.createApplicationContext(SchedulerModule, {
+  const app = await NestFactory.createApplicationContext(WorkerModule, {
     bufferLogs: true,
   });
   const logger = app.get(Logger);
@@ -19,16 +19,16 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService<Env, true>);
   const httpServer = await startWorkerHttpServer(app, {
-    port: configService.get('SCHEDULER_HTTP_PORT', { infer: true }),
-    serviceName: 'scheduler',
+    port: configService.get('JOBS_HTTP_PORT', { infer: true }),
+    serviceName: 'worker',
   });
 
-  logger.log('Scheduler service started');
+  logger.log('Worker service started');
 
   let shutdownPromise: Promise<void> | undefined;
   const shutdown = (signal: NodeJS.Signals) => {
     shutdownPromise ??= (async () => {
-      logger.log(`Received ${signal}. Shutting down scheduler service.`);
+      logger.log(`Received ${signal}. Shutting down worker service.`);
       await new Promise<void>((resolve, reject) => {
         httpServer.close((error) => {
           if (error) {
@@ -42,7 +42,7 @@ async function bootstrap() {
       process.exitCode = 0;
     })().catch((error: unknown) => {
       logger.error(
-        'Failed to shut down scheduler service cleanly.',
+        'Failed to shut down worker service cleanly.',
         error instanceof Error ? error.stack : String(error),
       );
       process.exit(1);

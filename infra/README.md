@@ -4,12 +4,12 @@ Deployment and local-infrastructure assets. Nothing in here runs on its own — 
 
 ## Layout
 
-| Subdirectory | Purpose                                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `docker/`    | Dockerfiles for `api`, `jobs`, `scheduler`, `web` and a `docker-compose.yml` that spins up the dev stack (Postgres, Redis, Mailhog, plus the four services). |
-| `proxy/`     | Reverse-proxy configuration for environments that front the four services with a single domain (forwards `/api/*` to the API and the rest to the web app).   |
-| `render/`    | `render.yaml` for one-click deploy on Render.                                                                                                                |
-| `railway/`   | Railway-specific deploy notes. See [`railway/README.md`](railway/README.md).                                                                                 |
+| Subdirectory | Purpose                                                                                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docker/`    | Dockerfiles for `api`, `worker`, `web` and a `docker-compose.yml` that spins up the dev stack (Postgres, Redis, Mailhog, plus the three services).                |
+| `proxy/`     | Reverse-proxy configuration for environments that front the API and web services with a single domain (forwards `/api/*` to the API and the rest to the web app). |
+| `render/`    | `render.yaml` for one-click deploy on Render.                                                                                                                     |
+| `railway/`   | Railway-specific deploy notes. See [`railway/README.md`](railway/README.md).                                                                                      |
 
 ## Local development quickstart
 
@@ -19,7 +19,7 @@ From the repo root:
 docker compose -f infra/docker/docker-compose.yml up -d postgres redis mailhog
 ```
 
-This brings up the stateful dependencies and Mailhog (SMTP catch-all on port 8025). The four service containers are also defined in the compose file if you want to run everything in Docker; for development it's usually faster to run the apps with `pnpm dev` and only run the dependencies in Docker.
+This brings up the stateful dependencies and Mailhog (SMTP catch-all on port 8025). The service containers are also defined in the compose file if you want to run everything in Docker; for development it's usually faster to run the apps with `pnpm dev` and only run the dependencies in Docker.
 
 ## Production notes
 

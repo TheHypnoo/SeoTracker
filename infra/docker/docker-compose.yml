@@ -70,14 +70,14 @@ services:
     ports:
       - '4000:4000'
 
-  jobs:
+  worker:
     build:
       context: ../..
-      dockerfile: infra/docker/Dockerfile.jobs
-    container_name: seotracker-jobs
+      dockerfile: infra/docker/Dockerfile.worker
+    container_name: seotracker-worker
     restart: unless-stopped
     env_file:
-      - ../../apps/jobs/.env
+      - ../../apps/worker/.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/seotracker
       REDIS_URL: redis://redis:6379
@@ -100,36 +100,6 @@ services:
         condition: service_started
     ports:
       - '4101:4101'
-
-  scheduler:
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.scheduler
-    restart: unless-stopped
-    env_file:
-      - ../../apps/scheduler/.env
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/seotracker
-      REDIS_URL: redis://redis:6379
-      APP_URL: http://localhost:3000
-      COOKIE_DOMAIN: localhost
-      COOKIE_SECURE: 'false'
-      SCHEDULER_HTTP_PORT: 4102
-      SMTP_HOST: mailhog
-      SMTP_PORT: 1025
-      SMTP_SECURE: 'false'
-      SMTP_FROM: 'SEOTracker <no-reply@seotracker.local>'
-      EMAIL_CONCURRENCY: 3
-      EMAIL_QUEUE_ATTEMPTS: 5
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      mailhog:
-        condition: service_started
-    expose:
-      - '4102'
 
   web:
     build:

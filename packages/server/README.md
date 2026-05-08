@@ -1,6 +1,6 @@
 # `@seotracker/server`
 
-Shared backend runtime consumed by `apps/api`, `apps/jobs` and `apps/scheduler`. Holds the Drizzle schema, Nest modules, domain services and queue/lock primitives that are reused across the three deployable backend services.
+Shared backend runtime consumed by `apps/api` and `apps/worker`. Holds the Drizzle schema, Nest modules, domain services and queue/lock primitives that are reused across the deployable backend services.
 
 ## What lives here
 
@@ -39,7 +39,7 @@ The schema is the source of truth and is documented inline (each table and enum 
 
 ## Scripts
 
-This package is library-style; it doesn't run on its own. The deployable services (`api`, `jobs`, `scheduler`) build it as a `pre*` step (`pnpm --filter @seotracker/server build`).
+This package is library-style; it doesn't run on its own. The deployable services (`api`, `worker`) build it as a `pre*` step (`pnpm --filter @seotracker/server build`).
 
 ```bash
 pnpm build
