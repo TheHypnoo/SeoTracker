@@ -67,10 +67,7 @@ function NotFoundPage() {
       <p className="max-w-md text-sm text-slate-500">
         La ruta a la que intentas acceder no existe o se ha movido.
       </p>
-      <Link
-        to="/dashboard"
-        className="inline-flex items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white no-underline transition hover:bg-brand-700"
-      >
+      <Link to="/dashboard" className="btn-primary">
         Volver al panel
       </Link>
     </div>

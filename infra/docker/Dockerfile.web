@@ -2,11 +2,13 @@ FROM node:26.0.0-alpine3.23 AS builder
 WORKDIR /app
 RUN npm install -g pnpm@11.0.8
 
-# VITE_API_URL is consumed at build time by Vite/TanStack Start. Pass it via
-# `--build-arg VITE_API_URL=https://api.example.com/api/v1` so the bundle
-# baked into the image points at the right backend.
+# VITE_API_URL and API_PROXY_TARGET are consumed at build time by
+# Vite/TanStack Start. In Railway, set API_PROXY_TARGET to the private API
+# service origin, for example http://${{api.RAILWAY_PRIVATE_DOMAIN}}:4000.
 ARG VITE_API_URL
+ARG API_PROXY_TARGET
 ENV VITE_API_URL=${VITE_API_URL}
+ENV API_PROXY_TARGET=${API_PROXY_TARGET}
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
 COPY packages ./packages
@@ -27,5 +29,5 @@ COPY --from=builder --chown=node:node /app/apps/web/package.json ./package.json
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget --quiet --spider http://localhost:3000/ || exit 1
+  CMD wget --quiet --spider http://localhost:${PORT:-3000}/health || exit 1
 CMD ["node", ".output/server/index.mjs"]

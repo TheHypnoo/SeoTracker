@@ -19,6 +19,7 @@ const config = defineConfig({
     // server fns (no cross-origin / cross-port cookie shenanigans).
     nitro({
       rollupConfig: { external: [/^@sentry\//] },
+      handlers: [{ route: '/health', handler: './src/server/health.ts' }],
       routeRules: {
         '/api/**': { proxy: `${API_TARGET}/api/**` },
       },
