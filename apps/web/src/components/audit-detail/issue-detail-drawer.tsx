@@ -1,4 +1,4 @@
-import { BellOff, RotateCcw } from 'lucide-react';
+import { BellOff, Clipboard, RotateCcw } from 'lucide-react';
 
 import { Modal } from '../modal';
 import { CATEGORY_LABELS, getIssueCodeInfo } from '../../lib/issue-codes';
@@ -9,6 +9,7 @@ import { SeverityChip } from './badges';
 type Props = {
   group: IssueGroup | null;
   onClose: () => void;
+  remediationPrompt?: string | null;
   onChangeState: (projectIssueId: string, state: IssueState) => void;
   onBulkChangeState: (projectIssueIds: string[], state: IssueState) => void;
   isPending: boolean;
@@ -25,6 +26,7 @@ type Props = {
 export function IssueDetailDrawer({
   group,
   onClose,
+  remediationPrompt,
   onChangeState,
   onBulkChangeState,
   isPending,
@@ -46,7 +48,6 @@ export function IssueDetailDrawer({
             <span className="rounded-md bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
               {CATEGORY_LABELS[group.category] ?? group.category}
             </span>
-            <span className="font-mono tracking-tight text-slate-400">{group.code}</span>
             <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
               {group.items.length} {group.items.length === 1 ? 'ocurrencia' : 'ocurrencias'}
             </span>
@@ -72,9 +73,12 @@ export function IssueDetailDrawer({
             </div>
           ) : null}
           <section>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Cómo solucionarlo
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Cómo solucionarlo
+              </h3>
+              {remediationPrompt ? <CopyPromptButton prompt={remediationPrompt} /> : null}
+            </div>
             <p className="mt-2 text-sm leading-6 text-slate-700">{info.howToFix}</p>
           </section>
           <OccurrencesSection
@@ -89,6 +93,20 @@ export function IssueDetailDrawer({
   );
 }
 
+function CopyPromptButton({ prompt }: { prompt: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => void navigator.clipboard?.writeText(prompt)}
+      className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+      title="Copiar prompt de solución"
+    >
+      <Clipboard size={12} aria-hidden="true" />
+      Copiar prompt
+    </button>
+  );
+}
+
 function OccurrencesSection({
   group,
   onChangeState,
@@ -100,12 +118,16 @@ function OccurrencesSection({
   onBulkChangeState: (projectIssueIds: string[], state: IssueState) => void;
   isPending: boolean;
 }) {
-  const ignorableIds = group.items
-    .filter((i) => i.projectIssueId && i.state !== 'IGNORED')
-    .map((i) => i.projectIssueId!);
-  const restorableIds = group.items
-    .filter((i) => i.projectIssueId && i.state === 'IGNORED')
-    .map((i) => i.projectIssueId!);
+  const ignorableIds: string[] = [];
+  const restorableIds: string[] = [];
+  for (const issue of group.items) {
+    if (!issue.projectIssueId) continue;
+    if (issue.state === 'IGNORED') {
+      restorableIds.push(issue.projectIssueId);
+    } else {
+      ignorableIds.push(issue.projectIssueId);
+    }
+  }
 
   return (
     <section>

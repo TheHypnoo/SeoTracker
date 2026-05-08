@@ -1,8 +1,17 @@
-import { AlertTriangle, CheckCircle2, Download, Gauge, ShieldAlert, Zap } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clipboard,
+  Download,
+  Gauge,
+  ShieldAlert,
+  Zap,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Button } from '#/components/button';
 import { Skeleton } from '#/components/skeleton';
+import { formatNumericDate } from '#/lib/date-format';
 
 type ActionStatus = 'OPEN' | 'IGNORED' | 'FIXED';
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
@@ -56,6 +65,7 @@ export interface SeoActionPlanPayload {
     affectedPages: string[];
     regressionCount: number;
     recommendedAction: string;
+    remediationPrompt: string;
   }>;
 }
 
@@ -128,7 +138,7 @@ export function SiteNextActionsPanel({ plan, loading, exportAction }: SeoActionP
           {
             detail: `${plan.totals.fixed} resueltas`,
             icon: <CheckCircle2 size={14} aria-hidden="true" />,
-            label: 'Páginas afectadas',
+            label: 'URLs afectadas',
             value: String(plan.totals.affectedPages),
           },
         ]}
@@ -164,79 +174,68 @@ export function SiteNextActionsPanel({ plan, loading, exportAction }: SeoActionP
 
 export function AuditKeyFindingsPanel({ plan, loading, exportAction }: SeoActionPanelProps) {
   if (loading) {
-    return <ActionPanelSkeleton />;
+    return <CompactActionPanelSkeleton />;
   }
 
   if (!plan) {
-    return <ActionPanelEmpty />;
+    return null;
   }
 
-  const findings = plan.actions.slice(0, 5);
+  const findings = plan.actions.slice(0, 3);
   const highestSeverity = getHighestSeverity(plan.actions);
   const occurrences = plan.actions.reduce((total, action) => total + action.occurrences, 0);
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <PanelHeader
-        badgeClassName="bg-sky-50 text-sky-700"
-        badgeIcon={<ShieldAlert size={12} aria-hidden="true" />}
-        badgeLabel="Diagnóstico"
-        description="Lectura técnica de esta ejecución: severidad, ocurrencias y URLs afectadas."
-        exportAction={exportAction}
-        metrics={[
-          {
-            detail: `${plan.executiveSummary.criticalOpenActions} críticas abiertas`,
-            icon: <ShieldAlert size={14} aria-hidden="true" />,
-            label: 'Criticidad mayor',
-            value: highestSeverity ? severityLabel(highestSeverity) : 'Sin riesgo',
-          },
-          {
-            detail: `${plan.totals.fixed} resueltos`,
-            icon: <AlertTriangle size={14} aria-hidden="true" />,
-            label: 'Hallazgos abiertos',
-            value: String(plan.totals.open),
-          },
-          {
-            detail: `${plan.actions.length} grupos`,
-            icon: <Gauge size={14} aria-hidden="true" />,
-            label: 'Ocurrencias',
-            value: String(occurrences),
-          },
-          {
-            detail: `${plan.totals.regressions} regresiones`,
-            icon: <CheckCircle2 size={14} aria-hidden="true" />,
-            label: 'URLs afectadas',
-            value: String(plan.totals.affectedPages),
-          },
-        ]}
-        title="Hallazgos clave de esta auditoría"
-      />
-
-      <section className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-              Evidencia priorizada
-            </h3>
-            <p className="mt-1 text-xs font-semibold text-slate-500">
-              Auditoría #{plan.audit.id.slice(0, 8)}
-            </p>
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
+            <ShieldAlert size={11} aria-hidden="true" />
+            Plan
           </div>
-          <span className="text-xs font-semibold text-slate-500">
-            {plan.actions.length} hallazgos agrupados
-          </span>
+          <h2 className="mt-2 text-lg font-black tracking-tight text-slate-950">
+            Plan de solución
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Prioridades resumidas. El detalle completo está en incidencias técnicas.
+          </p>
         </div>
 
-        {findings.length === 0 ? (
-          <EmptyPanelMessage text="Esta auditoría no registra hallazgos abiertos." />
-        ) : (
-          <ol className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200">
-            {findings.map((action, index) => (
-              <AuditFindingItem action={action} index={index} key={action.id} />
-            ))}
-          </ol>
-        )}
-      </section>
+        {exportAction ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={exportAction.onClick}
+            disabled={exportAction.disabled}
+          >
+            <Download size={14} />
+            {exportAction.pending ? 'Exportando...' : exportAction.label}
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+        <CompactMetric
+          label="Riesgo"
+          value={highestSeverity ? severityLabel(highestSeverity) : 'Sin riesgo'}
+        />
+        <CompactMetric label="Abiertas" value={String(plan.totals.open)} />
+        <CompactMetric label="Ocurrencias" value={String(occurrences)} />
+        <CompactMetric label="URLs" value={String(plan.totals.affectedPages)} />
+      </div>
+
+      {findings.length === 0 ? (
+        <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+          Esta auditoría no registra acciones abiertas.
+        </p>
+      ) : (
+        <ol className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
+          {findings.map((action, index) => (
+            <AuditFindingItem action={action} index={index} key={action.id} />
+          ))}
+        </ol>
+      )}
     </article>
   );
 }
@@ -323,6 +322,7 @@ function DomainActionItem({ action, index }: { action: ActionItem; index: number
         <span>{action.occurrences} ocurrencias</span>
         <span>{action.affectedPagesCount} páginas</span>
         <span>+{action.estimatedImpactPoints} pts estimados</span>
+        <CopyPromptButton prompt={action.remediationPrompt} />
       </div>
 
       <AffectedPages pages={action.affectedPages} />
@@ -332,30 +332,44 @@ function DomainActionItem({ action, index }: { action: ActionItem; index: number
 
 function AuditFindingItem({ action, index }: { action: ActionItem; index: number }) {
   return (
-    <li className="bg-white p-4 first:rounded-t-xl last:rounded-b-xl">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <li className="bg-white px-3 py-2.5 first:rounded-t-xl last:rounded-b-xl">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="min-w-0">
-          <ActionMeta action={action} index={index} />
-          <h4 className="mt-3 text-base font-bold text-slate-950">{action.title}</h4>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
-            Detectado como {action.categoryLabel.toLowerCase()} en {action.affectedPagesCount}{' '}
-            {action.affectedPagesCount === 1 ? 'URL' : 'URLs'} de esta ejecución.
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[10px] font-black text-white">
+              {index + 1}
+            </span>
+            <SeverityPill severity={action.severity} />
+            {action.regressionCount > 0 ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                Regresión
+              </span>
+            ) : null}
+          </div>
+          <h4 className="mt-1.5 text-sm font-bold leading-5 text-slate-950">{action.title}</h4>
+          <p className="mt-0.5 text-xs leading-5 text-slate-500">
+            {action.affectedPagesCount} {action.affectedPagesCount === 1 ? 'URL' : 'URLs'} ·{' '}
+            {action.occurrences} {action.occurrences === 1 ? 'ocurrencia' : 'ocurrencias'} ·{' '}
+            {action.impact}/{action.effort}
           </p>
         </div>
-        <div className="grid shrink-0 grid-cols-2 gap-2 text-right text-xs">
-          <MiniStat label="Código" value={action.issueCode} />
-          <MiniStat label="Prioridad" value={String(action.priority)} />
-        </div>
+        <CopyPromptButton prompt={action.remediationPrompt} />
       </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-        <span>{action.occurrences} ocurrencias</span>
-        <span>{action.affectedPagesCount} URLs afectadas</span>
-        {action.regressionCount > 0 ? <span>{action.regressionCount} regresiones</span> : null}
-      </div>
-
-      <AffectedPages pages={action.affectedPages} />
     </li>
+  );
+}
+
+function CopyPromptButton({ prompt }: { prompt: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => void navigator.clipboard?.writeText(prompt)}
+      className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+      title="Copiar prompt de solución"
+    >
+      <Clipboard size={12} aria-hidden="true" />
+      Copiar prompt
+    </button>
   );
 }
 
@@ -456,6 +470,29 @@ function PlanMetric({
   );
 }
 
+function CompactMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1">
+      <span className="text-slate-400">{label}</span>
+      <span className="font-black text-slate-800">{value}</span>
+    </span>
+  );
+}
+
+function CompactActionPanelSkeleton() {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <Skeleton className="h-5 w-16" />
+      <Skeleton className="mt-3 h-5 w-44" />
+      <div className="mt-3 flex gap-2">
+        <Skeleton className="h-7 w-24" />
+        <Skeleton className="h-7 w-24" />
+        <Skeleton className="h-7 w-24" />
+      </div>
+    </article>
+  );
+}
+
 function SeverityPill({ severity }: { severity: Severity }) {
   const tone =
     severity === 'CRITICAL'
@@ -522,13 +559,9 @@ function severityLabel(severity: Severity) {
 }
 
 function formatAuditSource(value: string, auditId: string) {
-  try {
-    return `Fuente: auditoría del ${new Date(value).toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    })} · #${auditId.slice(0, 8)}`;
-  } catch {
+  const formatted = formatNumericDate(value);
+  if (!formatted) {
     return `Fuente: auditoría #${auditId.slice(0, 8)}`;
   }
+  return `Fuente: auditoría del ${formatted} · #${auditId.slice(0, 8)}`;
 }
