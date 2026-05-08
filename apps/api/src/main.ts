@@ -16,7 +16,7 @@ async function bootstrap() {
   configureApiApp(app);
 
   const port = configService.get('PORT', { infer: true });
-  await app.listen(port);
+  await app.listen(port, '::');
 }
 
 void bootstrap();

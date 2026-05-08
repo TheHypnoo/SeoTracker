@@ -7,8 +7,6 @@ import viteReact from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { nitro } from 'nitro/vite';
 
-const API_TARGET = process.env.API_PROXY_TARGET ?? 'http://localhost:4000';
-
 const config = defineConfig({
   plugins: [
     devtools(),
@@ -18,11 +16,11 @@ const config = defineConfig({
     // origin so the cookies the API sets are visible to TanStack Start
     // server fns (no cross-origin / cross-port cookie shenanigans).
     nitro({
+      handlers: [
+        { route: '/health', handler: './src/server/health.ts' },
+        { route: '/api/**', handler: './src/server/api-proxy.ts' },
+      ],
       rollupConfig: { external: [/^@sentry\//] },
-      handlers: [{ route: '/health', handler: './src/server/health.ts' }],
-      routeRules: {
-        '/api/**': { proxy: `${API_TARGET}/api/**` },
-      },
     }),
     tailwindcss(),
     tanstackStart(),
