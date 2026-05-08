@@ -1,19 +1,19 @@
 import { lazy, Suspense } from 'react';
-import type { TrendChartPoint } from './score-trend-chart.recharts';
+import type { DomainTrendPoint } from './domain-score-trend-chart.recharts';
 
-const ScoreTrendChartRecharts = lazy(() => import('./score-trend-chart.recharts'));
+const DomainScoreTrendChartRecharts = lazy(() => import('./domain-score-trend-chart.recharts'));
 
-export function ScoreTrendChart({
+export function DomainScoreTrendChart({
   points,
   height = 240,
 }: {
-  points: TrendChartPoint[];
+  points: DomainTrendPoint[];
   height?: number;
 }) {
   return (
     <div className="score-trend-chart" style={{ height }}>
       <Suspense fallback={<ChartFallback />}>
-        <ScoreTrendChartRecharts points={points} height={height} />
+        <DomainScoreTrendChartRecharts points={points} height={height} />
       </Suspense>
     </div>
   );

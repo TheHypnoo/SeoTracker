@@ -1,147 +1,66 @@
 import { Activity, Minus, TrendingDown, TrendingUp } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { DomainScoreTrendChart } from '#/components/charts/domain-score-trend-chart';
+import { ScoreTrendChart } from '#/components/charts/score-trend-chart';
 
-type TrendPoint = { date: string; score: number };
+type TrendPoint = {
+  date: string;
+  score: number;
+  siteDomain?: string;
+  siteId?: string;
+  siteName?: string;
+};
 
-/**
- * Hand-rolled inline SVG chart for the homepage trend block — kept here
- * (instead of pulling in recharts on the dashboard) because:
- *  - it's a single chart with fixed axis (0..100 score, time)
- *  - dashboard ships on every login → minimizing first-paint deps matters
- *  - the math is small enough (gridlines + line + area + ticks)
- */
 export function TrendChart({ points }: { points: TrendPoint[] }) {
-  const width = 720;
-  const height = 240;
-  const padX = 42;
-  const padTop = 16;
-  const padBottom = 34;
-  const innerW = width - padX * 2;
-  const innerH = height - padTop - padBottom;
-
-  const xFor = (idx: number) => padX + (idx / Math.max(points.length - 1, 1)) * innerW;
-  const yFor = (score: number) => padTop + (1 - Math.min(Math.max(score, 0), 100) / 100) * innerH;
-
-  const linePath = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i).toFixed(2)} ${yFor(p.score).toFixed(2)}`)
-    .join(' ');
-  const bottomY = padTop + innerH;
-  const areaPath = `${linePath} L ${xFor(points.length - 1).toFixed(2)} ${bottomY} L ${xFor(0).toFixed(2)} ${bottomY} Z`;
-
-  const gridLevels = [0, 25, 50, 75, 100];
-  const last = points[points.length - 1];
-
-  const xTickIndexes = (() => {
-    if (points.length <= 1) return [0];
-    if (points.length <= 4) return points.map((_, i) => i);
-    const mid = Math.floor(points.length / 2);
-    return [0, mid, points.length - 1];
-  })();
-
-  const fmtDate = (iso: string) => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.valueOf())) return '';
-    return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
-  };
+  const [mode, setMode] = useState<'global' | 'domains'>('global');
+  const domainCount = useMemo(
+    () =>
+      new Set(
+        points.flatMap((point) => {
+          const key = point.siteId ?? point.siteDomain;
+          return key ? [key] : [];
+        }),
+      ).size,
+    [points],
+  );
+  const canCompareDomains = domainCount > 1;
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="block w-full"
-      style={{ aspectRatio: `${width} / ${height}` }}
-      role="img"
-      aria-label="Tendencia de score SEO"
-    >
-      <defs>
-        <linearGradient id="dashboard-trend-area" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="rgb(99, 102, 241)" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="rgb(99, 102, 241)" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="dashboard-trend-line" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0%" stopColor="rgb(14, 165, 233)" />
-          <stop offset="100%" stopColor="rgb(99, 102, 241)" />
-        </linearGradient>
-      </defs>
-
-      {gridLevels.map((level) => {
-        const y = yFor(level);
-        return (
-          <g key={level}>
-            <line
-              x1={padX}
-              x2={width - padX}
-              y1={y}
-              y2={y}
-              stroke="rgb(226, 232, 240)"
-              strokeDasharray={level === 0 || level === 100 ? undefined : '3 4'}
-              strokeWidth={level === 0 || level === 100 ? 1 : 1}
-            />
-            <text
-              x={padX - 8}
-              y={y + 4}
-              textAnchor="end"
-              fontSize="11"
-              fontWeight="600"
-              fill="rgb(100, 116, 139)"
+    <div>
+      {canCompareDomains ? (
+        <div className="mb-3 flex justify-end">
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+            <button
+              type="button"
+              className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${
+                mode === 'global'
+                  ? 'bg-white text-slate-950 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+              onClick={() => setMode('global')}
             >
-              {level}
-            </text>
-          </g>
-        );
-      })}
-
-      <path d={areaPath} fill="url(#dashboard-trend-area)" />
-      <path
-        d={linePath}
-        fill="none"
-        stroke="url(#dashboard-trend-line)"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-
-      {points.map((p, i) => (
-        <circle
-          key={`${p.date}-${i}`}
-          cx={xFor(i)}
-          cy={yFor(p.score)}
-          r={i === points.length - 1 ? 5 : 2.5}
-          fill="white"
-          stroke="rgb(79, 70, 229)"
-          strokeWidth={i === points.length - 1 ? 3 : 2}
-        />
-      ))}
-
-      {last ? (
-        <line
-          x1={xFor(points.length - 1)}
-          x2={xFor(points.length - 1)}
-          y1={yFor(last.score)}
-          y2={bottomY}
-          stroke="rgb(99, 102, 241)"
-          strokeDasharray="2 3"
-          strokeWidth="1"
-          opacity="0.5"
-        />
+              Global
+            </button>
+            <button
+              type="button"
+              className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${
+                mode === 'domains'
+                  ? 'bg-white text-slate-950 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+              onClick={() => setMode('domains')}
+            >
+              Dominios
+            </button>
+          </div>
+        </div>
       ) : null}
-
-      {xTickIndexes.map((idx) => {
-        const p = points[idx];
-        if (!p) return null;
-        return (
-          <text
-            key={`xtick-${idx}`}
-            x={xFor(idx)}
-            y={height - 10}
-            textAnchor={idx === 0 ? 'start' : idx === points.length - 1 ? 'end' : 'middle'}
-            fontSize="11"
-            fontWeight="600"
-            fill="rgb(100, 116, 139)"
-          >
-            {fmtDate(p.date)}
-          </text>
-        );
-      })}
-    </svg>
+      {mode === 'domains' && canCompareDomains ? (
+        <DomainScoreTrendChart points={points} height={240} />
+      ) : (
+        <ScoreTrendChart points={points} height={240} />
+      )}
+    </div>
   );
 }
 

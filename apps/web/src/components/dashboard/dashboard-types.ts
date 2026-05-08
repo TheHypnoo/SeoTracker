@@ -16,6 +16,9 @@ export type DashboardPayload = {
   trend: Array<{
     date: string;
     score: number;
+    siteDomain?: string;
+    siteId?: string;
+    siteName?: string;
   }>;
   recentProjects: Array<{
     id: string;
