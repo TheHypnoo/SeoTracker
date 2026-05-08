@@ -3,8 +3,7 @@
 Recommended services:
 
 - `api` (NestJS)
-- `jobs` (BullMQ workers)
-- `scheduler` (cron dispatch service with Redis lock)
+- `worker` (BullMQ workers + cron scheduler)
 - `web` (TanStack Start)
 - `postgresql` plugin
 - `redis` plugin
@@ -12,12 +11,11 @@ Recommended services:
 Each code service can use its own Railway config-as-code file. In the Railway
 service settings, set the custom config path for each service:
 
-| Service     | Railway config path                     |
-| ----------- | --------------------------------------- |
-| `api`       | `/infra/railway/api.railway.json`       |
-| `jobs`      | `/infra/railway/jobs.railway.json`      |
-| `scheduler` | `/infra/railway/scheduler.railway.json` |
-| `web`       | `/infra/railway/web.railway.json`       |
+| Service  | Railway config path                  |
+| -------- | ------------------------------------ |
+| `api`    | `/infra/railway/api.railway.json`    |
+| `worker` | `/infra/railway/worker.railway.json` |
+| `web`    | `/infra/railway/web.railway.json`    |
 
 Those files use the existing service Dockerfiles. The Dockerfiles build from
 the repository root and include workspace dependencies with `--filter=<app>...`;
@@ -26,11 +24,16 @@ otherwise Railway can compile an app without first compiling
 
 If you use Railpack instead of Dockerfile, configure equivalent commands:
 
-| Service     | Build command                      | Start command                   |
-| ----------- | ---------------------------------- | ------------------------------- |
-| `api`       | `pnpm --filter api... build`       | `pnpm --filter api start`       |
-| `jobs`      | `pnpm --filter jobs... build`      | `pnpm --filter jobs start`      |
-| `scheduler` | `pnpm --filter scheduler... build` | `pnpm --filter scheduler start` |
-| `web`       | `pnpm --filter web... build`       | `pnpm --filter web start`       |
+| Service  | Build command                   | Start command                |
+| -------- | ------------------------------- | ---------------------------- |
+| `api`    | `pnpm --filter api... build`    | `pnpm --filter api start`    |
+| `worker` | `pnpm --filter worker... build` | `pnpm --filter worker start` |
+| `web`    | `pnpm --filter web... build`    | `pnpm --filter web start`    |
 
-Use a reverse proxy or Railway edge routing to expose a single domain, forwarding `/api/*` to the API service and the rest to the web service.
+For larger deployments, `jobs` and `scheduler` can still be deployed as
+separate services with `/infra/railway/jobs.railway.json` and
+`/infra/railway/scheduler.railway.json`, but the recommended Railway setup uses
+the unified `worker` service to fit within a 5-service project.
+
+Use a reverse proxy or Railway edge routing to expose a single domain,
+forwarding `/api/*` to the API service and the rest to the web service.
