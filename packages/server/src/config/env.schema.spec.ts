@@ -22,14 +22,16 @@ describe('envSchema', () => {
   it('rejects placeholder JWT secrets from .env.example', () => {
     expect(() =>
       envSchema.parse({ ...BASE_ENV, JWT_ACCESS_SECRET: '__replace_me__' + 'x'.repeat(40) }),
-    ).toThrow();
+    ).toThrow(/JWT_ACCESS_SECRET still uses the placeholder value/);
     expect(() =>
       envSchema.parse({ ...BASE_ENV, JWT_REFRESH_SECRET: 'change-this-secret' + 'x'.repeat(40) }),
-    ).toThrow();
+    ).toThrow(/JWT_REFRESH_SECRET still uses the placeholder value/);
   });
 
   it('rejects JWT secrets shorter than 32 chars', () => {
-    expect(() => envSchema.parse({ ...BASE_ENV, JWT_ACCESS_SECRET: 'too-short' })).toThrow();
+    expect(() => envSchema.parse({ ...BASE_ENV, JWT_ACCESS_SECRET: 'too-short' })).toThrow(
+      /JWT_ACCESS_SECRET must be at least 32 chars/,
+    );
   });
 
   it('coerces numeric env vars from strings', () => {
@@ -51,12 +53,14 @@ describe('envSchema', () => {
   });
 
   it('rejects an invalid DATABASE_URL', () => {
-    expect(() => envSchema.parse({ ...BASE_ENV, DATABASE_URL: 'not-a-url' })).toThrow();
+    expect(() => envSchema.parse({ ...BASE_ENV, DATABASE_URL: 'not-a-url' })).toThrow(
+      /Invalid URL/,
+    );
   });
 
   it('rejects AUDIT_MAX_DEPTH outside [1, 3]', () => {
-    expect(() => envSchema.parse({ ...BASE_ENV, AUDIT_MAX_DEPTH: '5' })).toThrow();
-    expect(() => envSchema.parse({ ...BASE_ENV, AUDIT_MAX_DEPTH: '0' })).toThrow();
+    expect(() => envSchema.parse({ ...BASE_ENV, AUDIT_MAX_DEPTH: '5' })).toThrow(/Too big/);
+    expect(() => envSchema.parse({ ...BASE_ENV, AUDIT_MAX_DEPTH: '0' })).toThrow(/Too small/);
   });
 
   it('TRUST_PROXY defaults to 0 (no proxy)', () => {
@@ -71,6 +75,8 @@ describe('envSchema', () => {
 
   it('ALERT_WEBHOOK_URL is optional but rejects malformed URLs', () => {
     expect(envSchema.parse(BASE_ENV).ALERT_WEBHOOK_URL).toBeUndefined();
-    expect(() => envSchema.parse({ ...BASE_ENV, ALERT_WEBHOOK_URL: 'not-a-url' })).toThrow();
+    expect(() => envSchema.parse({ ...BASE_ENV, ALERT_WEBHOOK_URL: 'not-a-url' })).toThrow(
+      /Invalid URL/,
+    );
   });
 });
