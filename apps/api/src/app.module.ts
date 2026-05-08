@@ -43,24 +43,21 @@ import {
     // UserOrIpThrottlerGuard. A single user action in this SPA fans out into
     // 5-15 requests (mutation + react-query invalidations + parallel queries
     // from sibling components), so budgets need real headroom.
-    //  - default: 1200 req/min (~20 rps) for routine app traffic. The number
+    //  - default: 3000 req/min (~50 rps) for routine app traffic. The number
     //             looks high, but per-user it represents <1 user action per
     //             second over a sustained minute, which is generous but not
     //             abusive. Real attackers rotate identities, so per-user
     //             ceilings mostly catch buggy clients.
-    //  - burst:   200 req in a 10s window. Covers action storms like
+    //  - burst:   600 req in a 10s window. Covers reload/action storms like
     //             mass-mark-as-read (10 POSTs + 10 invalidation refetches +
     //             dashboard background queries). The previous 30/5s threshold
     //             tripped on legitimate batch UX.
-    //  - auth:    5 req/min on credential endpoints (login/register/forgot/
-    //             reset). Applied per-route via @Throttle in AuthController.
-    //  - badge:   60 req/min per IP on the public unauthenticated SVG badge.
-    //             Applied per-route via @Throttle on PublicBadgesController.
+    // Credential and public badge limits are applied as route-level overrides
+    // of the `default` bucket. Do not register `auth` / `badge` here: named
+    // throttlers in `forRoot` are global and would count normal app traffic.
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 1200 },
-      { name: 'burst', ttl: 10_000, limit: 200 },
-      { name: 'auth', ttl: 60_000, limit: 5 },
-      { name: 'badge', ttl: 60_000, limit: 60 },
+      { name: 'default', ttl: 60_000, limit: 3000 },
+      { name: 'burst', ttl: 10_000, limit: 600 },
     ]),
     MetricsModule,
     DatabaseModule,

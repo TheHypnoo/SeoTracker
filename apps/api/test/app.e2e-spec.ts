@@ -225,4 +225,81 @@ describe('auth to audit API flow (e2e)', () => {
     expectClearedCookie(logoutResponse, 'csrf_token');
     await agent.get('/api/v1/auth/session').expect(401);
   });
+
+  it('rejects unauthenticated access, invalid DTOs and cross-project reads', async () => {
+    await request(app.getHttpServer()).get('/api/v1/projects').expect(401);
+    await request(app.getHttpServer()).post('/api/v1/sites').send({}).expect(401);
+
+    const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const ownerAgent = request.agent(app.getHttpServer());
+    const strangerAgent = request.agent(app.getHttpServer());
+
+    const ownerRegister = await ownerAgent
+      .post('/api/v1/auth/register')
+      .set('x-forwarded-for', '203.0.113.41')
+      .send({
+        email: `owner-${runId}@example.com`,
+        name: 'Owner User',
+        password: 'CorrectHorse42',
+      })
+      .expect(201);
+    const ownerToken = ownerRegister.body.accessToken as string;
+
+    await ownerAgent
+      .post('/api/v1/projects')
+      .set('authorization', `Bearer ${ownerToken}`)
+      .send({ name: 'x', unexpected: true })
+      .expect(400);
+
+    const projectsResponse = await ownerAgent
+      .get('/api/v1/projects')
+      .set('authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    const projectId = projectsResponse.body[0].id as string;
+
+    await ownerAgent
+      .post('/api/v1/sites')
+      .set('authorization', `Bearer ${ownerToken}`)
+      .send({
+        active: 'yes',
+        domain: 'example.com',
+        name: 'X',
+        projectId: 'not-a-uuid',
+        timezone: 'Europe/Madrid',
+      })
+      .expect(400);
+
+    const siteResponse = await ownerAgent
+      .post('/api/v1/sites')
+      .set('authorization', `Bearer ${ownerToken}`)
+      .send({
+        domain: 'private.example.com',
+        name: 'Private Site',
+        projectId,
+        timezone: 'Europe/Madrid',
+      })
+      .expect(201);
+    const siteId = siteResponse.body.id as string;
+
+    const strangerRegister = await strangerAgent
+      .post('/api/v1/auth/register')
+      .set('x-forwarded-for', '203.0.113.42')
+      .send({
+        email: `stranger-${runId}@example.com`,
+        name: 'Stranger User',
+        password: 'CorrectHorse42',
+      })
+      .expect(201);
+    const strangerToken = strangerRegister.body.accessToken as string;
+
+    await strangerAgent
+      .get(`/api/v1/projects/${projectId}`)
+      .set('authorization', `Bearer ${strangerToken}`)
+      .expect(404);
+
+    await strangerAgent
+      .get(`/api/v1/sites/${siteId}`)
+      .set('authorization', `Bearer ${strangerToken}`)
+      .expect(403);
+  });
 });
