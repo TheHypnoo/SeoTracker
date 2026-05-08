@@ -3,6 +3,7 @@ import { ArrowRight, FileDown } from 'lucide-react';
 import { Pagination } from '#/components/pagination';
 import { SelectInput } from '#/components/select-input';
 import { Skeleton } from '#/components/skeleton';
+import { formatDisplayDateTime } from '#/lib/date-format';
 import { scoreBg, scoreTone, statusLabel, statusTone, triggerLabel } from './helpers';
 import type { AuditRun } from './types';
 
@@ -116,7 +117,7 @@ export function AuditHistoryList({
                     ) : null}
                   </div>
                   <div className="mt-0.5 text-xs text-slate-500">
-                    {new Date(audit.createdAt).toLocaleString()} · #{audit.id.slice(0, 8)} ·{' '}
+                    {formatDisplayDateTime(audit.createdAt)} · #{audit.id.slice(0, 8)} ·{' '}
                     {audit.issuesCount} hallazgos
                   </div>
                 </div>

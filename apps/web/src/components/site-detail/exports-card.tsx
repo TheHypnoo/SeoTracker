@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, Download, FileDown, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
+import { formatDisplayDateTime } from '#/lib/date-format';
 import type { AuditRun, ComparisonItem, ExportPayload, ProjectExport } from './types';
 
 export function ExportsCard({
@@ -85,7 +86,7 @@ export function ExportsCard({
                       {item.kind} · {item.format}
                     </div>
                     <div className="text-[10px] text-slate-500">
-                      {new Date(item.createdAt).toLocaleString()}
+                      {formatDisplayDateTime(item.createdAt)}
                     </div>
                   </div>
                   {item.status === 'COMPLETED' ? (

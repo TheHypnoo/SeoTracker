@@ -43,9 +43,17 @@ export function PublicBadgeCard({ siteId, projectId }: { siteId: string; project
   });
 
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
-  const badgeUrl = `${origin}/api/v1/public/sites/${siteId}/badge.svg`;
-  const markdown = `[![SEO](${badgeUrl})](${origin})`;
-  const html = `<a href="${origin}"><img src="${badgeUrl}" alt="SEO" /></a>`;
+  const apiBase = import.meta.env.VITE_API_URL ?? '/api/v1';
+  const publicApiBase =
+    import.meta.env.VITE_PUBLIC_API_URL ??
+    (import.meta.env.DEV && apiBase.startsWith('/') ? 'http://localhost:4000/api/v1' : apiBase);
+  const badgePath = `/public/sites/${siteId}/badge.svg`;
+  const badgeUrl = publicApiBase.startsWith('http')
+    ? `${publicApiBase}${badgePath}`
+    : `${origin}${publicApiBase}${badgePath}`;
+  const previewUrl = `${badgeUrl}?preview=${status.dataUpdatedAt}`;
+  const markdown = `[![SEOTracker score](${badgeUrl})](${origin})`;
+  const html = `<a href="${origin}"><img src="${badgeUrl}" alt="SEOTracker score" /></a>`;
 
   const enabled = status.data?.enabled ?? false;
 
@@ -68,8 +76,7 @@ export function PublicBadgeCard({ siteId, projectId }: { siteId: string; project
         ) : null}
       </div>
       <p className="mt-2 text-sm text-slate-500">
-        Embebe el último score SEO de este sitio en tu web. Sin auth, cacheado 5 minutos, 60
-        peticiones por minuto y por IP.
+        Embebe el último score SEO de este sitio en tu web o compártelo como una imagen pública.
       </p>
 
       {status.isLoading ? (
@@ -78,10 +85,10 @@ export function PublicBadgeCard({ siteId, projectId }: { siteId: string; project
         <div className="mt-5 space-y-4">
           <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
             <img
-              src={badgeUrl}
-              alt="Vista previa del badge SEO"
-              width={80}
-              height={20}
+              src={previewUrl}
+              alt="Vista previa del badge SEOTracker"
+              width={168}
+              height={28}
               className="shrink-0"
             />
             <span className="text-xs text-slate-500">Vista previa en vivo</span>

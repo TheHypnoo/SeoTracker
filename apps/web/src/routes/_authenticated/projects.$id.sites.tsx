@@ -1,19 +1,8 @@
 import { useForm } from '@tanstack/react-form';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  Globe,
-  History,
-  Play,
-  Plus,
-  Search,
-  Settings2,
-  Zap,
-} from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, Eye, Globe, Play, Plus, Search, Zap } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Button } from '#/components/button';
 import { Modal } from '#/components/modal';
 import { Notice } from '#/components/notice';
@@ -23,9 +12,10 @@ import { TextInput } from '#/components/text-input';
 import type { PaginatedResponse } from '@seotracker/shared-types';
 
 import { useAuth } from '../../lib/auth-context';
+import { formatDisplayDateTime } from '../../lib/date-format';
 import { createSubmitHandler, firstFormError } from '../../lib/forms';
 import { useProject } from '../../lib/project-context';
-import { REFETCH_INTERVALS } from '../../lib/refetch-intervals';
+import { pollWhileAnyLatestAuditActive } from '../../lib/refetch-intervals';
 import { getTimezoneOptions } from '../../lib/timezones';
 
 type Project = {
@@ -56,19 +46,24 @@ function ProjectProjectsPage() {
   const auth = useAuth();
   const project = useProject();
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [automation, setAutomation] = useState<'all' | 'active' | 'inactive'>('all');
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
+  const {
+    searchState,
+    statusState,
+    automationState,
+    showCreateFormState,
+    showAdvancedState,
+    createErrorState,
+    pageState,
+  } = useProjectSitesUiState();
+  const [search, setSearch] = searchState;
+  const [status, setStatus] = statusState;
+  const [automation, setAutomation] = automationState;
+  const [showCreateForm, setShowCreateForm] = showCreateFormState;
+  const [showAdvanced, setShowAdvanced] = showAdvancedState;
+  const [createError, setCreateError] = createErrorState;
+  const [page, setPage] = pageState;
   const pageSize = 25;
   const timezoneOptions = useMemo(() => getTimezoneOptions(), []);
-
-  useEffect(() => {
-    setPage(0);
-  }, [search, status, automation]);
 
   const projectDetail = useQuery({
     queryKey: ['project', id],
@@ -94,13 +89,7 @@ function ProjectProjectsPage() {
       return auth.api.get<PaginatedResponse<ProjectRow>>(`/sites?${query.toString()}`);
     },
     enabled: Boolean(auth.accessToken),
-    refetchInterval: (query) => {
-      const items = query.state.data?.items ?? [];
-      const hasActive = items.some(
-        (item) => item.latestAuditStatus === 'QUEUED' || item.latestAuditStatus === 'RUNNING',
-      );
-      return hasActive ? REFETCH_INTERVALS.ACTIVE_AUDIT_MS : REFETCH_INTERVALS.SLOW_REFRESH_MS;
-    },
+    refetchInterval: pollWhileAnyLatestAuditActive,
   });
 
   const projectItems = sites.data?.items ?? [];
@@ -131,13 +120,15 @@ function ProjectProjectsPage() {
       domain: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     },
-    onSubmit: async ({ value }) => {
+    onSubmit: async ({ value, formApi }) => {
       setCreateError(null);
       await createProject.mutateAsync({
         name: value.name.trim(),
         domain: value.domain.trim(),
         timezone: value.timezone.trim(),
       });
+      formApi.reset();
+      setShowAdvanced(false);
     },
   });
 
@@ -210,7 +201,14 @@ function ProjectProjectsPage() {
 
       <Modal
         open={showCreateForm}
-        onOpenChange={setShowCreateForm}
+        onOpenChange={(next) => {
+          setShowCreateForm(next);
+          if (!next) {
+            projectForm.reset();
+            setCreateError(null);
+            setShowAdvanced(false);
+          }
+        }}
         title="Añadir dominio"
         description="Asocia un dominio al proyecto activo y deja preparada su primera auditoría."
       >
@@ -239,7 +237,13 @@ function ProjectProjectsPage() {
           >
             {(field) => (
               <div>
+                <label htmlFor="new-site-name" className="text-sm font-medium text-slate-700">
+                  Nombre del dominio
+                </label>
                 <TextInput
+                  id="new-site-name"
+                  name="name"
+                  className="mt-1.5"
                   placeholder="Nombre del dominio"
                   value={field.state.value}
                   onBlur={field.handleBlur}
@@ -267,7 +271,13 @@ function ProjectProjectsPage() {
           >
             {(field) => (
               <div>
+                <label htmlFor="new-site-domain" className="text-sm font-medium text-slate-700">
+                  Dominio
+                </label>
                 <TextInput
+                  id="new-site-domain"
+                  name="domain"
+                  className="mt-1.5"
                   placeholder="example.com"
                   value={field.state.value}
                   onBlur={field.handleBlur}
@@ -356,14 +366,20 @@ function ProjectProjectsPage() {
             placeholder="Buscar dominios..."
             aria-label="Buscar dominios"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(0);
+            }}
           />
         </label>
 
         <div className="flex flex-wrap gap-2 sm:flex-nowrap">
           <SelectInput
             value={status}
-            onValueChange={setStatus}
+            onValueChange={(value) => {
+              setStatus(value);
+              setPage(0);
+            }}
             placeholder="Estado"
             triggerClassName="min-w-44"
             options={[
@@ -377,7 +393,10 @@ function ProjectProjectsPage() {
 
           <SelectInput
             value={automation}
-            onValueChange={(value) => setAutomation(value as 'all' | 'active' | 'inactive')}
+            onValueChange={(value) => {
+              setAutomation(value as 'all' | 'active' | 'inactive');
+              setPage(0);
+            }}
             placeholder="Automatización"
             triggerClassName="min-w-44"
             options={[
@@ -520,51 +539,46 @@ function ProjectCard({
 
       <div className="mt-3 text-xs text-slate-500">
         {site.latestAuditAt ? (
-          <>Última auditoría · {new Date(site.latestAuditAt).toLocaleString()}</>
+          <>Última auditoría · {formatDisplayDateTime(site.latestAuditAt)}</>
         ) : (
           <>Sin auditorías todavía</>
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-end gap-1 border-t border-slate-100 pt-3 text-slate-500">
+      <div className="mt-auto flex items-center gap-2 border-t border-slate-100 pt-4">
         <Link
           to="/sites/$id"
           params={{ id: site.id }}
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition hover:bg-slate-100 hover:text-slate-900"
-          title="Ver dominio"
+          className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 no-underline transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
         >
           <Eye size={14} aria-hidden="true" />
-          Ver
+          Abrir dominio
         </Link>
         <button
           type="button"
           onClick={onRun}
           disabled={running}
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md bg-brand-500 px-3 text-xs font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           title="Ejecutar auditoría"
         >
           <Play size={14} aria-hidden="true" />
-          Auditar
+          {running ? 'Lanzando...' : 'Auditar'}
         </button>
-        <Link
-          to="/sites/$id"
-          params={{ id: site.id }}
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition hover:bg-slate-100 hover:text-slate-900"
-          title="Histórico"
-        >
-          <History size={14} aria-hidden="true" />
-        </Link>
-        <Link
-          to="/sites/$id"
-          params={{ id: site.id }}
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition hover:bg-slate-100 hover:text-slate-900"
-          title="Configuración"
-        >
-          <Settings2 size={14} aria-hidden="true" />
-        </Link>
       </div>
     </article>
   );
+}
+
+function useProjectSitesUiState() {
+  return {
+    searchState: useState(''),
+    statusState: useState(''),
+    automationState: useState<'all' | 'active' | 'inactive'>('all'),
+    showCreateFormState: useState(false),
+    showAdvancedState: useState(false),
+    createErrorState: useState<string | null>(null),
+    pageState: useState(0),
+  };
 }
 
 function statusLabel(status: string | null) {

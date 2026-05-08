@@ -19,8 +19,9 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '#/components/button';
-import { CrawlConfigCard } from '#/components/site-detail/crawl-config-card';
 import { PublicBadgeCard } from '#/components/site-detail/public-badge-card';
+import { CompareAuditsPanel } from '#/components/site-detail/comparisons';
+import { TrendsPanel } from '#/components/site-detail/trends-panel';
 import { Modal } from '#/components/modal';
 import { SelectInput } from '#/components/select-input';
 import { Skeleton } from '#/components/skeleton';
@@ -28,7 +29,8 @@ import { TextInput } from '#/components/text-input';
 import type { PaginatedResponse } from '@seotracker/shared-types';
 
 import { useAuth } from '../../lib/auth-context';
-import { REFETCH_INTERVALS } from '../../lib/refetch-intervals';
+import { formatDisplayDate, formatDisplayDateTime } from '../../lib/date-format';
+import { REFETCH_INTERVALS, pollWhileAnyAuditActive } from '../../lib/refetch-intervals';
 import { getTimezoneOptions } from '../../lib/timezones';
 
 type AuditRun = {
@@ -124,6 +126,11 @@ type ComparisonDetail = {
   }>;
 };
 
+type ComparisonPair = {
+  fromId: string;
+  toId: string;
+};
+
 type ProjectExport = {
   id: string;
   kind: string;
@@ -139,32 +146,51 @@ export const Route = createFileRoute('/_authenticated/sites/$id')({
   component: ProjectDetailPage,
 });
 
+function useProjectDetailUiState() {
+  return {
+    scheduleModalOpenState: useState(false),
+    scheduleFormState: useState<ScheduleFormState>({
+      frequency: 'DAILY',
+      dayOfWeek: '1',
+      timeOfDay: '09:00',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    }),
+    alertRuleState: useState<AlertRule>({
+      enabled: true,
+      notifyOnScoreDrop: true,
+      scoreDropThreshold: 2,
+      notifyOnNewCriticalIssues: true,
+      notifyOnIssueCountIncrease: false,
+    }),
+    auditStatusFilterState: useState(''),
+    auditTriggerFilterState: useState(''),
+    comparisonPairState: useState<ComparisonPair | null>(null),
+    compareModalOpenState: useState(false),
+  };
+}
+
 function ProjectDetailPage() {
   const { id } = Route.useParams();
   const auth = useAuth();
   const queryClient = useQueryClient();
   const timezoneOptions = useMemo(() => getTimezoneOptions(), []);
 
-  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>({
-    frequency: 'DAILY',
-    dayOfWeek: '1',
-    timeOfDay: '09:00',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  });
-  const [alertState, setAlertState] = useState<AlertRule>({
-    enabled: true,
-    notifyOnScoreDrop: true,
-    scoreDropThreshold: 2,
-    notifyOnNewCriticalIssues: true,
-    notifyOnIssueCountIncrease: false,
-  });
-  const [auditStatusFilter, setAuditStatusFilter] = useState('');
-  const [auditTriggerFilter, setAuditTriggerFilter] = useState('');
-  const [comparisonPair, setComparisonPair] = useState<{ fromId: string; toId: string } | null>(
-    null,
-  );
-  const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const {
+    scheduleModalOpenState,
+    scheduleFormState,
+    alertRuleState,
+    auditStatusFilterState,
+    auditTriggerFilterState,
+    comparisonPairState,
+    compareModalOpenState,
+  } = useProjectDetailUiState();
+  const [scheduleModalOpen, setScheduleModalOpen] = scheduleModalOpenState;
+  const [scheduleForm, setScheduleForm] = scheduleFormState;
+  const [alertState, setAlertState] = alertRuleState;
+  const [auditStatusFilter, setAuditStatusFilter] = auditStatusFilterState;
+  const [auditTriggerFilter, setAuditTriggerFilter] = auditTriggerFilterState;
+  const [comparisonPair, setComparisonPair] = comparisonPairState;
+  const [compareModalOpen, setCompareModalOpen] = compareModalOpenState;
 
   const site = useQuery({
     queryKey: ['site', id],
@@ -183,14 +209,19 @@ function ProjectDetailPage() {
       return auth.api.get<PaginatedResponse<AuditRun>>(`/sites/${id}/audits?${search.toString()}`);
     },
     enabled: Boolean(auth.accessToken),
-    refetchInterval: (query) => {
-      const items = query.state.data?.items ?? [];
-      const hasActive = items.some((item) => item.status === 'QUEUED' || item.status === 'RUNNING');
-      return hasActive ? REFETCH_INTERVALS.ACTIVE_AUDIT_MS : REFETCH_INTERVALS.SLOW_REFRESH_MS;
-    },
+    refetchInterval: pollWhileAnyAuditActive,
   });
 
   const auditItems = audits.data?.items ?? [];
+
+  const completedAudits = useQuery({
+    queryKey: ['audits-for-comparison', id],
+    queryFn: () =>
+      auth.api.get<PaginatedResponse<AuditRun>>(
+        `/sites/${id}/audits?status=COMPLETED&limit=50&offset=0`,
+      ),
+    enabled: Boolean(auth.accessToken),
+  });
 
   const activeCount = auditItems.filter(
     (item) => item.status === 'QUEUED' || item.status === 'RUNNING',
@@ -200,6 +231,7 @@ function ProjectDetailPage() {
     if (prevActiveCountRef.current > 0 && activeCount < prevActiveCountRef.current) {
       void queryClient.invalidateQueries({ queryKey: ['site', id] });
       void queryClient.invalidateQueries({ queryKey: ['comparisons', id] });
+      void queryClient.invalidateQueries({ queryKey: ['audits-for-comparison', id] });
     }
     prevActiveCountRef.current = activeCount;
   }, [activeCount, id, queryClient]);
@@ -265,6 +297,7 @@ function ProjectDetailPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['audits', id] }),
         queryClient.invalidateQueries({ queryKey: ['comparisons', id] }),
+        queryClient.invalidateQueries({ queryKey: ['audits-for-comparison', id] }),
       ]);
     },
   });
@@ -310,7 +343,7 @@ function ProjectDetailPage() {
     if (alerts.data && !saveAlerts.isPending) {
       setAlertState(alerts.data);
     }
-  }, [alerts.data, saveAlerts.isPending]);
+  }, [alerts.data, saveAlerts.isPending, setAlertState]);
 
   useEffect(() => {
     if (schedule.data && !saveSchedule.isPending) {
@@ -321,7 +354,7 @@ function ProjectDetailPage() {
         timezone: schedule.data.timezone,
       });
     }
-  }, [saveSchedule.isPending, schedule.data]);
+  }, [saveSchedule.isPending, schedule.data, setScheduleForm]);
 
   const scheduleSummary = schedule.data
     ? describeSchedule(schedule.data)
@@ -398,14 +431,16 @@ function ProjectDetailPage() {
 
         {trends.data && trends.data.points.length > 1 ? (
           <TrendsPanel
-            siteId={id}
             points={trends.data.points}
-            onCompare={(fromId, toId) => {
-              setComparisonPair({ fromId, toId });
-              setCompareModalOpen(true);
-            }}
+            onCompare={openComparison}
           />
         ) : null}
+
+        <CompareAuditsPanel
+          audits={completedAudits.data?.items ?? []}
+          loading={completedAudits.isLoading}
+          onCompare={openComparison}
+        />
 
         {/* Main grid */}
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -492,11 +527,11 @@ function ProjectDetailPage() {
                               {audit.criticalIssuesCount} críticas
                             </span>
                           ) : null}
-                        </div>
-                        <div className="mt-0.5 text-xs text-slate-500">
-                          {new Date(audit.createdAt).toLocaleString()} · #{audit.id.slice(0, 8)} ·{' '}
-                          {audit.issuesCount} hallazgos
-                        </div>
+	                        </div>
+	                        <div className="mt-0.5 text-xs text-slate-500">
+	                          {formatDisplayDateTime(audit.createdAt)} · #{audit.id.slice(0, 8)} ·{' '}
+	                          {audit.issuesCount} hallazgos
+	                        </div>
                       </div>
 
                       <div className="flex items-center gap-1 text-slate-500">
@@ -546,10 +581,6 @@ function ProjectDetailPage() {
             />
 
             {site.data ? (
-              <CrawlConfigCard siteId={site.data.id} projectId={site.data.projectId} />
-            ) : null}
-
-            {site.data ? (
               <PublicBadgeCard siteId={site.data.id} projectId={site.data.projectId} />
             ) : null}
 
@@ -584,17 +615,11 @@ function ProjectDetailPage() {
         title="Programación"
         description="Define cuándo se ejecutará la auditoría automática para este dominio."
       >
-        <form
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            saveSchedule.mutate();
-          }}
-        >
+        <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-600">Frecuencia</label>
               <SelectInput
+                id="schedule-frequency"
+                label="Frecuencia"
                 value={scheduleForm.frequency}
                 onValueChange={(value) =>
                   setScheduleForm((current) => ({
@@ -607,13 +632,10 @@ function ProjectDetailPage() {
                   { value: 'WEEKLY', label: 'Semanal' },
                 ]}
               />
-            </div>
             {scheduleForm.frequency === 'WEEKLY' ? (
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-600">
-                  Día de la semana
-                </label>
                 <SelectInput
+                  id="schedule-day"
+                  label="Día de la semana"
                   value={scheduleForm.dayOfWeek}
                   onValueChange={(value) =>
                     setScheduleForm((current) => ({ ...current, dayOfWeek: value }))
@@ -623,11 +645,16 @@ function ProjectDetailPage() {
                     label,
                   }))}
                 />
-              </div>
             ) : null}
             <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-600">Hora</label>
+              <label
+                htmlFor="schedule-time"
+                className="mb-1 block text-xs font-semibold text-slate-600"
+              >
+                Hora
+              </label>
               <TextInput
+                id="schedule-time"
                 type="time"
                 value={scheduleForm.timeOfDay}
                 onChange={(event) =>
@@ -639,10 +666,9 @@ function ProjectDetailPage() {
               />
             </div>
             <div className={scheduleForm.frequency === 'WEEKLY' ? 'sm:col-span-2' : ''}>
-              <label className="mb-1 block text-xs font-semibold text-slate-600">
-                Zona horaria
-              </label>
               <SelectInput
+                id="schedule-timezone"
+                label="Zona horaria"
                 value={scheduleForm.timezone}
                 onValueChange={(value) =>
                   setScheduleForm((current) => ({ ...current, timezone: value }))
@@ -655,12 +681,12 @@ function ProjectDetailPage() {
             <Button type="button" variant="ghost" onClick={() => setScheduleModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={saveSchedule.isPending}>
+            <Button type="button" onClick={() => saveSchedule.mutate()} disabled={saveSchedule.isPending}>
               <Save size={14} />
               {saveSchedule.isPending ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>
-        </form>
+        </div>
       </Modal>
 
       {/* Comparison modal */}
@@ -674,6 +700,12 @@ function ProjectDetailPage() {
           <div className="space-y-2">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-24 w-full" />
+          </div>
+        ) : comparison.error ? (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {comparison.error instanceof Error
+              ? comparison.error.message
+              : 'No se pudo cargar la comparativa.'}
           </div>
         ) : comparison.data ? (
           <ComparisonDetailView data={comparison.data} />
@@ -925,9 +957,9 @@ function ExportsCard({
                     <div className="truncate font-medium text-slate-800">
                       {item.kind} · {item.format}
                     </div>
-                    <div className="text-[10px] text-slate-500">
-                      {new Date(item.createdAt).toLocaleString()}
-                    </div>
+	                    <div className="text-[10px] text-slate-500">
+	                      {formatDisplayDateTime(item.createdAt)}
+	                    </div>
                   </div>
                   {item.status === 'COMPLETED' ? (
                     <button
@@ -1004,15 +1036,15 @@ function ComparisonsSection({
                       {item.regressionsCount} reg.
                     </span>
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {item.baselineRun?.createdAt
-                      ? new Date(item.baselineRun.createdAt).toLocaleDateString()
-                      : '--'}{' '}
-                    →{' '}
-                    {item.targetRun?.createdAt
-                      ? new Date(item.targetRun.createdAt).toLocaleDateString()
-                      : '--'}
-                  </div>
+	                  <div className="mt-1 text-xs text-slate-500">
+	                    {item.baselineRun?.createdAt
+	                      ? formatDisplayDate(item.baselineRun.createdAt)
+	                      : '--'}{' '}
+	                    →{' '}
+	                    {item.targetRun?.createdAt
+	                      ? formatDisplayDate(item.targetRun.createdAt)
+	                      : '--'}
+	                  </div>
                 </button>
               </li>
             );
@@ -1180,246 +1212,4 @@ async function downloadExport(
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
-}
-
-type TrendPoint = {
-  id: string;
-  timestamp: string;
-  score: number | null;
-  categoryScores: Record<string, number> | null;
-  scoreDelta: number | null;
-};
-
-const TREND_CATEGORY_LABELS: Record<string, string> = {
-  TECHNICAL: 'Técnico',
-  ON_PAGE: 'On-page',
-  CRAWLABILITY: 'Crawlability',
-  MEDIA: 'Medios',
-  PERFORMANCE: 'Rendimiento',
-  STRUCTURED_DATA: 'Datos estructurados',
-  CONTENT: 'Contenido',
-  SECURITY: 'Seguridad',
-};
-
-const TREND_CATEGORY_COLORS: Record<string, string> = {
-  TECHNICAL: '#6366f1',
-  ON_PAGE: '#0ea5e9',
-  CRAWLABILITY: '#10b981',
-  MEDIA: '#f59e0b',
-  PERFORMANCE: '#ef4444',
-  STRUCTURED_DATA: '#8b5cf6',
-  CONTENT: '#14b8a6',
-  SECURITY: '#f43f5e',
-};
-
-function TrendsPanel({
-  siteId,
-  points,
-  onCompare,
-}: {
-  siteId: string;
-  points: TrendPoint[];
-  onCompare: (fromId: string, toId: string) => void;
-}) {
-  void siteId;
-  const [showCategories, setShowCategories] = useState(false);
-
-  const scoredPoints = points.filter((p): p is TrendPoint & { score: number } => p.score !== null);
-  if (scoredPoints.length < 2) return null;
-
-  const regressions = scoredPoints.filter((p) => p.scoreDelta !== null && p.scoreDelta < 0);
-
-  const first = scoredPoints[0];
-  const last = scoredPoints[scoredPoints.length - 1];
-  const overallDelta = last.score - first.score;
-
-  const categoriesPresent = showCategories
-    ? Array.from(
-        new Set(
-          scoredPoints.flatMap((p) => (p.categoryScores ? Object.keys(p.categoryScores) : [])),
-        ),
-      )
-    : [];
-
-  const width = 640;
-  const height = 200;
-  const paddingX = 28;
-  const paddingY = 18;
-  const innerW = width - paddingX * 2;
-  const innerH = height - paddingY * 2;
-  const xFor = (i: number) =>
-    paddingX + (scoredPoints.length === 1 ? innerW / 2 : (i / (scoredPoints.length - 1)) * innerW);
-  const yFor = (value: number) => paddingY + ((100 - value) / 100) * innerH;
-
-  const scorePath = scoredPoints
-    .map((p, i) => `${i === 0 ? 'M' : 'L'}${xFor(i)},${yFor(p.score)}`)
-    .join(' ');
-
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-slate-900">Tendencias</h2>
-          <p className="text-xs text-slate-500">
-            Evolución del score en las últimas {scoredPoints.length} auditorías.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-slate-600">
-            <span
-              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-semibold ${
-                overallDelta > 0
-                  ? 'bg-emerald-50 text-emerald-700'
-                  : overallDelta < 0
-                    ? 'bg-rose-50 text-rose-700'
-                    : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {overallDelta > 0 ? '+' : ''}
-              {overallDelta} vs. primer punto
-            </span>
-            {regressions.length > 0 ? (
-              <span className="rounded-md bg-rose-50 px-2 py-0.5 font-semibold text-rose-700">
-                {regressions.length} regresión
-                {regressions.length === 1 ? '' : 'es'}
-              </span>
-            ) : null}
-          </div>
-          <label className="flex items-center gap-2 text-xs text-slate-600">
-            <input
-              type="checkbox"
-              checked={showCategories}
-              onChange={(event) => setShowCategories(event.currentTarget.checked)}
-              className="h-3.5 w-3.5 rounded border-slate-300"
-            />
-            Desglose por categoría
-          </label>
-          <button
-            type="button"
-            onClick={() => onCompare(scoredPoints[0].id, scoredPoints[scoredPoints.length - 1].id)}
-            className="btn-secondary inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs"
-          >
-            Comparar primera vs. última
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4 overflow-x-auto">
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className="min-w-[640px] w-full"
-          role="img"
-          aria-label="Gráfico de evolución de score"
-        >
-          {[0, 25, 50, 75, 100].map((tick) => (
-            <g key={tick}>
-              <line
-                x1={paddingX}
-                x2={width - paddingX}
-                y1={yFor(tick)}
-                y2={yFor(tick)}
-                stroke="#e2e8f0"
-                strokeDasharray="3 3"
-              />
-              <text
-                x={paddingX - 6}
-                y={yFor(tick) + 3}
-                fontSize="9"
-                fill="#94a3b8"
-                textAnchor="end"
-              >
-                {tick}
-              </text>
-            </g>
-          ))}
-          {categoriesPresent.map((cat) => {
-            const d = scoredPoints
-              .map((p, i) => {
-                const v = p.categoryScores?.[cat];
-                return typeof v === 'number' ? `${i === 0 ? 'M' : 'L'}${xFor(i)},${yFor(v)}` : '';
-              })
-              .filter(Boolean)
-              .join(' ');
-            if (!d) return null;
-            return (
-              <path
-                key={cat}
-                d={d}
-                fill="none"
-                stroke={TREND_CATEGORY_COLORS[cat] ?? '#94a3b8'}
-                strokeOpacity={0.7}
-                strokeWidth={1.5}
-              />
-            );
-          })}
-          <path d={scorePath} fill="none" stroke="#0f172a" strokeWidth={2.2} />
-          {scoredPoints.map((p, i) => {
-            const isRegression = p.scoreDelta !== null && p.scoreDelta < 0;
-            return (
-              <g key={p.id}>
-                <title>
-                  {`${new Date(p.timestamp).toLocaleString('es-ES')} · score ${p.score}${
-                    p.scoreDelta !== null ? ` (${p.scoreDelta > 0 ? '+' : ''}${p.scoreDelta})` : ''
-                  }`}
-                </title>
-                <circle
-                  cx={xFor(i)}
-                  cy={yFor(p.score)}
-                  r={isRegression ? 4.5 : 3}
-                  fill={isRegression ? '#e11d48' : '#0f172a'}
-                  stroke="#fff"
-                  strokeWidth={1.5}
-                />
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-
-      {categoriesPresent.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-slate-600">
-          {categoriesPresent.map((cat) => (
-            <span key={cat} className="inline-flex items-center gap-1.5">
-              <span
-                className="inline-block h-2 w-2 rounded-full"
-                style={{ background: TREND_CATEGORY_COLORS[cat] ?? '#94a3b8' }}
-              />
-              {TREND_CATEGORY_LABELS[cat] ?? cat}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
-      {regressions.length > 0 ? (
-        <div className="mt-4 border-t border-slate-100 pt-3">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            Regresiones recientes
-          </div>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {regressions.slice(-5).map((point, idx, arr) => {
-              const prev = scoredPoints[scoredPoints.indexOf(point) - 1];
-              return (
-                <li key={point.id}>
-                  <button
-                    type="button"
-                    onClick={() => prev && onCompare(prev.id, point.id)}
-                    className="inline-flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                    title="Abrir comparación con la auditoría previa"
-                  >
-                    <span>{new Date(point.timestamp).toLocaleDateString('es-ES')}</span>
-                    <span>
-                      {point.scoreDelta !== null
-                        ? `${point.scoreDelta > 0 ? '+' : ''}${point.scoreDelta}`
-                        : ''}
-                    </span>
-                    {idx === arr.length - 1 ? null : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ) : null}
-    </section>
-  );
 }

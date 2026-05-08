@@ -139,43 +139,45 @@ export function CrawlConfigCard({ siteId, projectId }: { siteId: string; project
       {!editing ? (
         <p className="mt-4 text-sm text-slate-700">{summary}</p>
       ) : (
-        <form
-          className="mt-5 grid gap-4 sm:grid-cols-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            save.mutate();
-          }}
-        >
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <NumberField
             label="Máx. páginas"
             hint={`hasta ${HARD_CAP.maxPages}`}
             value={form.maxPages}
-            onChange={(value) => setForm({ ...form, maxPages: value })}
+            onChange={(value) => setForm((current) => current && { ...current, maxPages: value })}
           />
           <NumberField
             label="Profundidad máx."
             hint={`hasta ${HARD_CAP.maxDepth}`}
             value={form.maxDepth}
-            onChange={(value) => setForm({ ...form, maxDepth: value })}
+            onChange={(value) => setForm((current) => current && { ...current, maxDepth: value })}
           />
           <NumberField
             label="Concurrencia"
             hint={`hasta ${HARD_CAP.maxConcurrentPages} páginas en paralelo`}
             value={form.maxConcurrentPages}
-            onChange={(value) => setForm({ ...form, maxConcurrentPages: value })}
+            onChange={(value) =>
+              setForm((current) => current && { ...current, maxConcurrentPages: value })
+            }
           />
           <NumberField
             label="Delay entre peticiones (ms)"
             hint={`hasta ${HARD_CAP.requestDelayMs}ms`}
             value={form.requestDelayMs}
-            onChange={(value) => setForm({ ...form, requestDelayMs: value })}
+            onChange={(value) =>
+              setForm((current) => current && { ...current, requestDelayMs: value })
+            }
           />
           <label className="col-span-full flex items-center gap-2 text-sm text-slate-700">
             <input
               type="checkbox"
               className="h-4 w-4 rounded border-slate-300 text-brand-500 focus:ring-brand-500"
               checked={form.respectCrawlDelay}
-              onChange={(event) => setForm({ ...form, respectCrawlDelay: event.target.checked })}
+              onChange={(event) =>
+                setForm(
+                  (current) => current && { ...current, respectCrawlDelay: event.target.checked },
+                )
+              }
             />
             Respetar{' '}
             <code className="rounded bg-slate-100 px-1 font-mono text-xs">Crawl-delay</code> del
@@ -188,7 +190,9 @@ export function CrawlConfigCard({ siteId, projectId }: { siteId: string; project
             </span>
             <TextInput
               value={form.userAgent}
-              onChange={(event) => setForm({ ...form, userAgent: event.target.value })}
+              onChange={(event) =>
+                setForm((current) => current && { ...current, userAgent: event.target.value })
+              }
               placeholder="MyBot/1.0 (+https://miempresa.com/bot)"
             />
           </label>
@@ -210,11 +214,11 @@ export function CrawlConfigCard({ siteId, projectId }: { siteId: string; project
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={save.isPending}>
+            <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>
               {save.isPending ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>
-        </form>
+        </div>
       )}
     </article>
   );

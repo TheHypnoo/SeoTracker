@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { MultiSeriesTrendChart } from '#/components/charts/multi-series-trend-chart';
+import { formatDisplayDate } from '#/lib/date-format';
 import type { TrendPoint } from './types';
 
 const TREND_CATEGORY_LABELS: Record<string, string> = {
@@ -182,7 +183,7 @@ export function TrendsPanel({
                     className="inline-flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
                     title="Abrir comparación con la auditoría previa"
                   >
-                    <span>{new Date(point.timestamp).toLocaleDateString('es-ES')}</span>
+                    <span>{formatDisplayDate(point.timestamp)}</span>
                     <span>
                       {point.scoreDelta !== null
                         ? `${point.scoreDelta > 0 ? '+' : ''}${point.scoreDelta}`
