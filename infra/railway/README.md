@@ -19,11 +19,11 @@ service settings, set the custom config path for each service:
 
 Recommended public networking and healthcheck settings:
 
-| Service  | Public domain | Port | Healthcheck path           | Custom start command |
-| -------- | ------------- | ---- | -------------------------- | -------------------- |
-| `web`    | yes           | 3000 | `/health`                  | no                   |
-| `api`    | optional      | 4000 | `/api/v1/health/readiness` | no                   |
-| `worker` | no            | 4101 | `/health/readiness`        | no                   |
+| Service  | Public domain | Port                        | Healthcheck path           | Custom start command |
+| -------- | ------------- | --------------------------- | -------------------------- | -------------------- |
+| `web`    | yes           | `$PORT` (`8080` on Railway) | `/health`                  | no                   |
+| `api`    | optional      | `4000`                      | `/api/v1/health/readiness` | no                   |
+| `worker` | no            | `4101`                      | `/health/readiness`        | no                   |
 
 Those files use the existing service Dockerfiles. The Dockerfiles build from
 the repository root and include workspace dependencies with `--filter=<app>...`;
@@ -35,6 +35,7 @@ server-side session calls reach the private API service:
 
 ```bash
 VITE_API_URL=/api/v1
+PORT=8080
 API_PROXY_TARGET=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:4000
 SERVER_API_URL=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:4000/api/v1
 ```
