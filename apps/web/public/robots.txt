@@ -1,3 +1,7 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /notifications
+Disallow: /projects
+Disallow: /settings

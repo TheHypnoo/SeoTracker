@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">SEOTracker</title>
+  <desc id="desc">Auditorías SEO continuas con histórico y alertas.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1200" y1="0" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8fafc" />
+      <stop offset=".58" stop-color="#ffffff" />
+      <stop offset="1" stop-color="#ecfeff" />
+    </linearGradient>
+    <linearGradient id="brand" x1="78" x2="218" y1="70" y2="230" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111827" />
+      <stop offset="1" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="trend" x1="109" x2="166" y1="154" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22d3ee" />
+      <stop offset="1" stop-color="#34d399" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <path d="M0 530h1200M0 430h1200M0 330h1200M0 230h1200M0 130h1200M160 0v630M360 0v630M560 0v630M760 0v630M960 0v630" stroke="#e2e8f0" stroke-width="1" opacity=".8" />
+  <rect x="78" y="70" width="150" height="150" rx="34" fill="url(#brand)" />
+  <circle cx="146" cy="134" r="34" fill="#0f172a" stroke="#e2e8f0" stroke-width="12" />
+  <path d="m171 159 31 31" fill="none" stroke="#e2e8f0" stroke-linecap="round" stroke-width="15" />
+  <path d="m113 139 18-18 17 12 23-28" fill="none" stroke="url(#trend)" stroke-linecap="round" stroke-linejoin="round" stroke-width="9" />
+  <circle cx="171" cy="105" r="6" fill="#fbbf24" />
+  <text x="78" y="320" fill="#020617" font-family="Archivo, Inter, Arial, sans-serif" font-size="88" font-weight="900" letter-spacing="-2">SEOTracker</text>
+  <text x="82" y="392" fill="#334155" font-family="Archivo, Inter, Arial, sans-serif" font-size="38" font-weight="600">Auditorías SEO continuas con histórico y alertas.</text>
+  <g transform="translate(82 468)" fill="none" stroke="#cbd5e1" stroke-width="1">
+    <rect width="256" height="58" rx="14" fill="#ffffff" />
+    <rect x="286" width="252" height="58" rx="14" fill="#ffffff" />
+    <rect x="568" width="226" height="58" rx="14" fill="#ffffff" />
+  </g>
+  <g fill="#0f172a" font-family="JetBrains Mono, Menlo, monospace" font-size="20" font-weight="700" letter-spacing="1">
+    <text x="108" y="504">40+ CHECKS</text>
+    <text x="394" y="504">HISTORICO</text>
+    <text x="676" y="504">ALERTAS 24/7</text>
+  </g>
+  <path d="M796 170c80-34 172-6 218 68 45 74 30 169-34 224-64 55-161 55-225 1" fill="none" stroke="#22d3ee" stroke-linecap="round" stroke-width="18" opacity=".5" />
+  <path d="M820 356h82l44-68 48 38 73-112" fill="none" stroke="#10b981" stroke-linecap="round" stroke-linejoin="round" stroke-width="20" />
+  <circle cx="1067" cy="214" r="16" fill="#fbbf24" />
+</svg>
