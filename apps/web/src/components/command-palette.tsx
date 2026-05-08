@@ -1,5 +1,6 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Dialog } from '@base-ui/react';
 import { Command } from 'cmdk';
 import {
   Activity,
@@ -89,121 +90,125 @@ export function CommandPalette({ open, onOpenChange }: Props) {
   };
 
   return (
-    <Command.Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      label="Buscador rápido"
-      className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/45 backdrop-blur-sm pt-[10vh]"
-    >
-      <div className="w-[min(92vw,40rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
-        <Command.Input
-          placeholder="Buscar páginas, proyectos o dominios…"
-          className="w-full border-b border-slate-200 px-5 py-4 text-base text-slate-900 outline-none placeholder:text-slate-400"
-        />
-        <Command.List className="max-h-[55vh] overflow-y-auto p-2">
-          <Command.Empty className="px-3 py-8 text-center text-sm text-slate-500">
-            Sin resultados
-          </Command.Empty>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-sm" />
+        <Dialog.Popup className="fixed top-[10vh] left-1/2 z-50 w-[min(92vw,40rem)] -translate-x-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl outline-none">
+          <Dialog.Title className="sr-only">Buscador rápido</Dialog.Title>
+          <Dialog.Description className="sr-only">
+            Busca páginas, proyectos, dominios y acciones rápidas.
+          </Dialog.Description>
+          <Command label="Buscador rápido">
+            <Command.Input
+              placeholder="Buscar páginas, proyectos o dominios…"
+              className="w-full border-b border-slate-200 px-5 py-4 text-base text-slate-900 outline-none placeholder:text-slate-400"
+            />
+            <Command.List className="max-h-[55vh] overflow-y-auto p-2">
+              <Command.Empty className="px-3 py-8 text-center text-sm text-slate-500">
+                Sin resultados
+              </Command.Empty>
 
-          <CommandGroup heading="Acciones">
-            {currentSiteId ? (
-              <CommandRow
-                icon={<Play size={14} />}
-                label="Lanzar auditoría — este dominio"
-                hint={runAudit.isPending ? 'lanzando…' : undefined}
-                onSelect={goto(() => runAudit.mutate(currentSiteId))}
-              />
-            ) : null}
-            <CommandRow
-              icon={<LogOut size={14} />}
-              label="Cerrar sesión"
-              onSelect={goto(() => auth.logout())}
-            />
-          </CommandGroup>
-
-          <CommandGroup heading="Páginas">
-            <CommandRow
-              icon={<LayoutDashboard size={14} />}
-              label="Panel de control"
-              onSelect={goto(() => navigate({ to: '/dashboard' }))}
-            />
-            {project.activeProjectId ? (
-              <CommandRow
-                icon={<Globe size={14} />}
-                label="Dominios"
-                onSelect={goto(() =>
-                  navigate({
-                    to: '/projects/$id/sites',
-                    params: { id: project.activeProjectId as string },
-                  }),
-                )}
-              />
-            ) : null}
-            <CommandRow
-              icon={<Bell size={14} />}
-              label="Notificaciones"
-              onSelect={goto(() => navigate({ to: '/notifications' }))}
-            />
-            <CommandRow
-              icon={<Users2 size={14} />}
-              label="Equipo"
-              onSelect={goto(() => navigate({ to: '/settings/team' }))}
-            />
-            <CommandRow
-              icon={<Webhook size={14} />}
-              label="Integraciones"
-              onSelect={goto(() => navigate({ to: '/settings/integrations' }))}
-            />
-            <CommandRow
-              icon={<Activity size={14} />}
-              label="Actividad"
-              onSelect={goto(() => navigate({ to: '/settings/activity' }))}
-            />
-            <CommandRow
-              icon={<Plus size={14} />}
-              label="Nuevo proyecto"
-              onSelect={goto(() => navigate({ to: '/projects/new' }))}
-            />
-          </CommandGroup>
-
-          {project.projects.length > 0 ? (
-            <CommandGroup heading="Proyectos">
-              {project.projects.map((p) => (
+              <CommandGroup heading="Acciones">
+                {currentSiteId ? (
+                  <CommandRow
+                    icon={<Play size={14} />}
+                    label="Lanzar auditoría — este dominio"
+                    hint={runAudit.isPending ? 'lanzando…' : undefined}
+                    onSelect={goto(() => runAudit.mutate(currentSiteId))}
+                  />
+                ) : null}
                 <CommandRow
-                  key={p.id}
-                  icon={<FolderKanban size={14} />}
-                  label={p.name}
-                  hint={p.id === project.activeProjectId ? 'activo' : undefined}
-                  onSelect={goto(async () => {
-                    if (p.id !== project.activeProjectId) {
-                      await project.setActiveProject(p.id);
-                    }
-                    navigate({ to: '/dashboard' });
-                  })}
+                  icon={<LogOut size={14} />}
+                  label="Cerrar sesión"
+                  onSelect={goto(() => auth.logout())}
                 />
-              ))}
-            </CommandGroup>
-          ) : null}
+              </CommandGroup>
 
-          {sites.data?.items.length ? (
-            <CommandGroup heading="Dominios">
-              {sites.data.items.map((s) => (
+              <CommandGroup heading="Páginas">
                 <CommandRow
-                  key={s.id}
-                  // The `value` is what cmdk filters against. Include both
-                  // name and domain so the user can search by either.
-                  value={`${s.name} ${s.domain}`}
-                  icon={<Globe size={14} />}
-                  label={s.name}
-                  hint={s.domain}
-                  onSelect={goto(() => navigate({ to: '/sites/$id', params: { id: s.id } }))}
+                  icon={<LayoutDashboard size={14} />}
+                  label="Panel de control"
+                  onSelect={goto(() => navigate({ to: '/dashboard' }))}
                 />
-              ))}
-            </CommandGroup>
-          ) : null}
-        </Command.List>
-      </div>
-    </Command.Dialog>
+                {project.activeProjectId ? (
+                  <CommandRow
+                    icon={<Globe size={14} />}
+                    label="Dominios"
+                    onSelect={goto(() =>
+                      navigate({
+                        to: '/projects/$id/sites',
+                        params: { id: project.activeProjectId as string },
+                      }),
+                    )}
+                  />
+                ) : null}
+                <CommandRow
+                  icon={<Bell size={14} />}
+                  label="Notificaciones"
+                  onSelect={goto(() => navigate({ to: '/notifications' }))}
+                />
+                <CommandRow
+                  icon={<Users2 size={14} />}
+                  label="Equipo"
+                  onSelect={goto(() => navigate({ to: '/settings/team' }))}
+                />
+                <CommandRow
+                  icon={<Webhook size={14} />}
+                  label="Integraciones"
+                  onSelect={goto(() => navigate({ to: '/settings/integrations' }))}
+                />
+                <CommandRow
+                  icon={<Activity size={14} />}
+                  label="Actividad"
+                  onSelect={goto(() => navigate({ to: '/settings/activity' }))}
+                />
+                <CommandRow
+                  icon={<Plus size={14} />}
+                  label="Nuevo proyecto"
+                  onSelect={goto(() => navigate({ to: '/projects/new' }))}
+                />
+              </CommandGroup>
+
+              {project.projects.length > 0 ? (
+                <CommandGroup heading="Proyectos">
+                  {project.projects.map((p) => (
+                    <CommandRow
+                      key={p.id}
+                      icon={<FolderKanban size={14} />}
+                      label={p.name}
+                      hint={p.id === project.activeProjectId ? 'activo' : undefined}
+                      onSelect={goto(async () => {
+                        if (p.id !== project.activeProjectId) {
+                          await project.setActiveProject(p.id);
+                        }
+                        navigate({ to: '/dashboard' });
+                      })}
+                    />
+                  ))}
+                </CommandGroup>
+              ) : null}
+
+              {sites.data?.items.length ? (
+                <CommandGroup heading="Dominios">
+                  {sites.data.items.map((s) => (
+                    <CommandRow
+                      key={s.id}
+                      // The `value` is what cmdk filters against. Include both
+                      // name and domain so the user can search by either.
+                      value={`${s.name} ${s.domain}`}
+                      icon={<Globe size={14} />}
+                      label={s.name}
+                      hint={s.domain}
+                      onSelect={goto(() => navigate({ to: '/sites/$id', params: { id: s.id } }))}
+                    />
+                  ))}
+                </CommandGroup>
+              ) : null}
+            </Command.List>
+          </Command>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 

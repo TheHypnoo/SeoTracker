@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface AuthPageProps {
@@ -73,12 +73,7 @@ function BrandHeader() {
         className="inline-flex items-center gap-2 no-underline"
         aria-label="SEOTracker — inicio"
       >
-        <span
-          aria-hidden="true"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-950 text-white"
-        >
-          <Sparkles size={16} />
-        </span>
+        <img src="/icon.svg" alt="" aria-hidden="true" className="h-9 w-9 rounded-lg" />
         <span className="text-lg font-black tracking-tight text-slate-950">SEOTracker</span>
       </Link>
     </div>

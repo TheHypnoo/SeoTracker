@@ -11,7 +11,7 @@ interface FieldShellContextValue {
 const FieldShellContext = React.createContext<FieldShellContextValue | null>(null);
 
 export function useFieldShell() {
-  return React.useContext(FieldShellContext);
+  return React.use(FieldShellContext);
 }
 
 export function FieldShell({

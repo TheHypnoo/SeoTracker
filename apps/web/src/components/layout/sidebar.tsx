@@ -4,7 +4,7 @@ import {
   ChevronsRight,
   Globe,
   LayoutDashboard,
-  Sparkles,
+  Settings2,
   Users2,
   Activity,
   Webhook,
@@ -17,6 +17,7 @@ import { useProject } from '../../lib/project-context';
 type SidebarLinkTarget =
   | '/dashboard'
   | '/notifications'
+  | '/settings/general'
   | '/settings/team'
   | '/settings/integrations'
   | '/settings/activity'
@@ -85,12 +86,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
           className="inline-flex items-center gap-2 no-underline"
           aria-label="SEOTracker"
         >
-          <span
-            aria-hidden="true"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-500 text-white"
-          >
-            <Sparkles size={14} />
-          </span>
+          <img src="/icon.svg" alt="" aria-hidden="true" className="h-8 w-8 shrink-0 rounded-md" />
           <span
             className={`text-lg font-black tracking-tight text-slate-900 ${collapsed ? 'lg:hidden' : ''}`}
           >
@@ -140,6 +136,12 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
           Proyecto
         </div>
         <div className="space-y-0.5">
+          <SidebarLink
+            to="/settings/general"
+            label="General"
+            icon={<Settings2 size={16} aria-hidden="true" />}
+            collapsed={collapsed}
+          />
           <SidebarLink
             to="/settings/team"
             label="Equipo"

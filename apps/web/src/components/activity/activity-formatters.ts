@@ -7,6 +7,7 @@ import { ActivityAction, Role } from '@seotracker/shared-types';
  */
 const ACTION_LABELS: Record<ActivityAction, string> = {
   [ActivityAction.PROJECT_CREATED]: 'Proyecto creado',
+  [ActivityAction.PROJECT_UPDATED]: 'Proyecto actualizado',
   [ActivityAction.MEMBER_INVITED]: 'Invitación enviada',
   [ActivityAction.MEMBER_ACCEPTED]: 'Invitación aceptada',
   [ActivityAction.MEMBER_REMOVED]: 'Miembro expulsado',
@@ -43,6 +44,7 @@ const TONE_BY_ACTION: Record<string, 'neutral' | 'positive' | 'warning' | 'dange
   [ActivityAction.AUDIT_FAILED]: 'danger',
   [ActivityAction.AUDIT_COMPLETED]: 'positive',
   [ActivityAction.PROJECT_CREATED]: 'positive',
+  [ActivityAction.PROJECT_UPDATED]: 'warning',
   [ActivityAction.SITE_CREATED]: 'positive',
   [ActivityAction.MEMBER_ACCEPTED]: 'positive',
   [ActivityAction.WEBHOOK_ROTATED]: 'warning',
@@ -98,6 +100,8 @@ export function summaryFor(entry: {
       if (revoked) parts.push(`-${revoked} revocados`);
       return parts.join(' · ');
     }
+    case ActivityAction.PROJECT_UPDATED:
+      return typeof meta.name === 'string' ? `Renombró a ${meta.name}` : '';
     case ActivityAction.SITE_CREATED:
       return typeof meta.name === 'string' && typeof meta.domain === 'string'
         ? `${meta.name} (${meta.domain})`

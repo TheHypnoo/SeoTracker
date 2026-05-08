@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, use, useMemo } from 'react';
 import type { PropsWithChildren } from 'react';
 
 import { useAuth } from './auth-context';
@@ -71,6 +71,7 @@ export function ProjectProvider({ children }: PropsWithChildren) {
   });
 
   const value = useMemo<ProjectContextValue>(() => {
+    const authReady = Boolean(auth.user);
     const projects = projectsQuery.data ?? [];
     const activeProjectId =
       preferencesQuery.data?.activeProjectId ?? (projects.length > 0 ? projects[0].id : null);
@@ -79,7 +80,11 @@ export function ProjectProvider({ children }: PropsWithChildren) {
     return {
       activeProject,
       activeProjectId,
-      loading: projectsQuery.isLoading || preferencesQuery.isLoading || updatePreferences.isPending,
+      loading:
+        !authReady ||
+        projectsQuery.isPending ||
+        preferencesQuery.isPending ||
+        updatePreferences.isPending,
       projects,
       refresh: async () => {
         await Promise.all([
@@ -94,20 +99,20 @@ export function ProjectProvider({ children }: PropsWithChildren) {
       },
     };
   }, [
-    auth.user?.id,
+    auth.user,
     preferencesQuery.data?.activeProjectId,
-    preferencesQuery.isLoading,
+    preferencesQuery.isPending,
     queryClient,
     updatePreferences,
     projectsQuery.data,
-    projectsQuery.isLoading,
+    projectsQuery.isPending,
   ]);
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 }
 
 export function useProject() {
-  const value = useContext(ProjectContext);
+  const value = use(ProjectContext);
   if (!value) {
     throw new Error('useProject must be used inside ProjectProvider');
   }

@@ -1,5 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router';
-import { LogIn, Sparkles, UserPlus } from 'lucide-react';
+import { LogIn, UserPlus } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 function NavLink({ to, children }: { to: string; children: ReactNode }) {
@@ -39,12 +39,7 @@ export function PublicHeader() {
           className="inline-flex items-center gap-2 text-xl font-black tracking-tight text-slate-900 no-underline"
           aria-label="SEOTracker — inicio"
         >
-          <span
-            aria-hidden="true"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-brand-500 text-white"
-          >
-            <Sparkles size={14} />
-          </span>
+          <img src="/icon.svg" alt="" aria-hidden="true" className="h-8 w-8 rounded-md" />
           SEOTracker
         </Link>
 

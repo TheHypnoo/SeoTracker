@@ -3,6 +3,12 @@ import { cn } from './utils';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
+type ButtonProps = React.ComponentProps<'button'> & {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  fullWidth?: boolean;
+  loading?: boolean;
+};
 
 const buttonVariantClasses: Record<ButtonVariant, string> = {
   danger:
@@ -21,28 +27,18 @@ const buttonSizeClasses: Record<ButtonSize, string> = {
   sm: 'px-3 py-2 text-sm',
 };
 
-export const Button = React.forwardRef<
-  HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    variant?: ButtonVariant;
-    size?: ButtonSize;
-    fullWidth?: boolean;
-    loading?: boolean;
-  }
->(function Button(
-  {
-    className,
-    variant = 'primary',
-    size = 'md',
-    fullWidth = false,
-    loading = false,
-    disabled,
-    type = 'button',
-    children,
-    ...props
-  },
+export function Button({
+  className,
+  variant = 'primary',
+  size = 'md',
+  fullWidth = false,
+  loading = false,
+  disabled,
+  type = 'button',
+  children,
   ref,
-) {
+  ...props
+}: ButtonProps) {
   const isDisabled = disabled || loading;
   const classes = cn(
     'inline-flex items-center justify-center gap-2 rounded-md font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
@@ -62,15 +58,13 @@ export const Button = React.forwardRef<
       {children}
     </>
   );
-  const sharedProps = {
+  const sharedProps: React.ComponentProps<'button'> = {
     'aria-busy': loading || undefined,
     'aria-disabled': isDisabled || undefined,
     className: classes,
     disabled: isDisabled,
     ref,
     ...props,
-  } satisfies React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    ref: React.Ref<HTMLButtonElement>;
   };
 
   if (type === 'submit') {
@@ -92,4 +86,4 @@ export const Button = React.forwardRef<
       {content}
     </button>
   );
-});
+}

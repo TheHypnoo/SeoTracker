@@ -26,17 +26,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [{ open: mobileNavRequestedOpen, path: mobileNavPath }, setMobileNav] = useState({
+    open: false,
+    path: pathname,
+  });
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
   });
-
-  // Close mobile nav on every navigation.
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [pathname]);
+  const mobileNavOpen = mobileNavRequestedOpen && mobileNavPath === pathname;
 
   // Persist sidebar collapse preference.
   useEffect(() => {
@@ -71,7 +70,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             collapsed={collapsed}
             onToggleCollapsed={() => setCollapsed((value) => !value)}
             mobileOpen={mobileNavOpen}
-            onCloseMobile={() => setMobileNavOpen(false)}
+            onCloseMobile={() => setMobileNav((current) => ({ ...current, open: false }))}
           />
 
           {mobileNavOpen ? (
@@ -79,13 +78,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
               type="button"
               aria-label="Cerrar navegación"
               className="fixed inset-0 z-30 bg-slate-950/30 backdrop-blur-sm lg:hidden"
-              onClick={() => setMobileNavOpen(false)}
+              onClick={() => setMobileNav((current) => ({ ...current, open: false }))}
             />
           ) : null}
 
           <div className="flex min-w-0 flex-1 flex-col">
             <Topbar
-              onOpenMobileNav={() => setMobileNavOpen(true)}
+              onOpenMobileNav={() => setMobileNav({ open: true, path: pathname })}
               mobileNavOpen={mobileNavOpen}
               onOpenPalette={togglePalette}
             />
@@ -121,7 +120,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,var(--color-brand-50),transparent_48%),var(--color-surface-app)] text-slate-900">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,var(--color-brand-50),transparent_42%),radial-gradient(circle_at_bottom_right,#fef7e7,transparent_50%),#f6f5f1] text-slate-900">
       <a href="#main-content" className="skip-link">
         Saltar al contenido principal
       </a>
