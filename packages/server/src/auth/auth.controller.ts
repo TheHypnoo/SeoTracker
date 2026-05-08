@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -62,6 +62,7 @@ export class AuthController {
   }
 
   @Get('session')
+  @SkipThrottle({ burst: true, default: true })
   @ApiOperation({ summary: 'Validar sesión sin rotar refresh token' })
   session(@Req() request: Request) {
     const refreshToken =

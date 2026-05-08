@@ -46,6 +46,30 @@ describe('AllExceptionsFilter', () => {
     );
   });
 
+  it('unwraps standard HttpException response messages', () => {
+    const { host, res } = makeHost({});
+
+    filter.catch(
+      new HttpException(
+        {
+          error: 'Too Many Requests',
+          message: 'Too many requests. Please slow down.',
+          statusCode: 429,
+        },
+        429,
+      ),
+      host,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Too many requests. Please slow down.',
+        statusCode: 429,
+      }),
+    );
+  });
+
   it('coerces unknown errors to 500 with the Error message', () => {
     process.env.NODE_ENV = 'development';
     const { host, res } = makeHost({});

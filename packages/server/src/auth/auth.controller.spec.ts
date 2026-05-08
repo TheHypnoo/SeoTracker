@@ -62,6 +62,15 @@ describe('AuthController', () => {
     expect(authService.login).toHaveBeenCalledWith(body, RES);
   });
 
+  it('uses route-level default throttles for credential endpoints', () => {
+    const handler = AuthController.prototype.login;
+
+    expect(Reflect.getMetadata('THROTTLER:LIMITdefault', handler)).toBe(5);
+    expect(Reflect.getMetadata('THROTTLER:TTLdefault', handler)).toBe(60_000);
+    expect(Reflect.getMetadata('THROTTLER:LIMITauth', handler)).toBeUndefined();
+    expect(Reflect.getMetadata('THROTTLER:TTLauth', handler)).toBeUndefined();
+  });
+
   it('refresh extracts both cookies + csrf header and delegates', () => {
     const req = makeRequest({ refresh_token: 'rt-abc', csrf_token: 'csrf' });
     controller.refresh(req, 'csrf', RES);
@@ -72,6 +81,15 @@ describe('AuthController', () => {
     const req = makeRequest({ refresh_token: 'rt-abc' });
     controller.session(req);
     expect(authService.getSession).toHaveBeenCalledWith('rt-abc');
+  });
+
+  it('does not throttle read-only session checks used by SSR route guards', () => {
+    const handler = AuthController.prototype.session;
+
+    expect(Reflect.getMetadata('THROTTLER:SKIPdefault', handler)).toBe(true);
+    expect(Reflect.getMetadata('THROTTLER:SKIPburst', handler)).toBe(true);
+    expect(Reflect.getMetadata('THROTTLER:SKIPauth', handler)).toBeUndefined();
+    expect(Reflect.getMetadata('THROTTLER:SKIPbadge', handler)).toBeUndefined();
   });
 
   it('logout delegates with refresh cookie + csrf header + cookie + response', () => {

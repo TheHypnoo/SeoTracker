@@ -277,8 +277,10 @@ export class AuthService {
       const resetUrl = `${this.configService.get('APP_URL', { infer: true })}/reset-password/${rawToken}`;
 
       void this.notificationsService
-        .sendEmail({
+        .enqueueEmailDelivery({
+          notificationType: 'PASSWORD_RESET',
           to: user.email,
+          userId: user.id,
           subject: 'SEOTracker - Recuperación de contraseña',
           text: `Hola ${user.name}.\n\nHemos recibido una solicitud para restablecer tu contraseña.\n\nEnlace: ${resetUrl}\n\nEste enlace caduca en ${ttlMinutes} minutos.`,
         })

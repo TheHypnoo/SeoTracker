@@ -16,10 +16,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const isHttp = exception instanceof HttpException;
     const status = isHttp ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    let message: string | object = 'Internal server error';
+    let message: string | string[] | object = 'Internal server error';
     if (isHttp) {
       const exceptionResponse = exception.getResponse();
-      message = exceptionResponse;
+      message = normalizeHttpExceptionMessage(exceptionResponse);
     } else if (exception instanceof Error) {
       ({ message } = exception);
     }
@@ -46,4 +46,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     response.status(status).json(body);
   }
+}
+
+function normalizeHttpExceptionMessage(
+  exceptionResponse: string | object,
+): string | string[] | object {
+  if (typeof exceptionResponse === 'string') {
+    return exceptionResponse;
+  }
+
+  const rawMessage = (exceptionResponse as { message?: unknown }).message;
+  if (
+    typeof rawMessage === 'string' ||
+    (Array.isArray(rawMessage) && rawMessage.every((item) => typeof item === 'string'))
+  ) {
+    return rawMessage;
+  }
+
+  return exceptionResponse;
 }

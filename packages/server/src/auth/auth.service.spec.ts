@@ -67,7 +67,7 @@ describe('AuthService', () => {
   let db: ChainableDb;
   let eventEmitter: { emitAsync: jest.Mock };
   let users: { findByEmail: jest.Mock };
-  let notifications: { sendEmail: jest.Mock };
+  let notifications: { enqueueEmailDelivery: jest.Mock };
   let jwt: { signAsync: jest.Mock; verifyAsync: jest.Mock };
   let config: { get: jest.Mock };
 
@@ -75,7 +75,7 @@ describe('AuthService', () => {
     db = makeDbMock();
     eventEmitter = { emitAsync: jest.fn().mockResolvedValue([]) };
     users = { findByEmail: jest.fn().mockResolvedValue([]) };
-    notifications = { sendEmail: jest.fn().mockResolvedValue(undefined) };
+    notifications = { enqueueEmailDelivery: jest.fn().mockResolvedValue(undefined) };
     jwt = {
       signAsync: jest.fn().mockResolvedValue('jwt-token'),
       verifyAsync: jest.fn(),
@@ -264,6 +264,38 @@ describe('AuthService', () => {
         service.refresh('refresh-jwt', 'csrf', 'csrf', res as never),
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
+
+    it('throws and clears cookies when the refreshed user no longer exists', async () => {
+      jwt.verifyAsync.mockResolvedValueOnce({ sub: 'u', email: 'a@b.c', jti: 'j1' });
+      db.limit.mockResolvedValueOnce([{ id: 'j1' }]).mockResolvedValueOnce([]);
+      const res = makeResponse();
+
+      await expect(service.refresh('refresh-jwt', 'csrf', 'csrf', res as never)).rejects.toThrow(
+        'User not found',
+      );
+      expect(db.update).toHaveBeenCalled();
+      expect(res.clearCookie).toHaveBeenCalled();
+    });
+
+    it('rotates a valid refresh token and issues a fresh session', async () => {
+      jwt.verifyAsync.mockResolvedValueOnce({ sub: 'u', email: 'a@b.c', jti: 'j1' });
+      db.limit
+        .mockResolvedValueOnce([{ id: 'j1' }])
+        .mockResolvedValueOnce([{ id: 'u', email: 'a@b.c', name: 'A' }]);
+      const res = makeResponse();
+
+      await expect(service.refresh('refresh-jwt', 'csrf', 'csrf', res as never)).resolves.toEqual(
+        expect.objectContaining({
+          accessToken: 'jwt-token',
+          csrfToken: expect.any(String),
+          user: { id: 'u', email: 'a@b.c', name: 'A' },
+        }),
+      );
+
+      expect(db.update).toHaveBeenCalled();
+      expect(jwt.signAsync).toHaveBeenCalledTimes(2);
+      expect(res.cookie).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('getSession (read-only SSR endpoint)', () => {
@@ -325,6 +357,100 @@ describe('AuthService', () => {
 
       expect(res.clearCookie).toHaveBeenCalled();
       expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('clears both host-only and configured-domain cookies for production domains', async () => {
+      const previousGet = config.get.getMockImplementation();
+      config.get.mockImplementation((key: string) =>
+        key === 'COOKIE_DOMAIN' ? 'app.example.com' : previousGet?.(key),
+      );
+      const res = makeResponse();
+
+      await service.logout(undefined, undefined, undefined, res as never);
+
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+        domain: 'app.example.com',
+      });
+      expect(res.clearCookie).toHaveBeenCalledWith('csrf_token', {
+        path: '/',
+        domain: 'app.example.com',
+      });
+    });
+  });
+
+  describe('requestPasswordReset', () => {
+    it('creates a persisted email delivery when the account exists', async () => {
+      users.findByEmail.mockResolvedValueOnce([{ id: 'u1', email: 'a@b.c', name: 'Ada' }]);
+
+      const out = await service.requestPasswordReset(' A@B.C ');
+
+      expect(out).toEqual({ success: true });
+      expect(users.findByEmail).toHaveBeenCalledWith('a@b.c');
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u1',
+          tokenHash: expect.any(String),
+          expiresAt: expect.any(Date),
+        }),
+      );
+      expect(notifications.enqueueEmailDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notificationType: 'PASSWORD_RESET',
+          to: 'a@b.c',
+          userId: 'u1',
+          subject: expect.stringContaining('Recuperación de contraseña'),
+          text: expect.stringContaining('/reset-password/'),
+        }),
+      );
+    });
+
+    it('does not enqueue an email when the account does not exist', async () => {
+      users.findByEmail.mockResolvedValueOnce([]);
+
+      const out = await service.requestPasswordReset('missing@x.test');
+
+      expect(out).toEqual({ success: true });
+      expect(notifications.enqueueEmailDelivery).not.toHaveBeenCalled();
+    });
+
+    it('still succeeds when password reset email enqueue fails', async () => {
+      users.findByEmail.mockResolvedValueOnce([{ id: 'u1', email: 'a@b.c', name: 'Ada' }]);
+      notifications.enqueueEmailDelivery.mockRejectedValueOnce(new Error('queue down'));
+
+      await expect(service.requestPasswordReset('a@b.c')).resolves.toEqual({ success: true });
+      await Promise.resolve();
+
+      expect(notifications.enqueueEmailDelivery).toHaveBeenCalled();
+    });
+  });
+
+  describe('resetPassword', () => {
+    it('rejects invalid, expired or already-used reset tokens', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(service.resetPassword('bad-token', 'New-password-123')).rejects.toThrow(
+        'Reset token invalid or expired',
+      );
+    });
+
+    it('updates the password, consumes the reset token and revokes active sessions atomically', async () => {
+      db.limit.mockResolvedValueOnce([{ id: 'reset-1', userId: 'u1' }]);
+      const tx = {
+        update: jest.fn().mockReturnValue({
+          set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) }),
+        }),
+      };
+      db.transaction.mockImplementation(async (cb: (transaction: typeof tx) => Promise<unknown>) =>
+        cb(tx),
+      );
+
+      await expect(service.resetPassword('token', 'New-password-123')).resolves.toEqual({
+        success: true,
+      });
+
+      expect(argon2.hash).toHaveBeenCalledWith('New-password-123');
+      expect(tx.update).toHaveBeenCalledTimes(3);
     });
   });
 });
