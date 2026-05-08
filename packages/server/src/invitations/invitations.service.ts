@@ -1,4 +1,11 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ActivityAction, Permission, Role } from '@seotracker/shared-types';
 import { and, eq, gt, isNull } from 'drizzle-orm';
@@ -10,6 +17,7 @@ import { hashToken, randomToken } from '../common/utils/security';
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import { users, projectInvites } from '../database/schema';
+import type { Env } from '../config/env.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ProjectsService } from '../projects/projects.service';
 import type { AcceptInviteDto } from './dto/accept-invite.dto';
@@ -21,6 +29,7 @@ export class InvitationsService {
     @Inject(DRIZZLE) private readonly db: Db,
     private readonly projectsService: ProjectsService,
     private readonly notificationsService: NotificationsService,
+    private readonly configService: ConfigService<Env, true>,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -32,6 +41,10 @@ export class InvitationsService {
     await this.projectsService.assertPermission(projectId, actorUserId, Permission.MEMBERS_INVITE);
 
     const role = input.role ?? Role.MEMBER;
+    if (role === Role.OWNER) {
+      throw new BadRequestException('Cannot invite OWNER role');
+    }
+
     const extraPermissions = input.extraPermissions ?? [];
     const revokedPermissions = input.revokedPermissions ?? [];
     // Reuse the same validation rules from member updates so the invite cannot
@@ -64,11 +77,14 @@ export class InvitationsService {
       });
 
     const savedInvite = assertPresent(invite, 'Project invite creation did not return a row');
+    const inviteUrl = `${this.configService.get('APP_URL', { infer: true })}/invite/${token}`;
 
-    await this.notificationsService.sendEmail({
+    await this.notificationsService.enqueueEmailDelivery({
+      notificationType: 'PROJECT_INVITE',
+      projectId,
       to: savedInvite.email,
       subject: 'Invitacion a SEOTracker',
-      text: `Has sido invitado a un project. Token de invitacion: ${token}`,
+      text: `Has sido invitado a colaborar en un proyecto de SEOTracker.\n\nAcepta la invitacion desde este enlace:\n${inviteUrl}\n\nEste enlace caduca el ${savedInvite.expiresAt.toISOString()}.`,
     });
 
     this.emitActivity({

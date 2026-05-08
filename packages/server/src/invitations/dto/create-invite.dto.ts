@@ -7,7 +7,7 @@ export class CreateInviteDto {
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ default: Role.MEMBER, enum: Role })
+  @ApiProperty({ default: Role.MEMBER, enum: [Role.MEMBER, Role.VIEWER] })
   @IsEnum(Role)
   role: Role = Role.MEMBER;
 

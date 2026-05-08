@@ -1,4 +1,5 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Role } from '@seotracker/shared-types';
@@ -50,7 +51,8 @@ describe('InvitationsService', () => {
     assertPermission: jest.Mock;
     validateOverrides: jest.Mock;
   };
-  let notifications: { sendEmail: jest.Mock };
+  let notifications: { enqueueEmailDelivery: jest.Mock };
+  let config: { get: jest.Mock };
 
   beforeEach(async () => {
     db = makeDb();
@@ -60,7 +62,8 @@ describe('InvitationsService', () => {
       assertPermission: jest.fn().mockResolvedValue(undefined),
       validateOverrides: jest.fn(),
     };
-    notifications = { sendEmail: jest.fn().mockResolvedValue(undefined) };
+    notifications = { enqueueEmailDelivery: jest.fn().mockResolvedValue(undefined) };
+    config = { get: jest.fn().mockReturnValue('http://localhost:3000') };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -68,6 +71,7 @@ describe('InvitationsService', () => {
         { provide: DRIZZLE, useValue: db },
         { provide: ProjectsService, useValue: projects },
         { provide: NotificationsService, useValue: notifications },
+        { provide: ConfigService, useValue: config },
         { provide: EventEmitter2, useValue: { emit: jest.fn(), emitAsync: jest.fn() } },
       ],
     }).compile();
@@ -105,22 +109,32 @@ describe('InvitationsService', () => {
       const insertedHash = (firstCall[0] as { tokenHash: string }).tokenHash;
       expect(out.token).toBeTruthy();
       expect(out.token).not.toBe(insertedHash); // plaintext != hash
-      expect(notifications.sendEmail).toHaveBeenCalledWith(
+      expect(notifications.enqueueEmailDelivery).toHaveBeenCalledWith(
         expect.objectContaining({
+          notificationType: 'PROJECT_INVITE',
+          projectId: 'p1',
           to: 'mate@x.test',
           subject: expect.stringContaining('SEOTracker'),
+          text: expect.stringContaining(`http://localhost:3000/invite/${out.token}`),
         }),
       );
     });
 
-    it('uses the explicit role when provided (does NOT default to MEMBER)', async () => {
+    it('uses the explicit non-owner role when provided (does NOT default to MEMBER)', async () => {
       db.returning.mockResolvedValueOnce([
-        { id: 'i1', projectId: 'p1', email: 'a@b.c', role: Role.OWNER, expiresAt: new Date() },
+        { id: 'i1', projectId: 'p1', email: 'a@b.c', role: Role.VIEWER, expiresAt: new Date() },
       ]);
 
-      await service.createInvite('p1', 'u-owner', { email: 'a@b.c', role: Role.OWNER });
+      await service.createInvite('p1', 'u-owner', { email: 'a@b.c', role: Role.VIEWER });
 
-      expect(db.values).toHaveBeenCalledWith(expect.objectContaining({ role: Role.OWNER }));
+      expect(db.values).toHaveBeenCalledWith(expect.objectContaining({ role: Role.VIEWER }));
+    });
+
+    it('rejects OWNER invites because ownership transfer is not supported here', async () => {
+      await expect(
+        service.createInvite('p1', 'u-owner', { email: 'a@b.c', role: Role.OWNER }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.insert).not.toHaveBeenCalled();
     });
   });
 
