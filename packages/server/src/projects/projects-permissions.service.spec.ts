@@ -181,6 +181,44 @@ describe('ProjectsService permissions', () => {
     });
   });
 
+  describe('project/member read boundaries', () => {
+    it('rejects getProjectForUser when PROJECT_VIEW has been revoked', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          {
+            id: 'p1',
+            name: 'Project',
+            ownerUserId: 'owner',
+            createdAt: new Date(),
+            role: Role.MEMBER,
+            extraPermissions: [],
+            revokedPermissions: [Permission.PROJECT_VIEW],
+          },
+        ]),
+      );
+
+      await expect(service.getProjectForUser('p1', 'u1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('rejects listMembers when MEMBERS_READ has been revoked', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          {
+            projectId: 'p1',
+            userId: 'u1',
+            role: Role.MEMBER,
+            extraPermissions: [],
+            revokedPermissions: [Permission.MEMBERS_READ],
+          },
+        ]),
+      );
+
+      await expect(service.listMembers('p1', 'u1')).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
   describe('validateOverrides', () => {
     it('rejects extras containing OWNER-exclusive perms', () => {
       expect(() => service.validateOverrides(Role.MEMBER, [Permission.PROJECT_DELETE], [])).toThrow(
@@ -460,7 +498,67 @@ describe('ProjectsService permissions', () => {
     });
   });
 
+  describe('removeMember', () => {
+    it('refuses to remove another OWNER', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            {
+              projectId: 'p1',
+              userId: 'owner',
+              role: Role.OWNER,
+              extraPermissions: [],
+              revokedPermissions: [],
+            },
+          ]),
+        )
+        .mockReturnValueOnce(
+          thenable([
+            {
+              projectId: 'p1',
+              userId: 'other-owner',
+              role: Role.OWNER,
+              extraPermissions: [],
+              revokedPermissions: [],
+            },
+          ]),
+        );
+
+      await expect(service.removeMember('p1', 'other-owner', 'owner')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(db.delete).not.toHaveBeenCalled();
+    });
+
+    it('rejects removing an unknown member', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            {
+              projectId: 'p1',
+              userId: 'owner',
+              role: Role.OWNER,
+              extraPermissions: [],
+              revokedPermissions: [],
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([]));
+
+      await expect(service.removeMember('p1', 'missing', 'owner')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
   describe('addMember with overrides', () => {
+    it('rejects adding an OWNER through membership flows', async () => {
+      await expect(service.addMember('p1', 'u1', Role.OWNER)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
     it('persists default empty overrides', async () => {
       db.where.mockReturnValueOnce(
         thenable([

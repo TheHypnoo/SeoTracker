@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ScheduleFrequency } from '@seotracker/shared-types';
+import { AuditStatus, AuditTrigger, ScheduleFrequency } from '@seotracker/shared-types';
 
 import { DRIZZLE } from '../database/database.constants';
 import { ProjectsService } from '../projects/projects.service';
@@ -9,7 +9,9 @@ import { SitesService } from './sites.service';
 
 function thenable<T>(rows: T) {
   return {
-    limit: jest.fn().mockResolvedValue(rows),
+    limit: jest.fn().mockReturnThis(),
+    offset: jest.fn().mockResolvedValue(rows),
+    groupBy: jest.fn().mockResolvedValue(rows),
     orderBy: jest.fn().mockReturnThis(),
     innerJoin: jest.fn().mockReturnThis(),
     onConflictDoNothing: jest.fn().mockResolvedValue(undefined),
@@ -22,6 +24,7 @@ function thenable<T>(rows: T) {
 
 type DbMock = {
   select: jest.Mock;
+  selectDistinctOn: jest.Mock;
   from: jest.Mock;
   innerJoin: jest.Mock;
   where: jest.Mock;
@@ -38,6 +41,7 @@ type DbMock = {
 function makeDb(): DbMock {
   return {
     select: jest.fn().mockReturnThis(),
+    selectDistinctOn: jest.fn().mockReturnThis(),
     from: jest.fn().mockReturnThis(),
     innerJoin: jest.fn().mockReturnThis(),
     where: jest.fn(),
@@ -130,6 +134,124 @@ describe('SitesService', () => {
 
       expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u1', expect.any(String));
       expect(out.id).toBe('s1');
+    });
+  });
+
+  describe('listForProject', () => {
+    it('returns an empty page without loading schedules or audit runs when the project has no sites', async () => {
+      db.where.mockReturnValueOnce(thenable([{ total: 0 }])).mockReturnValueOnce(thenable([]));
+
+      const out = await service.listForProject('p1', 'u1', {
+        pagination: { limit: 25, offset: 0 },
+      });
+
+      expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u1', expect.any(String));
+      expect(db.selectDistinctOn).not.toHaveBeenCalled();
+      expect(out).toEqual({ items: [], limit: 25, offset: 0, total: 0 });
+    });
+
+    it('enriches project sites with schedule, latest audit and critical issue counts', async () => {
+      const createdAt = new Date('2026-01-01T00:00:00.000Z');
+      db.where
+        .mockReturnValueOnce(thenable([{ total: 2 }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'site-1',
+              active: true,
+              createdAt,
+              domain: 'one.test',
+              name: 'One',
+              normalizedDomain: 'one.test',
+              projectId: 'p1',
+              timezone: 'UTC',
+            },
+            {
+              id: 'site-2',
+              active: true,
+              createdAt,
+              domain: 'two.test',
+              name: 'Two',
+              normalizedDomain: 'two.test',
+              projectId: 'p1',
+              timezone: 'UTC',
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([{ siteId: 'site-2', enabled: true }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'run-1',
+              createdAt,
+              score: 88,
+              siteId: 'site-1',
+              status: AuditStatus.COMPLETED,
+              trigger: AuditTrigger.MANUAL,
+            },
+            {
+              id: 'run-2',
+              createdAt,
+              score: 40,
+              siteId: 'site-2',
+              status: AuditStatus.FAILED,
+              trigger: AuditTrigger.SCHEDULED,
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([{ auditRunId: 'run-1', total: 3 }]));
+
+      const out = await service.listForProject('p1', 'u1', {
+        automation: 'inactive',
+        pagination: { limit: 10, offset: 0 },
+        status: AuditStatus.COMPLETED,
+      });
+
+      expect(out.total).toBe(2);
+      expect(out.items).toEqual([
+        expect.objectContaining({
+          automationEnabled: false,
+          criticalIssuesCount: 3,
+          id: 'site-1',
+          latestAuditId: 'run-1',
+          latestAuditStatus: AuditStatus.COMPLETED,
+          latestAuditTrigger: AuditTrigger.MANUAL,
+          latestScore: 88,
+        }),
+      ]);
+    });
+
+    it('filters active automation sites after enrichment', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ total: 1 }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'site-1',
+              active: true,
+              createdAt: new Date('2026-01-01T00:00:00.000Z'),
+              domain: 'one.test',
+              name: 'One',
+              normalizedDomain: 'one.test',
+              projectId: 'p1',
+              timezone: 'UTC',
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([{ siteId: 'site-1', enabled: true }]))
+        .mockReturnValueOnce(thenable([]));
+
+      const out = await service.listForProject('p1', 'u1', {
+        automation: 'active',
+      });
+
+      expect(out.items).toEqual([
+        expect.objectContaining({
+          automationEnabled: true,
+          criticalIssuesCount: 0,
+          latestAuditStatus: null,
+        }),
+      ]);
     });
   });
 

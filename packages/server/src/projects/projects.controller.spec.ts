@@ -17,6 +17,8 @@ describe('ProjectsController', () => {
       getDashboard: jest.fn().mockResolvedValue('dash'),
       listMembers: jest.fn().mockResolvedValue([]),
       removeMember: jest.fn().mockResolvedValue('ok'),
+      updateProject: jest.fn().mockResolvedValue('updated-project'),
+      deleteProject: jest.fn().mockResolvedValue('deleted-project'),
       updateMemberPermissions: jest.fn().mockResolvedValue('updated'),
     };
     const moduleRef = await Test.createTestingModule({
@@ -40,6 +42,16 @@ describe('ProjectsController', () => {
     expect(service.getProjectForUser).toHaveBeenCalledWith('p1', 'u-1');
     expect(service.getDashboard).toHaveBeenCalledWith('p1', 'u-1');
     expect(service.listMembers).toHaveBeenCalledWith('p1', 'u-1');
+  });
+
+  it('update and delete project delegate with actor user', () => {
+    void controller.update(USER, 'p1', { name: 'Nuevo nombre' });
+    void controller.delete(USER, 'p1');
+
+    expect(service.updateProject).toHaveBeenCalledWith('p1', 'u-1', {
+      name: 'Nuevo nombre',
+    });
+    expect(service.deleteProject).toHaveBeenCalledWith('p1', 'u-1');
   });
 
   it('removeMember passes (projectId, targetUserId, actorUserId)', () => {

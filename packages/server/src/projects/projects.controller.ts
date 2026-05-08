@@ -5,6 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateMemberPermissionsDto } from './dto/update-member-permissions.dto';
+import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectsService } from './projects.service';
 
 @ApiTags('sites')
@@ -30,6 +31,22 @@ export class ProjectsController {
   @ApiOperation({ summary: 'Detalle de project' })
   getById(@CurrentUser() user: { sub: string }, @Param('projectId') projectId: string) {
     return this.projectsService.getProjectForUser(projectId, user.sub);
+  }
+
+  @Patch(':projectId')
+  @ApiOperation({ summary: 'Actualizar project' })
+  update(
+    @CurrentUser() user: { sub: string },
+    @Param('projectId') projectId: string,
+    @Body() body: UpdateProjectDto,
+  ) {
+    return this.projectsService.updateProject(projectId, user.sub, body);
+  }
+
+  @Delete(':projectId')
+  @ApiOperation({ summary: 'Eliminar project' })
+  delete(@CurrentUser() user: { sub: string }, @Param('projectId') projectId: string) {
+    return this.projectsService.deleteProject(projectId, user.sub);
   }
 
   @Get(':projectId/dashboard')

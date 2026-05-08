@@ -117,13 +117,14 @@ export class ProjectsService {
       throw new NotFoundException('Project not found');
     }
 
-    const effectivePermissions = Array.from(
-      computeEffectivePermissions(
-        project.role as Role,
-        (project.extraPermissions ?? []) as Permission[],
-        (project.revokedPermissions ?? []) as Permission[],
-      ),
+    const effectivePermissionSet = computeEffectivePermissions(
+      project.role as Role,
+      (project.extraPermissions ?? []) as Permission[],
+      (project.revokedPermissions ?? []) as Permission[],
     );
+    if (!effectivePermissionSet.has(Permission.PROJECT_VIEW)) {
+      throw new ForbiddenException(`Missing permission: ${Permission.PROJECT_VIEW}`);
+    }
 
     return {
       id: project.id,
@@ -131,8 +132,46 @@ export class ProjectsService {
       ownerUserId: project.ownerUserId,
       createdAt: project.createdAt,
       role: project.role,
-      effectivePermissions,
+      effectivePermissions: Array.from(effectivePermissionSet),
     };
+  }
+
+  async updateProject(projectId: string, userId: string, input: { name?: string }) {
+    await this.assertOwner(projectId, userId);
+
+    const name = input.name?.trim();
+    if (!name) {
+      throw new BadRequestException('Project name is required');
+    }
+
+    const [updated] = await this.db
+      .update(projects)
+      .set({ name })
+      .where(eq(projects.id, projectId))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundException('Project not found');
+    }
+
+    this.emitActivity({
+      projectId,
+      userId,
+      action: ActivityAction.PROJECT_UPDATED,
+      resourceType: 'project',
+      resourceId: projectId,
+      metadata: { name },
+    });
+
+    return updated;
+  }
+
+  async deleteProject(projectId: string, userId: string) {
+    await this.assertPermission(projectId, userId, Permission.PROJECT_DELETE);
+
+    await this.db.delete(projects).where(eq(projects.id, projectId));
+
+    return { success: true };
   }
 
   async getDashboard(projectId: string, userId: string) {
@@ -165,7 +204,6 @@ export class ProjectsService {
 
     const trendWindowDays = 30;
     const trendSince = new Date(Date.now() - trendWindowDays * 24 * 60 * 60 * 1000);
-    const trendDateExpr = sql<string>`to_char(${auditRuns.createdAt}, 'YYYY-MM-DD')`;
 
     const [
       scheduleAggregate,
@@ -198,8 +236,10 @@ export class ProjectsService {
         .limit(6),
       this.db
         .select({
-          date: trendDateExpr,
-          avgScore: sql<number>`round(avg(${auditRuns.score}))`,
+          createdAt: auditRuns.createdAt,
+          finishedAt: auditRuns.finishedAt,
+          score: auditRuns.score,
+          siteId: auditRuns.siteId,
         })
         .from(auditRuns)
         .where(
@@ -207,10 +247,10 @@ export class ProjectsService {
             inArray(auditRuns.siteId, siteIds),
             eq(auditRuns.status, AuditStatus.COMPLETED),
             gte(auditRuns.createdAt, trendSince),
+            sql`${auditRuns.score} is not null`,
           ),
         )
-        .groupBy(trendDateExpr)
-        .orderBy(trendDateExpr),
+        .orderBy(auditRuns.createdAt),
       this.db
         .select({
           total: sql<number>`count(*) filter (where ${auditComparisons.regressionsCount} > 0)`,
@@ -313,10 +353,19 @@ export class ProjectsService {
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
       .slice(0, 6);
 
-    const trend = trendRows.map((row) => ({
-      date: row.date,
-      score: Number(row.avgScore),
-    }));
+    const trend = trendRows.flatMap((row) => {
+      if (row.score === null) return [];
+      const site = projectById.get(row.siteId);
+      return [
+        {
+          date: (row.finishedAt ?? row.createdAt).toISOString(),
+          score: row.score,
+          siteDomain: site?.domain ?? '',
+          siteId: row.siteId,
+          siteName: site?.name ?? site?.domain ?? 'Dominio',
+        },
+      ];
+    });
 
     const latestScores = latestCompletedRuns
       .map((run) => run.score)
@@ -347,7 +396,7 @@ export class ProjectsService {
   }
 
   async listMembers(projectId: string, userId: string) {
-    await this.assertMember(projectId, userId);
+    await this.assertPermission(projectId, userId, Permission.MEMBERS_READ);
 
     const rows = await this.db
       .select({
@@ -381,7 +430,15 @@ export class ProjectsService {
     await this.assertPermission(projectId, actorUserId, Permission.MEMBERS_REMOVE);
 
     if (targetUserId === actorUserId) {
-      throw new ForbiddenException('Owner cannot remove self');
+      throw new ForbiddenException('Cannot remove self');
+    }
+
+    const target = await this.getMembership(projectId, targetUserId);
+    if (!target) {
+      throw new NotFoundException('Member not found');
+    }
+    if (target.role === Role.OWNER) {
+      throw new ForbiddenException('Cannot remove the owner');
     }
 
     await this.db
@@ -575,6 +632,9 @@ export class ProjectsService {
     extraPermissions: Permission[] = [],
     revokedPermissions: Permission[] = [],
   ) {
+    if (role === Role.OWNER) {
+      throw new BadRequestException('Cannot add OWNER through membership flows');
+    }
     this.validateOverrides(role, extraPermissions, revokedPermissions);
     await this.db
       .insert(projectMembers)
