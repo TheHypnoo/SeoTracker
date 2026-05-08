@@ -55,59 +55,112 @@ describe('PublicBadgesService', () => {
       db.limit.mockResolvedValueOnce([]);
       const out = await service.renderSvg('s-unknown');
       expect(out.svg).toContain('off');
-      expect(out.svg).toContain('#94a3b8');
+      expect(out.svg).toContain('#475569');
       expect(redis.set).toHaveBeenCalledWith(
-        'public-badge:svg:s-unknown',
+        'public-badge:official:svg:s-unknown',
         expect.any(String),
         'EX',
         60,
       );
     });
 
+    it('still renders from the database when redis read fails', async () => {
+      redis.get.mockRejectedValueOnce(new Error('redis read down'));
+      db.limit.mockResolvedValueOnce([{ enabled: true, score: 88 }]);
+
+      const out = await service.renderSvg('s1');
+
+      expect(out.svg).toContain('>88/100<');
+    });
+
+    it('still returns the svg when redis write fails', async () => {
+      redis.set.mockRejectedValueOnce(new Error('redis write down'));
+      db.limit.mockResolvedValueOnce([{ enabled: true, score: 91 }]);
+
+      const out = await service.renderSvg('s1');
+
+      expect(out.svg).toContain('>91/100<');
+    });
+
     it('returns disabled SVG when public_badge_enabled = false', async () => {
       db.limit.mockResolvedValueOnce([{ enabled: false, score: null }]);
       const out = await service.renderSvg('s1');
       expect(out.svg).toContain('off');
-      expect(redis.set).toHaveBeenCalledWith('public-badge:svg:s1', expect.any(String), 'EX', 60);
+      expect(redis.set).toHaveBeenCalledWith(
+        'public-badge:official:svg:s1',
+        expect.any(String),
+        'EX',
+        60,
+      );
     });
 
     it('returns pending SVG when enabled but no completed audits', async () => {
       db.limit.mockResolvedValueOnce([{ enabled: true, score: null }]);
       const out = await service.renderSvg('s1');
-      expect(out.svg).toContain('—');
-      expect(out.svg).toContain('#94a3b8');
-      expect(redis.set).toHaveBeenCalledWith('public-badge:svg:s1', expect.any(String), 'EX', 60);
+      expect(out.svg).toContain('pending');
+      expect(out.svg).toContain('#64748b');
+      expect(redis.set).toHaveBeenCalledWith(
+        'public-badge:official:svg:s1',
+        expect.any(String),
+        'EX',
+        60,
+      );
     });
 
     it('returns green SVG when score >= 80 and caches 5 minutes', async () => {
       db.limit.mockResolvedValueOnce([{ enabled: true, score: 90 }]);
       const out = await service.renderSvg('s1');
-      expect(out.svg).toContain('>90<');
-      expect(out.svg).toContain('#10b981');
-      expect(redis.set).toHaveBeenCalledWith('public-badge:svg:s1', expect.any(String), 'EX', 300);
+      expect(out.svg).toContain('SEOTracker');
+      expect(out.svg).toContain('width="168"');
+      expect(out.svg).toContain('aria-label="SEOTracker score"');
+      expect(out.svg).toContain('>90/100<');
+      expect(out.svg).toContain('#059669');
+      expect(redis.set).toHaveBeenCalledWith(
+        'public-badge:official:svg:s1',
+        expect.any(String),
+        'EX',
+        300,
+      );
     });
 
     it('returns amber SVG when 50 <= score < 80', async () => {
       db.limit.mockResolvedValueOnce([{ enabled: true, score: 60 }]);
       const out = await service.renderSvg('s1');
-      expect(out.svg).toContain('>60<');
-      expect(out.svg).toContain('#f59e0b');
-      expect(redis.set).toHaveBeenCalledWith('public-badge:svg:s1', expect.any(String), 'EX', 300);
+      expect(out.svg).toContain('>60/100<');
+      expect(out.svg).toContain('#d97706');
+      expect(redis.set).toHaveBeenCalledWith(
+        'public-badge:official:svg:s1',
+        expect.any(String),
+        'EX',
+        300,
+      );
     });
 
     it('returns red SVG when score < 50', async () => {
       db.limit.mockResolvedValueOnce([{ enabled: true, score: 30 }]);
       const out = await service.renderSvg('s1');
-      expect(out.svg).toContain('>30<');
-      expect(out.svg).toContain('#ef4444');
-      expect(redis.set).toHaveBeenCalledWith('public-badge:svg:s1', expect.any(String), 'EX', 300);
+      expect(out.svg).toContain('>30/100<');
+      expect(out.svg).toContain('#dc2626');
+      expect(redis.set).toHaveBeenCalledWith(
+        'public-badge:official:svg:s1',
+        expect.any(String),
+        'EX',
+        300,
+      );
     });
   });
 
   describe('invalidate', () => {
-    it('deletes the cache key for the site', async () => {
+    it('deletes the current and legacy cache keys for the site', async () => {
       await service.invalidate('s1');
+      expect(redis.del).toHaveBeenCalledWith('public-badge:official:svg:s1');
       expect(redis.del).toHaveBeenCalledWith('public-badge:svg:s1');
+      expect(redis.del).toHaveBeenCalledWith('public-badge:v2:svg:s1');
+    });
+
+    it('does not fail when redis delete fails', async () => {
+      redis.del.mockRejectedValueOnce(new Error('redis delete down'));
+      await expect(service.invalidate('s1')).resolves.toBeUndefined();
     });
   });
 });
