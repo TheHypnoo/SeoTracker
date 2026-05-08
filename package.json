@@ -20,6 +20,7 @@
     "ci:test": "pnpm test",
     "ci:build": "pnpm build",
     "ci:audit": "pnpm audit --prod --audit-level moderate",
+    "ci:e2e": "pnpm --filter @seotracker/shared-types build && pnpm --filter @seotracker/server build && pnpm test:e2e",
     "db:generate": "pnpm --filter api db:generate",
     "db:migrate": "pnpm --filter api db:migrate",
     "db:studio": "pnpm --filter api db:studio",
