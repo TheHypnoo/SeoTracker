@@ -18,8 +18,14 @@ async function bootstrap() {
   app.useLogger(logger);
 
   const configService = app.get(ConfigService<Env, true>);
+  const railwayPort = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : undefined;
+  const httpPort =
+    railwayPort && Number.isInteger(railwayPort)
+      ? railwayPort
+      : configService.get('JOBS_HTTP_PORT', { infer: true });
+
   const httpServer = await startWorkerHttpServer(app, {
-    port: configService.get('JOBS_HTTP_PORT', { infer: true }),
+    port: httpPort,
     serviceName: 'worker',
   });
 

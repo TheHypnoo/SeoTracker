@@ -19,11 +19,11 @@ service settings, set the custom config path for each service:
 
 Recommended public networking and healthcheck settings:
 
-| Service  | Public domain | Port                        | Healthcheck path           | Custom start command |
-| -------- | ------------- | --------------------------- | -------------------------- | -------------------- |
-| `web`    | yes           | `$PORT` (`8080` on Railway) | `/health`                  | no                   |
-| `api`    | optional      | `4000`                      | `/api/v1/health/readiness` | no                   |
-| `worker` | no            | `4101`                      | `/health/readiness`        | no                   |
+| Service  | Public domain | Port                         | Healthcheck path           | Custom start command |
+| -------- | ------------- | ---------------------------- | -------------------------- | -------------------- |
+| `web`    | yes           | `$PORT` (`8080` on Railway)  | `/health`                  | no                   |
+| `api`    | optional      | `4000`                       | `/api/v1/health/readiness` | no                   |
+| `worker` | no            | `$PORT` (`4101` recommended) | `/health/liveness`         | no                   |
 
 Those files use the existing service Dockerfiles. The Dockerfiles build from
 the repository root and include workspace dependencies with `--filter=<app>...`;
