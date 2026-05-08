@@ -16,8 +16,88 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  APP_URL: http://localhost:3000
+  COOKIE_DOMAIN: localhost
+  COOKIE_SECURE: 'false'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/seotracker_test
+  JWT_ACCESS_SECRET: ci-access-secret-value-that-is-long-enough-for-tests
+  JWT_REFRESH_SECRET: ci-refresh-secret-value-that-is-long-enough-for-tests
+  NODE_ENV: test
+  REDIS_URL: redis://localhost:6379
+  SMTP_HOST: localhost
+  SMTP_PORT: '1025'
+  SMTP_SECURE: 'false'
+  TRUST_PROXY: '1'
+
 jobs:
-  quality:
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Check formatting
+        run: pnpm ci:format
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run lint
+        run: pnpm ci:lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Check types
+        run: pnpm ci:typecheck
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run unit tests
+        run: pnpm ci:test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Build packages and apps
+        run: pnpm ci:build
+
+  api-e2e:
+    name: API e2e
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -42,45 +122,15 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
-    env:
-      APP_URL: http://localhost:3000
-      COOKIE_DOMAIN: localhost
-      COOKIE_SECURE: 'false'
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/seotracker_test
-      JWT_ACCESS_SECRET: ci-access-secret-value-that-is-long-enough-for-tests
-      JWT_REFRESH_SECRET: ci-refresh-secret-value-that-is-long-enough-for-tests
-      NODE_ENV: test
-      REDIS_URL: redis://localhost:6379
-      SMTP_HOST: localhost
-      SMTP_PORT: '1025'
-      SMTP_SECURE: 'false'
-      TRUST_PROXY: '1'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 11.0.8
-
-      - name: Setup node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 26.0.0
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Audit dependencies
-        run: pnpm audit --audit-level moderate
+      - name: Setup workspace
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Run database migrations
         run: pnpm --filter api db:migrate
 
-      - name: Verify monorepo
-        run: pnpm verify
-
       - name: Run API e2e tests
-        run: pnpm --filter api test:e2e
+        run: pnpm test:e2e

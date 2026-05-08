@@ -14,9 +14,16 @@
     "format:check": "NODE_OPTIONS=--experimental-strip-types oxfmt --check .",
     "check": "NODE_OPTIONS=--experimental-strip-types ultracite check",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "ci:format": "pnpm format:check",
+    "ci:lint": "NODE_OPTIONS=--experimental-strip-types oxlint -c oxlint.config.ts .",
+    "ci:typecheck": "pnpm typecheck",
+    "ci:test": "pnpm test",
+    "ci:build": "pnpm build",
+    "ci:audit": "pnpm audit --prod --audit-level moderate",
     "db:generate": "pnpm --filter api db:generate",
     "db:migrate": "pnpm --filter api db:migrate",
     "db:studio": "pnpm --filter api db:studio",
+    "test:e2e": "pnpm --filter api test:e2e",
     "fix": "NODE_OPTIONS=--experimental-strip-types ultracite fix"
   },
   "devDependencies": {
