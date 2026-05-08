@@ -60,7 +60,7 @@
     "handlebars": "^4.7.9",
     "ioredis": "5.10.1",
     "luxon": "^3.7.2",
-    "mjml": "^5.1.0",
+    "mjml": "^5.2.0",
     "nestjs-pino": "^4.6.1",
     "nodemailer": "^8.0.7",
     "passport": "^0.7.0",
