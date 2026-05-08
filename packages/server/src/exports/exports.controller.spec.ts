@@ -1,4 +1,8 @@
 import { Test } from '@nestjs/testing';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import { Writable } from 'stream';
 
 import { ExportsController } from './exports.controller';
 import { ExportsService } from './exports.service';
@@ -13,8 +17,10 @@ describe('ExportsController', () => {
     service = {
       create: jest.fn().mockResolvedValue('queued'),
       listForProject: jest.fn().mockResolvedValue([]),
+      listForProjectScope: jest.fn().mockResolvedValue([]),
       getById: jest.fn().mockResolvedValue('one'),
       resolveDownload: jest.fn(),
+      retry: jest.fn().mockResolvedValue({ id: 'e1', status: 'PENDING' }),
     };
     const moduleRef = await Test.createTestingModule({
       controllers: [ExportsController],
@@ -49,5 +55,47 @@ describe('ExportsController', () => {
   it('getById delegates', () => {
     void controller.getById(USER, 'e1');
     expect(service.getById).toHaveBeenCalledWith('e1', 'u-1');
+  });
+
+  it('listForProject delegates to cross-site project scope with pagination', () => {
+    void controller.listForProject(USER, 'p1', { limit: 25, offset: 50 } as never);
+
+    expect(service.listForProjectScope).toHaveBeenCalledWith(
+      'p1',
+      'u-1',
+      expect.objectContaining({ limit: 25, offset: 50 }),
+    );
+  });
+
+  it('retry delegates to service.retry', () => {
+    void controller.retry(USER, 'e1');
+
+    expect(service.retry).toHaveBeenCalledWith('e1', 'u-1');
+  });
+
+  it('download resolves the file, sets CSV headers and streams the content', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'seotracker-controller-export-'));
+    const storagePath = path.join(dir, 'history.csv');
+    await writeFile(storagePath, 'Name\nExample\n', 'utf-8');
+    service.resolveDownload.mockResolvedValueOnce({ fileName: 'history.csv', storagePath });
+    const chunks: Buffer[] = [];
+    const response = new Writable({
+      write(chunk: Buffer, _encoding, callback) {
+        chunks.push(Buffer.from(chunk));
+        callback();
+      },
+    }) as Writable & { setHeader: jest.Mock };
+    response.setHeader = jest.fn();
+
+    await controller.download(USER, 'e1', response as never);
+
+    expect(service.resolveDownload).toHaveBeenCalledWith('e1', 'u-1');
+    expect(response.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+    expect(response.setHeader).toHaveBeenCalledWith(
+      'Content-Disposition',
+      'attachment; filename="history.csv"',
+    );
+    expect(Buffer.concat(chunks).toString('utf-8')).toBe('Name\nExample\n');
+    await rm(dir, { force: true, recursive: true });
   });
 });

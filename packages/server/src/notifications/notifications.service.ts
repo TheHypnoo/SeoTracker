@@ -25,7 +25,8 @@ export type EmailNotificationType =
   | 'AUDIT_COMPLETED'
   | 'AUDIT_REGRESSION'
   | 'CRITICAL_ISSUES'
-  | 'PROJECT_INVITE';
+  | 'PROJECT_INVITE'
+  | 'PASSWORD_RESET';
 
 export interface EmailPayload {
   to: string;
@@ -489,6 +490,7 @@ function isEmailNotificationEnabled(
       return preferences.emailOnCriticalIssues ?? true;
     }
     case 'PROJECT_INVITE':
+    case 'PASSWORD_RESET':
     default: {
       return true;
     }

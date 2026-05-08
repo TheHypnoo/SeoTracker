@@ -27,6 +27,10 @@ describe('DistributedLockService', () => {
     service = moduleRef.get(DistributedLockService);
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   describe('acquire', () => {
     it('issues a SET key value PX ttl NX with a unique token', async () => {
       redis.set.mockResolvedValueOnce('OK');
@@ -170,6 +174,32 @@ describe('DistributedLockService', () => {
       // Even on error, the release script must have run.
       const releaseCall = redis.eval.mock.calls.find((args) => String(args[0]).includes('del'));
       expect(releaseCall).toBeDefined();
+    });
+
+    it('aborts the in-flight task after two consecutive failed refreshes', async () => {
+      jest.useFakeTimers();
+      redis.set.mockResolvedValueOnce('OK');
+      redis.eval
+        .mockRejectedValueOnce(new Error('redis unavailable'))
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(1);
+
+      const result = service.withLock('k', 3000, async (signal) => {
+        return new Promise<string>((resolve) => {
+          signal.addEventListener('abort', () => {
+            resolve(signal.reason instanceof Error ? signal.reason.message : 'aborted');
+          });
+        });
+      });
+
+      await jest.advanceTimersByTimeAsync(1000);
+      await jest.advanceTimersByTimeAsync(1000);
+
+      await expect(result).resolves.toBe('distributed-lock:lost:seotracker:lock:k');
+      expect(
+        redis.eval.mock.calls.filter((args) => String(args[0]).includes('pexpire')),
+      ).toHaveLength(2);
+      expect(redis.eval.mock.calls.some((args) => String(args[0]).includes('del'))).toBe(true);
     });
   });
 });

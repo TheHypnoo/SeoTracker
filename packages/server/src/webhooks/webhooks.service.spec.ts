@@ -76,12 +76,80 @@ describe('WebhooksService', () => {
     it('asserts owner, generates an endpointKey + secret, persists endpoint + secret', async () => {
       db.returning.mockResolvedValueOnce([{ id: 'e1', projectId: 'p1', endpointKey: 'k1' }]);
 
-      const out = await service.createEndpoint('p1', 'u-owner', { name: 'Hook' });
+      const out = await service.createEndpoint('p1', 'u-owner', {
+        name: '  Hook  ',
+        enabled: false,
+      });
 
       expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u-owner', expect.any(String));
       expect(db.insert).toHaveBeenCalledTimes(2); // endpoints + secrets
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enabled: false,
+          name: 'Hook',
+          endpointPath: expect.stringContaining('/api/v1/webhooks/incoming/'),
+        }),
+      );
       expect(out.secret).toBeTruthy();
       expect(typeof out.secret).toBe('string');
+    });
+  });
+
+  describe('listProjectEndpoints', () => {
+    it('returns endpoints annotated with active secret metadata', async () => {
+      const rotatedAt = new Date('2026-05-08T10:00:00.000Z');
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            { id: 'e1', projectId: 'p1', name: 'Active' },
+            { id: 'e2', projectId: 'p1', name: 'No active secret' },
+          ]),
+        )
+        .mockReturnValueOnce(
+          thenable([
+            { webhookEndpointId: 'e1', active: true, rotatedAt },
+            { webhookEndpointId: 'e2', active: false, rotatedAt: new Date() },
+          ]),
+        );
+
+      await expect(service.listProjectEndpoints('p1', 'u-reader')).resolves.toEqual([
+        expect.objectContaining({ id: 'e1', hasActiveSecret: true, rotatedAt }),
+        expect.objectContaining({ id: 'e2', hasActiveSecret: false, rotatedAt: null }),
+      ]);
+    });
+
+    it('does not query secrets when the project has no endpoints', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await expect(service.listProjectEndpoints('p1', 'u-reader')).resolves.toEqual([]);
+
+      expect(db.select).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('updateEndpoint', () => {
+    it('checks ownership scope, trims names and returns the updated endpoint', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'e1', projectId: 'p1' }]))
+        .mockReturnValueOnce(thenable([{ id: 'e1', name: 'Fresh', enabled: false }]));
+
+      await expect(
+        service.updateEndpoint('p1', 'e1', 'u-owner', {
+          name: ' Fresh ',
+          enabled: false,
+        }),
+      ).resolves.toEqual({ id: 'e1', name: 'Fresh', enabled: false });
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Fresh', enabled: false, updatedAt: expect.any(Date) }),
+      );
+    });
+
+    it('rejects updates for endpoints outside the project', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await expect(
+        service.updateEndpoint('p1', 'foreign', 'u-owner', { enabled: false }),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 
@@ -170,6 +238,44 @@ describe('WebhooksService', () => {
           payload: { event: 'x' },
         }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('rejects when no active secret exists for the endpoint', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'e1', projectId: 'p1' }]))
+        .mockReturnValueOnce(thenable([]));
+
+      await expect(
+        service.verifyAndResolveProject({
+          endpointKey: 'k',
+          siteId: 's1',
+          timestampHeader: ts,
+          signatureHeader: 'sig',
+          payload: { event: 'x' },
+        }),
+      ).rejects.toThrow('No webhook secret configured for endpoint');
+    });
+
+    it('rejects a same-length but tampered signature', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const payload = { event: 'x' };
+      const signature = createHmac('sha256', 'other-secret')
+        .update(`${ts}.${JSON.stringify(payload)}`)
+        .digest('hex');
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'e1', projectId: 'p1' }]))
+        .mockReturnValueOnce(thenable([{ secretHash: 'shared' }]));
+
+      await expect(
+        service.verifyAndResolveProject({
+          endpointKey: 'k',
+          siteId: 's1',
+          timestampHeader: ts,
+          signatureHeader: signature,
+          payload,
+        }),
+      ).rejects.toThrow('Invalid webhook signature');
     });
 
     it('throws BadRequestException when site is not in the resolved project', async () => {

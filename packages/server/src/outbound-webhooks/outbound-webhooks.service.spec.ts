@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { OutboundDeliveryStatus, OutboundEvent } from '@seotracker/shared-types';
+import { OutboundDeliveryStatus, OutboundEvent, Permission } from '@seotracker/shared-types';
 import { createHmac } from 'crypto';
 
 import { DRIZZLE } from '../database/database.constants';
@@ -29,6 +29,8 @@ type DbMock = {
   update: jest.Mock;
   set: jest.Mock;
   delete: jest.Mock;
+  orderBy: jest.Mock;
+  limit: jest.Mock;
 };
 
 function makeDb(): DbMock {
@@ -42,6 +44,8 @@ function makeDb(): DbMock {
     update: jest.fn().mockReturnThis(),
     set: jest.fn().mockReturnThis(),
     delete: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    limit: jest.fn(),
   };
 }
 
@@ -50,7 +54,8 @@ describe('OutboundWebhooksService', () => {
   let db: DbMock;
   let projects: { assertOwner: jest.Mock; assertPermission: jest.Mock };
   let queue: { enqueueOutboundDelivery: jest.Mock };
-  let systemLogs: { warn: jest.Mock };
+  let systemLogs: { warn: jest.Mock; error: jest.Mock };
+  const originalFetch = global.fetch;
 
   beforeEach(async () => {
     db = makeDb();
@@ -59,7 +64,7 @@ describe('OutboundWebhooksService', () => {
       assertPermission: jest.fn().mockResolvedValue(undefined),
     };
     queue = { enqueueOutboundDelivery: jest.fn().mockResolvedValue(undefined) };
-    systemLogs = { warn: jest.fn().mockResolvedValue(undefined) };
+    systemLogs = { warn: jest.fn().mockResolvedValue(undefined), error: jest.fn() };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -71,6 +76,25 @@ describe('OutboundWebhooksService', () => {
       ],
     }).compile();
     service = moduleRef.get(OutboundWebhooksService);
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  describe('list', () => {
+    it('checks read permission and returns project webhooks ordered newest first', async () => {
+      const rows = [{ id: 'w1' }, { id: 'w2' }];
+      db.where.mockReturnValueOnce(thenable(rows));
+
+      await expect(service.list('p1', 'u-reader')).resolves.toEqual(rows);
+
+      expect(projects.assertPermission).toHaveBeenCalledWith(
+        'p1',
+        'u-reader',
+        Permission.OUTBOUND_READ,
+      );
+    });
   });
 
   describe('create', () => {
@@ -135,6 +159,60 @@ describe('OutboundWebhooksService', () => {
       await expect(service.rotateSecret('p1', 'w-foreign', 'u-owner')).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+
+  describe('update', () => {
+    it('checks write permission, trims optional fields and preserves omitted fields', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'w1', projectId: 'p1' }]))
+        .mockReturnValueOnce(thenable([{ id: 'w1', name: 'Fresh' }]));
+
+      await expect(
+        service.update('p1', 'w1', 'u-owner', {
+          name: '  Fresh  ',
+          headerName: '   ',
+          headerValue: '  token  ',
+          enabled: false,
+        }),
+      ).resolves.toEqual({ id: 'w1', name: 'Fresh' });
+
+      expect(projects.assertPermission).toHaveBeenCalledWith(
+        'p1',
+        'u-owner',
+        Permission.OUTBOUND_WRITE,
+      );
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Fresh',
+          headerName: null,
+          headerValue: 'token',
+          enabled: false,
+          updatedAt: expect.any(Date),
+        }),
+      );
+      expect(db.set).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          url: expect.anything(),
+        }),
+      );
+    });
+  });
+
+  describe('remove', () => {
+    it('deletes a webhook only after project-scoped lookup succeeds', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'w1', projectId: 'p1' }]))
+        .mockResolvedValueOnce([]);
+
+      await expect(service.remove('p1', 'w1', 'u-owner')).resolves.toEqual({ ok: true });
+
+      expect(projects.assertPermission).toHaveBeenCalledWith(
+        'p1',
+        'u-owner',
+        Permission.OUTBOUND_WRITE,
+      );
+      expect(db.delete).toHaveBeenCalled();
     });
   });
 
@@ -258,6 +336,236 @@ describe('OutboundWebhooksService', () => {
         signature: tampered,
       });
       expect(ok).toBe(false);
+    });
+  });
+
+  describe('processDelivery', () => {
+    it('warns and exits when the delivery id is unknown', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await service.processDelivery('missing');
+
+      expect(systemLogs.warn).toHaveBeenCalledWith(
+        OutboundWebhooksService.name,
+        'Outbound delivery not found',
+        { deliveryId: 'missing' },
+      );
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('skips deliveries that already succeeded', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          {
+            id: 'd1',
+            status: OutboundDeliveryStatus.SUCCESS,
+          },
+        ]),
+      );
+
+      await service.processDelivery('d1');
+
+      expect(global.fetch).toBe(originalFetch);
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('marks the delivery failed when the webhook is missing or disabled', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'd-missing-hook',
+              outboundWebhookId: 'w-missing',
+              status: OutboundDeliveryStatus.PENDING,
+              attemptCount: null,
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([]))
+        .mockResolvedValueOnce(undefined)
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'd-disabled',
+              outboundWebhookId: 'w-disabled',
+              status: OutboundDeliveryStatus.PENDING,
+              attemptCount: 2,
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([{ id: 'w-disabled', enabled: false }]))
+        .mockResolvedValueOnce(undefined);
+
+      await service.processDelivery('d-missing-hook');
+      await service.processDelivery('d-disabled');
+
+      expect(db.set.mock.calls).toContainEqual([
+        expect.objectContaining({
+          status: OutboundDeliveryStatus.FAILED,
+          errorMessage: 'Webhook not found',
+          attemptCount: 1,
+        }),
+      ]);
+      expect(db.set.mock.calls).toContainEqual([
+        expect.objectContaining({
+          status: OutboundDeliveryStatus.FAILED,
+          errorMessage: 'Webhook disabled',
+          attemptCount: 3,
+        }),
+      ]);
+    });
+
+    it('posts the exact signed body, custom header and persists success metadata', async () => {
+      const createdAt = new Date('2026-05-08T10:00:00.000Z');
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 202,
+        text: jest.fn().mockResolvedValue('accepted'),
+      });
+      global.fetch = fetchMock as never;
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'd1',
+              outboundWebhookId: 'w1',
+              event: OutboundEvent.AUDIT_COMPLETED,
+              payload: { score: 90 },
+              status: OutboundDeliveryStatus.PENDING,
+              attemptCount: 0,
+              createdAt,
+            },
+          ]),
+        )
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'w1',
+              enabled: true,
+              secret: 'shared-secret',
+              url: 'https://receiver.test/hooks',
+              headerName: 'x-api-key',
+              headerValue: 'receiver-secret',
+            },
+          ]),
+        );
+
+      await service.processDelivery('d1');
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('https://receiver.test/hooks');
+      expect(init.method).toBe('POST');
+      const headers = init.headers as Record<string, string>;
+      const body = init.body as string;
+      expect(JSON.parse(body)).toEqual({
+        event: OutboundEvent.AUDIT_COMPLETED,
+        deliveryId: 'd1',
+        createdAt: createdAt.toISOString(),
+        payload: { score: 90 },
+      });
+      expect(headers['x-api-key']).toBe('receiver-secret');
+      expect(headers['x-seotracker-event']).toBe(OutboundEvent.AUDIT_COMPLETED);
+      expect(headers['x-seotracker-delivery-id']).toBe('d1');
+      expect(
+        OutboundWebhooksService.verifySignature({
+          secret: 'shared-secret',
+          timestamp: headers['x-seotracker-timestamp'] ?? '',
+          body,
+          signature: headers['x-seotracker-signature'] ?? '',
+        }),
+      ).toBe(true);
+      expect(db.set).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          status: OutboundDeliveryStatus.SUCCESS,
+          attemptCount: 1,
+          statusCode: 202,
+          responseBody: 'accepted',
+          errorMessage: null,
+          deliveredAt: expect.any(Date),
+        }),
+      );
+    });
+
+    it('persists HTTP failures before the BullMQ retry error is rethrown', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: jest.fn().mockResolvedValue('receiver exploded'),
+      });
+      global.fetch = fetchMock as never;
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'd1',
+              outboundWebhookId: 'w1',
+              event: OutboundEvent.AUDIT_FAILED,
+              payload: { reason: 'boom' },
+              status: OutboundDeliveryStatus.PENDING,
+              attemptCount: 0,
+              createdAt: new Date('2026-05-08T10:00:00.000Z'),
+            },
+          ]),
+        )
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'w1',
+              enabled: true,
+              secret: 'shared-secret',
+              url: 'https://receiver.test/hooks',
+              headerName: null,
+              headerValue: null,
+            },
+          ]),
+        );
+
+      await expect(service.processDelivery('d1')).rejects.toThrow(
+        'Outbound webhook w1 returned 500',
+      );
+
+      expect(db.set.mock.calls).toContainEqual([
+        expect.objectContaining({
+          status: OutboundDeliveryStatus.FAILED,
+          attemptCount: 1,
+          statusCode: 500,
+          responseBody: 'receiver exploded',
+          errorMessage: 'HTTP 500',
+        }),
+      ]);
+    });
+  });
+
+  describe('reconcilePendingDeliveries', () => {
+    it('re-enqueues stale pending deliveries and logs per-delivery failures', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          { id: 'd1', outboundWebhookId: 'w1' },
+          { id: 'd2', outboundWebhookId: 'w2' },
+        ]),
+      );
+      queue.enqueueOutboundDelivery
+        .mockRejectedValueOnce(new Error('redis busy'))
+        .mockResolvedValueOnce(undefined);
+
+      await expect(
+        service.reconcilePendingDeliveries({ limit: 2, staleAfterMs: 1_000 }),
+      ).resolves.toEqual({
+        checked: 2,
+        requeued: 1,
+      });
+
+      expect(queue.enqueueOutboundDelivery).toHaveBeenCalledWith(
+        { deliveryId: 'd1' },
+        expect.objectContaining({ jobId: expect.stringContaining('d1:reconcile:') }),
+      );
+      expect(systemLogs.error).toHaveBeenCalledWith(
+        OutboundWebhooksService.name,
+        'Pending outbound delivery could not be reconciled',
+        expect.any(Error),
+        { deliveryId: 'd1', outboundWebhookId: 'w1' },
+      );
     });
   });
 });
