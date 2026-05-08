@@ -124,6 +124,8 @@ export const exportKindEnum = pgEnum('export_kind', [
   ExportKind.COMPARISON,
   ExportKind.ISSUES,
   ExportKind.METRICS,
+  ExportKind.ACTION_PLAN,
+  ExportKind.INDEXABILITY,
 ]);
 
 /** Lifecycle of an export job from request to terminal state (or expiration). */

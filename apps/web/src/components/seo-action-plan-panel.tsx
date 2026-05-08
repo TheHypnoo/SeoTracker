@@ -350,7 +350,8 @@ function AuditFindingItem({ action, index }: { action: ActionItem; index: number
             <SeverityPill severity={action.severity} />
             {action.regressionCount > 0 ? (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-                Regresión
+                {action.regressionCount}{' '}
+                {action.regressionCount === 1 ? 'regresión' : 'regresiones'}
               </span>
             ) : null}
           </div>
@@ -394,7 +395,7 @@ function ActionMeta({ action, index }: { action: ActionItem; index: number }) {
       <StatusPill status={action.status} />
       {action.regressionCount > 0 ? (
         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-          Regresión
+          {action.regressionCount} {action.regressionCount === 1 ? 'regresión' : 'regresiones'}
         </span>
       ) : null}
     </div>

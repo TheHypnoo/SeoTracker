@@ -129,17 +129,35 @@ function toActionItem(
 
 function summarizeIssueEvidence(issue: SeoIssue): string | null {
   const meta = issue.meta ?? {};
+  if (
+    typeof meta.length === 'number' &&
+    (typeof meta.expected === 'string' || typeof meta.found === 'string')
+  ) {
+    const found =
+      typeof meta.found === 'string' && meta.found.trim() ? ` · valor: ${meta.found}` : '';
+    const expected = typeof meta.expected === 'string' ? ` · recomendado: ${meta.expected}` : '';
+    return `Longitud detectada: ${meta.length}${expected}${found}`;
+  }
   if (typeof meta.source === 'string' && typeof meta.content === 'string') {
     return `${meta.source}: ${meta.content}`;
   }
-  if (typeof meta.length === 'number') {
-    return `Longitud detectada: ${meta.length}`;
+  if (typeof meta.canonical === 'string' && typeof meta.page === 'string') {
+    return `Canonical detectado: ${meta.canonical} · página evaluada: ${meta.page}`;
   }
-  if (typeof meta.canonical === 'string') {
-    return `Canonical detectado: ${meta.canonical}`;
+  if (typeof meta.canonical === 'string' && typeof meta.expected === 'string') {
+    return `Canonical detectado: ${meta.canonical} · esperado: ${meta.expected}`;
   }
   if (typeof meta.statusCode === 'number') {
     return `HTTP ${meta.statusCode}`;
+  }
+  if (typeof meta.wordCount === 'number') {
+    return `Palabras detectadas: ${meta.wordCount}`;
+  }
+  if (typeof meta.total === 'number' && typeof meta.lazy === 'number') {
+    return `Imágenes lazy: ${meta.lazy}/${meta.total}`;
+  }
+  if (Array.isArray(meta.samples) && meta.samples.length > 0) {
+    return `Muestras: ${meta.samples.slice(0, 3).join(', ')}`;
   }
   if (typeof meta.count === 'number') {
     return `Elementos afectados: ${meta.count}`;
@@ -152,6 +170,9 @@ function summarizeIssueEvidence(issue: SeoIssue): string | null {
   }
   if (typeof meta.found === 'string') {
     return `Valor detectado: ${meta.found.slice(0, 120)}`;
+  }
+  if (typeof meta.expected === 'string') {
+    return `Valor esperado: ${meta.expected}`;
   }
   return issue.resourceUrl ? `URL afectada: ${issue.resourceUrl}` : null;
 }

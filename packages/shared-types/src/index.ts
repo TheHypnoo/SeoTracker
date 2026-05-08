@@ -288,6 +288,8 @@ export enum ExportKind {
   COMPARISON = 'COMPARISON',
   ISSUES = 'ISSUES',
   METRICS = 'METRICS',
+  ACTION_PLAN = 'ACTION_PLAN',
+  INDEXABILITY = 'INDEXABILITY',
 }
 
 export enum ExportStatus {

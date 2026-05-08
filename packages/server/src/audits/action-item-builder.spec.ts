@@ -49,7 +49,7 @@ describe('buildAuditActionItems', () => {
       occurrences: 2,
     });
     expect(actions[0]?.priorityScore).toBeGreaterThan(actions[1]?.priorityScore ?? 0);
-    expect(actions[0]?.evidenceSummary).toContain('URL afectada');
+    expect(actions[0]?.evidenceSummary).toContain('Valor esperado: 30-60 chars');
     expect(actions[0]?.remediationPrompt).toContain('Auditoría: audit-1');
   });
 });

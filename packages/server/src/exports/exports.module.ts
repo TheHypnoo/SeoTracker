@@ -7,9 +7,11 @@ import { ExportsProcessor } from './exports.processor';
 import { ExportsService } from './exports.service';
 import {
   AuditResultCsvStrategy,
+  ActionPlanCsvStrategy,
   ComparisonCsvStrategy,
   CSV_BUILDER_STRATEGIES,
   HistoryCsvStrategy,
+  IndexabilityCsvStrategy,
   IssuesCsvStrategy,
   MetricsCsvStrategy,
 } from './strategies';
@@ -25,6 +27,8 @@ import {
     MetricsCsvStrategy,
     ComparisonCsvStrategy,
     AuditResultCsvStrategy,
+    ActionPlanCsvStrategy,
+    IndexabilityCsvStrategy,
     {
       provide: CSV_BUILDER_STRATEGIES,
       useFactory: (
@@ -33,13 +37,17 @@ import {
         metrics: MetricsCsvStrategy,
         comparison: ComparisonCsvStrategy,
         auditResult: AuditResultCsvStrategy,
-      ) => [history, issues, metrics, comparison, auditResult],
+        actionPlan: ActionPlanCsvStrategy,
+        indexability: IndexabilityCsvStrategy,
+      ) => [history, issues, metrics, comparison, auditResult, actionPlan, indexability],
       inject: [
         HistoryCsvStrategy,
         IssuesCsvStrategy,
         MetricsCsvStrategy,
         ComparisonCsvStrategy,
         AuditResultCsvStrategy,
+        ActionPlanCsvStrategy,
+        IndexabilityCsvStrategy,
       ],
     },
   ],

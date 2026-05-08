@@ -57,7 +57,18 @@ export const Route = createFileRoute('/_authenticated/sites_/$id/audits/$auditId
 });
 
 const ISSUE_GROUPS_PER_PAGE = 8;
+const INDEXABILITY_PAGE_SIZE = 25;
 const SEVERITY_ORDER: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+const INDEXABILITY_STATUSES: IndexabilityStatus[] = [
+  'INDEXABLE',
+  'NOINDEX',
+  'BLOCKED_BY_ROBOTS',
+  'CANONICALIZED',
+  'HTTP_ERROR',
+  'PRIVATE_EXPECTED',
+  'UNKNOWN',
+];
+const INDEXABILITY_SOURCES = ['homepage', 'crawl', 'sitemap', 'head', 'probe'] as const;
 type AuditTab = 'action-plan' | 'technical';
 type IndexabilityStatus =
   | 'INDEXABLE'
@@ -89,6 +100,9 @@ function useAuditDetailUiState() {
     stateFilterState: useState<IssueState | 'ALL'>('ALL'),
     issuePageState: useState(1),
     auditTabState: useState<AuditTab>('action-plan'),
+    indexabilityStatusFilterState: useState<IndexabilityStatus | 'ALL'>('ALL'),
+    indexabilitySourceFilterState: useState<string>('ALL'),
+    indexabilityPageState: useState(1),
     scoreDetailsOpenState: useState(false),
   };
 }
@@ -107,6 +121,9 @@ function AuditDetailPage() {
     stateFilterState,
     issuePageState,
     auditTabState,
+    indexabilityStatusFilterState,
+    indexabilitySourceFilterState,
+    indexabilityPageState,
     scoreDetailsOpenState,
   } = useAuditDetailUiState();
   const [drawerGroup, setDrawerGroup] = drawerGroupState;
@@ -115,6 +132,9 @@ function AuditDetailPage() {
   const [stateFilter, setStateFilter] = stateFilterState;
   const [issuePage, setIssuePage] = issuePageState;
   const [auditTab, setAuditTab] = auditTabState;
+  const [indexabilityStatusFilter, setIndexabilityStatusFilter] = indexabilityStatusFilterState;
+  const [indexabilitySourceFilter, setIndexabilitySourceFilter] = indexabilitySourceFilterState;
+  const [indexabilityPage, setIndexabilityPage] = indexabilityPageState;
   const [scoreDetailsOpen, setScoreDetailsOpen] = scoreDetailsOpenState;
 
   const audit = useQuery({
@@ -143,11 +163,28 @@ function AuditDetailPage() {
   });
 
   const indexability = useQuery({
-    queryKey: ['audit-indexability', auditId],
-    queryFn: () =>
-      auth.api.get<PaginatedResponse<UrlInspection>>(
-        `/audits/${auditId}/indexability?limit=100&offset=0`,
-      ),
+    queryKey: [
+      'audit-indexability',
+      auditId,
+      indexabilityStatusFilter,
+      indexabilitySourceFilter,
+      indexabilityPage,
+    ],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        limit: String(INDEXABILITY_PAGE_SIZE),
+        offset: String((indexabilityPage - 1) * INDEXABILITY_PAGE_SIZE),
+      });
+      if (indexabilityStatusFilter !== 'ALL') {
+        params.set('indexabilityStatus', indexabilityStatusFilter);
+      }
+      if (indexabilitySourceFilter !== 'ALL') {
+        params.set('source', indexabilitySourceFilter);
+      }
+      return auth.api.get<PaginatedResponse<UrlInspection>>(
+        `/audits/${auditId}/indexability?${params.toString()}`,
+      );
+    },
     enabled:
       Boolean(auth.accessToken) &&
       !isAuditActive &&
@@ -455,7 +492,21 @@ function AuditDetailPage() {
               ) : (
                 <IndexabilityPanel
                   inspections={indexability.data?.items ?? []}
+                  total={indexability.data?.total ?? 0}
+                  currentPage={indexabilityPage}
+                  pageSize={INDEXABILITY_PAGE_SIZE}
+                  statusFilter={indexabilityStatusFilter}
+                  sourceFilter={indexabilitySourceFilter}
                   loading={indexability.isLoading || indexability.isFetching}
+                  onStatusFilterChange={(value) => {
+                    setIndexabilityStatusFilter(value);
+                    setIndexabilityPage(1);
+                  }}
+                  onSourceFilterChange={(value) => {
+                    setIndexabilitySourceFilter(value);
+                    setIndexabilityPage(1);
+                  }}
+                  onPageChange={setIndexabilityPage}
                 />
               )}
             </>
@@ -741,10 +792,29 @@ function AuditTabs({ value, onChange }: { value: AuditTab; onChange: (value: Aud
 function IndexabilityPanel({
   inspections,
   loading,
+  total,
+  currentPage,
+  pageSize,
+  statusFilter,
+  sourceFilter,
+  onStatusFilterChange,
+  onSourceFilterChange,
+  onPageChange,
 }: {
   inspections: UrlInspection[];
   loading: boolean;
+  total: number;
+  currentPage: number;
+  pageSize: number;
+  statusFilter: IndexabilityStatus | 'ALL';
+  sourceFilter: string;
+  onStatusFilterChange: (value: IndexabilityStatus | 'ALL') => void;
+  onSourceFilterChange: (value: string) => void;
+  onPageChange: (page: number) => void;
 }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasFilters = statusFilter !== 'ALL' || sourceFilter !== 'ALL';
+
   if (loading) {
     return (
       <article className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
@@ -753,90 +823,206 @@ function IndexabilityPanel({
     );
   }
 
-  if (inspections.length === 0) {
-    return (
-      <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <EmptyState
-          title="Sin diagnóstico de indexabilidad"
-          description="Esta auditoría no tiene todavía la matriz técnica por URL. Las auditorías nuevas la generarán automáticamente."
-        />
-      </article>
-    );
-  }
-
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 p-5">
-        <h2 className="text-lg font-black tracking-tight text-slate-950">
-          Matriz de indexabilidad
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Cruce de estado HTTP, sitemap, robots, canonical y política interna de URLs privadas.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-black tracking-tight text-slate-950">
+              Matriz de indexabilidad
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Cruce de estado HTTP, sitemap, robots, canonical y política interna de URLs privadas.
+            </p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+            {total} URLs
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-[minmax(200px,240px)_minmax(180px,220px)_auto] md:items-end">
+          <label className="block">
+            <span className="mb-1 block text-xs font-bold text-slate-500">Estado</span>
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                onStatusFilterChange(event.target.value as IndexabilityStatus | 'ALL')
+              }
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+            >
+              <option value="ALL">Todos los estados</option>
+              {INDEXABILITY_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {indexabilityStatusLabel(status)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-bold text-slate-500">Fuente</span>
+            <select
+              value={sourceFilter}
+              onChange={(event) => onSourceFilterChange(event.target.value)}
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+            >
+              <option value="ALL">Todas las fuentes</option>
+              {INDEXABILITY_SOURCES.map((source) => (
+                <option key={source} value={source}>
+                  {source}
+                </option>
+              ))}
+            </select>
+          </label>
+          {hasFilters ? (
+            <button
+              type="button"
+              onClick={() => {
+                onStatusFilterChange('ALL');
+                onSourceFilterChange('ALL');
+              }}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              Limpiar filtros
+            </button>
+          ) : null}
+        </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-100 text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-            <tr>
-              <th className="px-4 py-3">URL</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">HTTP</th>
-              <th className="px-4 py-3">Fuente</th>
-              <th className="px-4 py-3">Sitemap</th>
-              <th className="px-4 py-3">Canonical / robots</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {inspections.map((inspection) => (
-              <tr key={inspection.id} className="align-top">
-                <td className="max-w-md px-4 py-3">
-                  <div className="break-all font-mono text-xs leading-5 text-slate-700">
-                    {inspection.url}
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-slate-500">
-                    {typeof inspection.evidence?.reason === 'string'
-                      ? inspection.evidence.reason
-                      : indexabilityStatusLabel(inspection.indexabilityStatus)}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <IndexabilityPill status={inspection.indexabilityStatus} />
-                </td>
-                <td className="px-4 py-3 font-semibold tabular-nums text-slate-700">
-                  {inspection.statusCode ?? '--'}
-                </td>
-                <td className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">
-                  {inspection.source}
-                </td>
-                <td className="px-4 py-3 text-xs font-bold text-slate-700">
-                  {inspection.sitemapIncluded ? 'Sí' : 'No'}
-                </td>
-                <td className="max-w-sm px-4 py-3 text-xs leading-5 text-slate-600">
-                  {inspection.canonicalUrl ? (
-                    <div className="break-all">
-                      <span className="font-bold">Canonical:</span> {inspection.canonicalUrl}
-                    </div>
-                  ) : null}
-                  {inspection.robotsDirective ? (
-                    <div className="break-all">
-                      <span className="font-bold">Robots:</span> {inspection.robotsDirective}
-                    </div>
-                  ) : null}
-                  {inspection.xRobotsTag ? (
-                    <div className="break-all">
-                      <span className="font-bold">X-Robots:</span> {inspection.xRobotsTag}
-                    </div>
-                  ) : null}
-                  {!inspection.canonicalUrl && !inspection.robotsDirective && !inspection.xRobotsTag
-                    ? '--'
-                    : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+
+      {inspections.length === 0 ? (
+        <div className="p-6">
+          <EmptyState
+            title={hasFilters ? 'Sin URLs para estos filtros' : 'Sin diagnóstico de indexabilidad'}
+            description={
+              hasFilters
+                ? 'No hay URLs que coincidan con el estado o la fuente seleccionados.'
+                : 'Esta auditoría no tiene todavía la matriz técnica por URL. Las auditorías nuevas la generarán automáticamente.'
+            }
+          />
+        </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-100 text-sm">
+              <thead className="bg-slate-50 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">URL</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">HTTP</th>
+                  <th className="px-4 py-3">Fuente</th>
+                  <th className="px-4 py-3">Sitemap</th>
+                  <th className="px-4 py-3">Canonical / robots</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {inspections.map((inspection) => (
+                  <tr key={inspection.id} className="align-top">
+                    <td className="max-w-md px-4 py-3">
+                      <div className="break-all font-mono text-xs leading-5 text-slate-700">
+                        {inspection.url}
+                      </div>
+                      <div className="mt-1 text-xs leading-5 text-slate-500">
+                        {typeof inspection.evidence?.reason === 'string'
+                          ? inspection.evidence.reason
+                          : indexabilityStatusLabel(inspection.indexabilityStatus)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <IndexabilityPill status={inspection.indexabilityStatus} />
+                    </td>
+                    <td className="px-4 py-3 font-semibold tabular-nums text-slate-700">
+                      {inspection.statusCode ?? '--'}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">
+                      {inspection.source}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-bold text-slate-700">
+                      {inspection.sitemapIncluded ? 'Sí' : 'No'}
+                    </td>
+                    <td className="max-w-sm px-4 py-3 text-xs leading-5 text-slate-600">
+                      {inspection.canonicalUrl ? (
+                        <div className="break-all">
+                          <span className="font-bold">Canonical:</span> {inspection.canonicalUrl}
+                        </div>
+                      ) : null}
+                      {inspection.robotsDirective ? (
+                        <div className="break-all">
+                          <span className="font-bold">Robots:</span> {inspection.robotsDirective}
+                        </div>
+                      ) : null}
+                      {inspection.xRobotsTag ? (
+                        <div className="break-all">
+                          <span className="font-bold">X-Robots:</span> {inspection.xRobotsTag}
+                        </div>
+                      ) : null}
+                      {!inspection.canonicalUrl &&
+                      !inspection.robotsDirective &&
+                      !inspection.xRobotsTag
+                        ? '--'
+                        : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <IndexabilityPagination
+            currentPage={currentPage}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+          />
+        </>
+      )}
     </article>
+  );
+}
+
+function IndexabilityPagination({
+  currentPage,
+  totalPages,
+  total,
+  pageSize,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  total: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+}) {
+  const start = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const end = Math.min(currentPage * pageSize, total);
+  return (
+    <nav
+      aria-label="Paginación de indexabilidad"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3"
+    >
+      <p className="text-xs font-semibold text-slate-500">
+        URLs {start}-{end} de {total}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+          disabled={currentPage <= 1}
+          className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Anterior
+        </button>
+        <span className="min-w-16 text-center text-xs font-bold text-slate-500">
+          {currentPage}/{totalPages}
+        </span>
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+          disabled={currentPage >= totalPages}
+          className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Siguiente
+        </button>
+      </div>
+    </nav>
   );
 }
 

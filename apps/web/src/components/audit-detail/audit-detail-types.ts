@@ -69,4 +69,4 @@ export type AuditRun = {
   failureReason: string | null;
 };
 
-export type ExportKind = 'ISSUES' | 'METRICS' | 'AUDIT_RESULT';
+export type ExportKind = 'ISSUES' | 'METRICS' | 'AUDIT_RESULT' | 'ACTION_PLAN' | 'INDEXABILITY';

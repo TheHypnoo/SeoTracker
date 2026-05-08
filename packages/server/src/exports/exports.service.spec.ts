@@ -143,6 +143,20 @@ describe('ExportsService', () => {
         kind: ExportKind.AUDIT_RESULT,
       }),
     ).rejects.toThrow('auditRunId is required');
+
+    await expect(
+      service.create('site-1', 'user-1', {
+        format: ExportFormat.CSV,
+        kind: ExportKind.ACTION_PLAN,
+      }),
+    ).rejects.toThrow('auditRunId is required');
+
+    await expect(
+      service.create('site-1', 'user-1', {
+        format: ExportFormat.CSV,
+        kind: ExportKind.INDEXABILITY,
+      }),
+    ).rejects.toThrow('auditRunId is required');
   });
 
   it('lists project-scope exports after checking project permission', async () => {

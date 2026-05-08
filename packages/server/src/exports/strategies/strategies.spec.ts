@@ -3,9 +3,11 @@ import { Test } from '@nestjs/testing';
 import { AuditStatus, AuditTrigger, ExportKind } from '@seotracker/shared-types';
 
 import { DRIZZLE } from '../../database/database.constants';
+import { ActionPlanCsvStrategy } from './action-plan.strategy';
 import { AuditResultCsvStrategy } from './audit-result.strategy';
 import { ComparisonCsvStrategy } from './comparison.strategy';
 import { HistoryCsvStrategy } from './history.strategy';
+import { IndexabilityCsvStrategy } from './indexability.strategy';
 import { IssuesCsvStrategy } from './issues.strategy';
 import { MetricsCsvStrategy } from './metrics.strategy';
 
@@ -333,7 +335,9 @@ describe('AuditResultCsvStrategy', () => {
       .mockReturnValueOnce(thenable([])) // run
       .mockReturnValueOnce(thenable([])) // metrics
       .mockReturnValueOnce(thenable([])) // pages
-      .mockReturnValueOnce(thenable([])); // issues
+      .mockReturnValueOnce(thenable([])) // issues
+      .mockReturnValueOnce(thenable([])) // action items
+      .mockReturnValueOnce(thenable([])); // indexability
 
     await expect(strategy.build({ auditRunId: 'r1' } as never)).rejects.toBeInstanceOf(
       NotFoundException,
@@ -347,16 +351,119 @@ describe('AuditResultCsvStrategy', () => {
       )
       .mockReturnValueOnce(thenable([{ key: 'lcp', valueNum: 1.2, valueText: null }]))
       .mockReturnValueOnce(thenable([{ url: 'https://x.test/', statusCode: 200, responseMs: 50 }]))
-      .mockReturnValueOnce(thenable([{ issueCode: 'TITLE_MISSING', message: 'no title' }]));
+      .mockReturnValueOnce(thenable([{ issueCode: 'TITLE_MISSING', message: 'no title' }]))
+      .mockReturnValueOnce(
+        thenable([{ issueCode: 'TITLE_MISSING', recommendedAction: 'Add a title' }]),
+      )
+      .mockReturnValueOnce(thenable([{ url: 'https://x.test/', indexabilityStatus: 'INDEXABLE' }]));
 
     const out = await strategy.build({ auditRunId: 'r1' } as never);
 
     expect(out.headers).toEqual(['section', 'key', 'value']);
-    // 5 summary + 1 metric + 1 page + 1 issue = 8
-    expect(out.rows.length).toBe(8);
+    // 5 summary + 1 metric + 1 page + 1 issue + 1 action + 1 indexability = 10
+    expect(out.rows.length).toBe(10);
     expect(out.rows[0]).toEqual(['summary', 'auditId', 'r1']);
     expect(out.rows[5]).toEqual(['metric', 'lcp', '1.2']);
     expect(out.rows[6]?.[0]).toBe('page');
     expect(out.rows[7]?.[0]).toBe('issue');
+    expect(out.rows[8]?.[0]).toBe('action');
+    expect(out.rows[9]?.[0]).toBe('indexability');
+  });
+});
+
+describe('ActionPlanCsvStrategy', () => {
+  let strategy: ActionPlanCsvStrategy;
+  let db: DbMock;
+
+  beforeEach(async () => {
+    db = makeDb();
+    const moduleRef = await Test.createTestingModule({
+      providers: [ActionPlanCsvStrategy, { provide: DRIZZLE, useValue: db }],
+    }).compile();
+    strategy = moduleRef.get(ActionPlanCsvStrategy);
+  });
+
+  it('throws BadRequestException when auditRunId is missing', async () => {
+    await expect(strategy.build({ auditRunId: null } as never)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('exports persisted action plan rows', async () => {
+    db.where.mockReturnValueOnce(
+      thenable([
+        {
+          affectedPages: ['https://x.test/', 'https://x.test/pricing'],
+          affectedPagesCount: 2,
+          category: 'META',
+          createdAt: ISO_DATE,
+          effort: 'LOW',
+          evidenceSummary: 'Longitud detectada: 12',
+          id: 'a1',
+          impact: 'HIGH',
+          issueCode: 'TITLE_TOO_SHORT',
+          occurrences: 2,
+          priorityReason: 'Alta',
+          priorityScore: 110,
+          recommendedAction: 'Amplia el title',
+          remediationPrompt: 'Prompt',
+          scoreImpactPoints: 8,
+          severity: 'HIGH',
+        },
+      ]),
+    );
+
+    const out = await strategy.build({ auditRunId: 'run-1' } as never);
+
+    expect(strategy.kind).toBe(ExportKind.ACTION_PLAN);
+    expect(out.headers).toContain('priorityScore');
+    expect(out.rows[0]?.[0]).toBe('a1');
+    expect(out.rows[0]?.[10]).toContain('https://x.test/pricing');
+  });
+});
+
+describe('IndexabilityCsvStrategy', () => {
+  let strategy: IndexabilityCsvStrategy;
+  let db: DbMock;
+
+  beforeEach(async () => {
+    db = makeDb();
+    const moduleRef = await Test.createTestingModule({
+      providers: [IndexabilityCsvStrategy, { provide: DRIZZLE, useValue: db }],
+    }).compile();
+    strategy = moduleRef.get(IndexabilityCsvStrategy);
+  });
+
+  it('throws BadRequestException when auditRunId is missing', async () => {
+    await expect(strategy.build({ auditRunId: null } as never)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('exports indexability matrix rows with evidence', async () => {
+    db.where.mockReturnValueOnce(
+      thenable([
+        {
+          canonicalUrl: 'https://x.test/canonical',
+          createdAt: ISO_DATE,
+          evidence: { reason: 'canonical mismatch' },
+          id: 'u1',
+          indexabilityStatus: 'CANONICALIZED',
+          robotsDirective: null,
+          sitemapIncluded: true,
+          source: 'crawl',
+          statusCode: 200,
+          url: 'https://x.test/page',
+          xRobotsTag: null,
+        },
+      ]),
+    );
+
+    const out = await strategy.build({ auditRunId: 'run-1' } as never);
+
+    expect(strategy.kind).toBe(ExportKind.INDEXABILITY);
+    expect(out.headers).toContain('indexabilityStatus');
+    expect(out.rows[0]?.[4]).toBe('CANONICALIZED');
+    expect(out.rows[0]?.[9]).toContain('canonical mismatch');
   });
 });

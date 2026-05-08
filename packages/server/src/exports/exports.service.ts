@@ -378,10 +378,14 @@ export class ExportsService {
       comparisonId?: string;
     },
   ) {
-    if (
-      [ExportKind.AUDIT_RESULT, ExportKind.ISSUES, ExportKind.METRICS].includes(input.kind) &&
-      !input.auditRunId
-    ) {
+    const auditScopedKinds = [
+      ExportKind.AUDIT_RESULT,
+      ExportKind.ISSUES,
+      ExportKind.METRICS,
+      ExportKind.ACTION_PLAN,
+      ExportKind.INDEXABILITY,
+    ];
+    if (auditScopedKinds.includes(input.kind) && !input.auditRunId) {
       throw new BadRequestException('auditRunId is required for this export kind');
     }
 
