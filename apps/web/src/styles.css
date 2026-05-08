@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap');
 @import 'tailwindcss';
 @import '@seotracker/config-tailwind/theme.css';
 
@@ -57,6 +57,26 @@ a {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
   border-radius: var(--radius-xs);
+}
+
+.app-text-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-radius: 0.5rem;
+}
+
+.score-trend-chart .recharts-wrapper:focus,
+.score-trend-chart .recharts-wrapper:focus-visible,
+.score-trend-chart .recharts-surface:focus,
+.score-trend-chart .recharts-surface:focus-visible,
+.score-trend-chart [tabindex]:focus,
+.score-trend-chart [tabindex]:focus-visible {
+  outline: none !important;
+}
+
+.score-trend-chart *:focus,
+.score-trend-chart *:focus-visible {
+  outline: none !important;
 }
 
 /* Shared button-like styles for <a>/<Link>. <button> elements should use the
@@ -142,32 +162,159 @@ a {
 .landing-panel {
   position: relative;
   border-radius: var(--radius-xl);
-  border: 1px solid rgb(148 163 184 / 0.35);
-  background:
-    linear-gradient(165deg, rgb(15 23 42 / 0.92), rgb(30 41 59 / 0.9)),
-    radial-gradient(circle at 70% -15%, rgb(45 212 191 / 0.18), transparent 45%);
+  border: 1px solid var(--color-surface-ink-700);
+  background: var(--color-surface-ink-900);
   color: var(--color-surface-ink-100);
   padding: 1.2rem;
   overflow: hidden;
 }
 
-.landing-panel::after {
-  content: '';
-  pointer-events: none;
-  position: absolute;
-  inset: auto -30% -70% auto;
-  width: 13rem;
-  height: 13rem;
-  border-radius: var(--radius-full);
-  background: radial-gradient(circle, rgb(59 130 246 / 0.24), transparent 70%);
+/* Mono for technical labels and eyebrows (opengraph.to recipe). */
+.landing-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-feature-settings: 'tnum' on;
 }
 
-.landing-chip {
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-surface-ink-100);
-  background: rgb(255 255 255 / 0.8);
-  padding: 0.32rem 0.6rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--color-text-secondary);
+/* Subtle dot-grid texture used as background overlay for the hero. */
+.bg-dotgrid {
+  background-image: radial-gradient(rgb(15 23 42 / 1) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Card primitive — opengraph.to-style: white surface, hairline border,
+   soft shadow, hover gradient bar revealed on top. Color of the bar is set
+   per-card via --card-accent-from / --card-accent-to CSS variables. */
+.landing-card {
+  position: relative;
+  border-radius: 1rem;
+  border: 1px solid rgb(226 232 240 / 1);
+  background: #ffffff;
+  padding: 1.5rem;
+  overflow: hidden;
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease,
+    border-color 200ms ease;
+}
+
+.landing-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(203 213 225 / 1);
+  box-shadow: var(--shadow-md);
+}
+
+.landing-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 1rem 1rem 0 0;
+  background: linear-gradient(
+    to right,
+    var(--card-accent-from, var(--color-brand-500)),
+    var(--card-accent-to, var(--color-brand-300))
+  );
+  opacity: 0;
+  transition: opacity 350ms ease;
+  pointer-events: none;
+}
+
+.landing-card:hover::before {
+  opacity: 1;
+}
+
+.landing-card::after {
+  content: '';
+  position: absolute;
+  top: -3rem;
+  right: -3rem;
+  width: 11rem;
+  height: 11rem;
+  border-radius: 9999px;
+  background: var(--card-accent-from, var(--color-brand-500));
+  opacity: 0;
+  filter: blur(48px);
+  transition: opacity 600ms ease;
+  pointer-events: none;
+}
+
+.landing-card:hover::after {
+  opacity: 0.08;
+}
+
+/* Section eyebrow used everywhere: small, mono, brand, wide tracking. */
+.landing-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-brand-500);
+}
+
+.landing-eyebrow::before,
+.landing-eyebrow::after {
+  content: '';
+  width: 1.25rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.4;
+}
+
+/* Live status dot — soft pulse to signal continuous monitoring. */
+.landing-pulse {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgb(16 185 129 / 0.6);
+  animation: landing-pulse 1.8s ease-out infinite;
+}
+
+@keyframes landing-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgb(16 185 129 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-pulse {
+    animation: none;
+  }
+}
+
+/* Sparkline rendered with pure CSS bars — used in the hero panel score chart. */
+.landing-sparkline {
+  display: grid;
+  grid-template-columns: repeat(var(--sparkline-bars, 24), 1fr);
+  align-items: end;
+  gap: 2px;
+  height: 56px;
+}
+
+.landing-sparkline > span {
+  display: block;
+  height: var(--bar, 40%);
+  background: linear-gradient(to top, rgb(45 212 191 / 0.85), rgb(56 189 248 / 0.55));
+  border-radius: 2px;
+  min-height: 4px;
+}
+
+/* Hairline section divider used in editorial stretches. */
+.landing-rule {
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--color-surface-ink-100), transparent);
 }
