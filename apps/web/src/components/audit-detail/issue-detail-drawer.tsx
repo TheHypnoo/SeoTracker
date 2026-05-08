@@ -9,6 +9,7 @@ import { SeverityChip } from './badges';
 type Props = {
   group: IssueGroup | null;
   onClose: () => void;
+  evidenceSummary?: string | null;
   remediationPrompt?: string | null;
   onChangeState: (projectIssueId: string, state: IssueState) => void;
   onBulkChangeState: (projectIssueIds: string[], state: IssueState) => void;
@@ -26,6 +27,7 @@ type Props = {
 export function IssueDetailDrawer({
   group,
   onClose,
+  evidenceSummary,
   remediationPrompt,
   onChangeState,
   onBulkChangeState,
@@ -81,6 +83,7 @@ export function IssueDetailDrawer({
             </div>
             <p className="mt-2 text-sm leading-6 text-slate-700">{info.howToFix}</p>
           </section>
+          <EvidenceSection group={group} evidenceSummary={evidenceSummary} />
           <OccurrencesSection
             group={group}
             onChangeState={onChangeState}
@@ -91,6 +94,46 @@ export function IssueDetailDrawer({
       ) : null}
     </Modal>
   );
+}
+
+function EvidenceSection({
+  group,
+  evidenceSummary,
+}: {
+  group: IssueGroup;
+  evidenceSummary?: string | null;
+}) {
+  const metaEntries = Object.entries(group.items.find((item) => item.meta)?.meta ?? {}).slice(0, 6);
+  if (!evidenceSummary && metaEntries.length === 0) return null;
+
+  return (
+    <section>
+      <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+        Evidencia detectada
+      </h3>
+      {evidenceSummary ? (
+        <p className="mt-2 text-sm leading-6 text-slate-700">{evidenceSummary}</p>
+      ) : null}
+      {metaEntries.length > 0 ? (
+        <dl className="mt-2 grid gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-xs">
+          {metaEntries.map(([key, value]) => (
+            <div key={key} className="grid gap-1 sm:grid-cols-[140px_1fr]">
+              <dt className="font-bold text-slate-500">{key}</dt>
+              <dd className="break-words font-mono text-slate-700">{formatEvidenceValue(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </section>
+  );
+}
+
+function formatEvidenceValue(value: unknown): string {
+  if (value === null || value === undefined) return '--';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return JSON.stringify(value);
 }
 
 function CopyPromptButton({ prompt }: { prompt: string }) {

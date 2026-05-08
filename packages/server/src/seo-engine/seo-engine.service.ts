@@ -5,15 +5,18 @@ import { load } from 'cheerio';
 
 import { normalizeDomain } from '../common/utils/domain';
 import { safeFetch, SsrfBlockedError } from '../common/utils/safe-fetch';
+import { computeCrawlConfidence } from './crawl-confidence';
 import type { Env } from '../config/env.schema';
 import { runBlogChecks } from './content-checks';
 import { runCrossPageChecks } from './cross-page-checks';
 import { analyzeHomepageHtml } from './homepage-html-analyzer';
+import { buildIndexabilityMatrix } from './indexability-analyzer';
 import { buildLinkGraph } from './link-graph';
 import { crawlPages } from './page-crawler';
 import { getIssueCategory, scoreAudit } from './scoring';
 import type { SeoAuditResult, SeoIssue, SeoMetric, SeoPageResult } from './seo-engine.types';
 import { discoverSiteMetadata } from './sitemap-discovery';
+import { safeResolveUrl } from './url-utils';
 
 const USER_AGENT = 'SEOTrackerBot/1.0 (+https://seotracker.local)';
 
@@ -91,19 +94,34 @@ export class SeoEngineService {
         issues,
         metrics,
         pages,
+        urlInspections: [],
       };
     }
 
     const status = response.status;
     const contentType = response.headers.get('content-type') ?? undefined;
     const html = await response.text();
-    pages.push({ url: homepageUrl, statusCode: status, responseMs, contentType });
+    const homepagePage: SeoPageResult = {
+      contentType,
+      responseMs,
+      source: 'homepage',
+      statusCode: status,
+      url: homepageUrl,
+      xRobotsTag: response.headers.get('x-robots-tag')?.toLowerCase() ?? undefined,
+    };
+    pages.push(homepagePage);
     metrics.push({ key: 'http_status', valueNum: status });
     metrics.push({ key: 'response_ms', valueNum: responseMs });
     metrics.push({ key: 'html_bytes', valueNum: html.length });
 
     // ── Step 2: parse + run static HTML analysis ─────────────────────────
     const $ = load(html);
+    const homepageCanonical = $('link[rel="canonical"]').first().attr('href')?.trim();
+    homepagePage.canonicalUrl = homepageCanonical
+      ? safeResolveUrl(homepageCanonical, response.url || homepageUrl)
+      : undefined;
+    homepagePage.robotsDirective =
+      $('meta[name="robots"]').attr('content')?.toLowerCase() || undefined;
     const htmlAnalysis = analyzeHomepageHtml({ $, response, html, homepageUrl });
     issues.push(...htmlAnalysis.issues);
     metrics.push(...htmlAnalysis.metrics);
@@ -157,11 +175,28 @@ export class SeoEngineService {
     metrics.push(...crawl.metrics);
     pages.push(...crawl.pages);
     pageTexts.push(...crawl.pageTexts);
+    const analyzedPages = pages[0] ? [pages[0], ...crawl.pages] : crawl.pages;
+    metrics.push(
+      ...computeCrawlConfidence({
+        analyzedPages,
+        crawlCandidateCount: linkGraph.crawlCandidateCount,
+        maxDepth,
+        maxPages,
+        sitemapUrls: discovery.sitemapUrls,
+        totalAnalyzed: crawl.totalAnalyzed,
+      }),
+    );
 
     // ── Step 6: cross-page (duplicates / thin content) ──────────────────
     const cross = runCrossPageChecks({ pageTexts });
     issues.push(...cross.issues);
     metrics.push(...cross.metrics);
+    const urlInspections = buildIndexabilityMatrix({
+      homepageUrl,
+      issues,
+      pages: analyzedPages,
+      sitemapUrls: discovery.sitemapUrls,
+    });
 
     // ── Step 7: score ───────────────────────────────────────────────────
     const scored = scoreAudit(issues, pages, homepageUrl);
@@ -175,6 +210,7 @@ export class SeoEngineService {
       issues,
       metrics,
       pages: pages.map((p) => ({ ...p, score: scored.pageScores.get(p.url) })),
+      urlInspections,
     };
   }
 }

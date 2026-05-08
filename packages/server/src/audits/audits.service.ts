@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { IndexabilityStatus } from '@seotracker/shared-types';
 
 import type { PaginationInput } from '../common/dto/pagination.dto';
 import { AuditComparisonService } from './audit-comparison.service';
@@ -70,6 +71,18 @@ export class AuditsService {
 
   getAuditIssues(auditId: string, userId: string, pagination?: PaginationInput) {
     return this.readingService.getAuditIssues(auditId, userId, pagination);
+  }
+
+  getAuditIndexability(
+    auditId: string,
+    userId: string,
+    filters?: {
+      indexabilityStatus?: IndexabilityStatus;
+      source?: string;
+      pagination?: PaginationInput;
+    },
+  ) {
+    return this.readingService.getAuditIndexability(auditId, userId, filters);
   }
 
   getSiteActionPlan(siteId: string, userId: string) {

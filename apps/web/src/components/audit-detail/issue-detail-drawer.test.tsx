@@ -22,6 +22,7 @@ describe('IssueDetailDrawer', () => {
           issueCode: 'META_NOINDEX',
           lastSeenAt: null,
           message: 'Page has noindex directive',
+          meta: { source: 'meta', content: 'noindex' },
           projectIssueId: 'project-issue-1',
           resourceUrl: longUrl,
           severity: 'CRITICAL',
@@ -39,6 +40,7 @@ describe('IssueDetailDrawer', () => {
         onBulkChangeState={vi.fn()}
         onChangeState={vi.fn()}
         onClose={vi.fn()}
+        evidenceSummary="meta: noindex"
       />,
     );
 
@@ -46,5 +48,6 @@ describe('IssueDetailDrawer', () => {
 
     expect(urlNode.className).toContain('break-all');
     expect(urlNode.className).not.toContain('truncate');
+    expect(screen.getByText('Evidencia detectada')).toBeTruthy();
   });
 });

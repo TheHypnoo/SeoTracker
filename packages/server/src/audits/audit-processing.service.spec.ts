@@ -1,6 +1,12 @@
 import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { AuditStatus, OutboundEvent, Severity } from '@seotracker/shared-types';
+import {
+  AuditStatus,
+  IssueCategory,
+  IssueCode,
+  OutboundEvent,
+  Severity,
+} from '@seotracker/shared-types';
 
 import { AlertsService } from '../alerts/alerts.service';
 import { DRIZZLE } from '../database/database.constants';
@@ -65,14 +71,15 @@ const SAMPLE_ANALYSIS = {
   metrics: [],
   issues: [
     {
-      issueCode: 'TITLE',
-      category: 'META',
-      severity: 'WARNING',
+      issueCode: IssueCode.MISSING_TITLE,
+      category: IssueCategory.ON_PAGE,
+      severity: Severity.HIGH,
       message: 'm',
       resourceUrl: null,
       meta: null,
     },
   ],
+  urlInspections: [],
 };
 
 describe('AuditProcessingService', () => {
@@ -277,16 +284,16 @@ describe('AuditProcessingService', () => {
         metrics: [{ key: 'pages_total', valueNum: 1, valueText: null }],
         issues: [
           {
-            issueCode: 'TITLE',
-            category: 'META',
-            severity: Severity.WARNING,
+            issueCode: IssueCode.MISSING_TITLE,
+            category: IssueCategory.ON_PAGE,
+            severity: Severity.HIGH,
             message: 'ignored title',
             resourceUrl: null,
             meta: null,
           },
           {
-            issueCode: 'SSL',
-            category: 'SECURITY',
+            issueCode: IssueCode.META_NOINDEX,
+            category: IssueCategory.CRAWLABILITY,
             severity: Severity.CRITICAL,
             message: 'critical',
             resourceUrl: 'https://x.test/',
@@ -294,7 +301,9 @@ describe('AuditProcessingService', () => {
           },
         ],
       });
-      projectIssues.getIgnoredFingerprints.mockResolvedValueOnce(new Set(['TITLE::']));
+      projectIssues.getIgnoredFingerprints.mockResolvedValueOnce(
+        new Set([`${IssueCode.MISSING_TITLE}::`]),
+      );
       comparison.persistComparisonForRun.mockResolvedValueOnce({
         id: 'comparison-1',
         scoreDelta: -12,

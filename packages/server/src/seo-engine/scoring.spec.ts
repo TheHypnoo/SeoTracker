@@ -23,7 +23,7 @@ describe('scoreAudit', () => {
     expect(Object.values(result.categoryScores)).toEqual(Object.values(IssueCategory).map(() => 0));
   });
 
-  it('caps repeated deductions by severity and exposes raw vs capped totals', () => {
+  it('uses issue-specific repeated deductions and exposes raw vs capped totals', () => {
     const issues: SeoIssue[] = Array.from({ length: 10 }, (_, index) => ({
       category: IssueCategory.ON_PAGE,
       issueCode: IssueCode.MISSING_TITLE,
@@ -33,9 +33,9 @@ describe('scoreAudit', () => {
 
     const result = scoreForIssues(issues);
 
-    expect(result.breakdown.perSeverity.HIGH.rawDeduction).toBe(24);
-    expect(result.breakdown.perSeverity.HIGH.cappedDeduction).toBe(24);
-    expect(result.score).toBe(76);
+    expect(result.breakdown.perSeverity.HIGH.rawDeduction).toBe(35);
+    expect(result.breakdown.perSeverity.HIGH.cappedDeduction).toBe(35);
+    expect(result.score).toBe(65);
   });
 
   it('calculates category and page scores while skipping site-level issues for page scores', () => {
@@ -69,11 +69,49 @@ describe('scoreAudit', () => {
       'https://example.test/',
     );
 
-    expect(result.categoryScores.ON_PAGE).toBe(88);
-    expect(result.categoryScores.PERFORMANCE).toBe(95);
-    expect(result.categoryScores.MEDIA).toBe(99);
-    expect(result.pageScores.get('https://example.test/a')).toBe(88);
-    expect(result.pageScores.get('https://example.test/b')).toBe(99);
+    expect(result.categoryScores.ON_PAGE).toBe(86);
+    expect(result.categoryScores.PERFORMANCE).toBe(94);
+    expect(result.categoryScores.MEDIA).toBe(98);
+    expect(result.pageScores.get('https://example.test/a')).toBe(86);
+    expect(result.pageScores.get('https://example.test/b')).toBe(98);
+  });
+
+  it('weights issue codes independently from their severity bucket', () => {
+    const issues: SeoIssue[] = [
+      {
+        category: IssueCategory.CRAWLABILITY,
+        issueCode: IssueCode.META_NOINDEX,
+        message: 'noindex',
+        severity: Severity.HIGH,
+      },
+      {
+        category: IssueCategory.ON_PAGE,
+        issueCode: IssueCode.META_DESCRIPTION_TOO_SHORT,
+        message: 'short description',
+        severity: Severity.HIGH,
+      },
+    ];
+
+    const result = scoreForIssues(issues);
+
+    expect(result.breakdown.perSeverity.HIGH.rawDeduction).toBe(20);
+    expect(result.score).toBe(80);
+  });
+
+  it('uses issue definitions as the source of truth for category scores', () => {
+    const issues: SeoIssue[] = [
+      {
+        category: IssueCategory.TECHNICAL,
+        issueCode: IssueCode.MISSING_TITLE,
+        message: 'wrong category in issue payload',
+        severity: Severity.HIGH,
+      },
+    ];
+
+    const result = scoreAudit(issues, [], 'https://example.test/');
+
+    expect(result.categoryScores.ON_PAGE).toBe(86);
+    expect(result.categoryScores.TECHNICAL).toBe(100);
   });
 });
 

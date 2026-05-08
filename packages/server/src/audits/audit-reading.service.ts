@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { AuditTrigger } from '@seotracker/shared-types';
+import type { AuditTrigger, IndexabilityStatus } from '@seotracker/shared-types';
 import { AuditStatus, type PaginatedResponse, Severity } from '@seotracker/shared-types';
 import { and, count, desc, eq, gte, inArray, lt, lte } from 'drizzle-orm';
 
@@ -12,6 +12,7 @@ import {
   auditMetrics,
   auditPages,
   auditRuns,
+  auditUrlInspections,
   siteIssues,
   sites,
 } from '../database/schema';
@@ -420,6 +421,52 @@ export class AuditReadingService {
         state: stateRow?.state ?? null,
       };
     });
+
+    return { items, limit, offset, total: Number(totalRow?.total ?? 0) };
+  }
+
+  async getAuditIndexability(
+    auditId: string,
+    userId: string,
+    filters: {
+      indexabilityStatus?: IndexabilityStatus;
+      source?: string;
+      pagination?: PaginationInput;
+    } = {},
+  ) {
+    const [run] = await this.db
+      .select({ siteId: auditRuns.siteId })
+      .from(auditRuns)
+      .where(eq(auditRuns.id, auditId))
+      .limit(1);
+
+    if (!run) {
+      throw new NotFoundException('Audit not found');
+    }
+
+    await this.sitesService.getById(run.siteId, userId);
+
+    const { limit, offset } = filters.pagination ?? { limit: 50, offset: 0 };
+    const whereCondition = and(
+      eq(auditUrlInspections.auditRunId, auditId),
+      filters.indexabilityStatus
+        ? eq(auditUrlInspections.indexabilityStatus, filters.indexabilityStatus)
+        : undefined,
+      filters.source ? eq(auditUrlInspections.source, filters.source) : undefined,
+    );
+
+    const [totalRow] = await this.db
+      .select({ total: count() })
+      .from(auditUrlInspections)
+      .where(whereCondition);
+
+    const items = await this.db
+      .select()
+      .from(auditUrlInspections)
+      .where(whereCondition)
+      .orderBy(desc(auditUrlInspections.createdAt))
+      .limit(limit)
+      .offset(offset);
 
     return { items, limit, offset, total: Number(totalRow?.total ?? 0) };
   }

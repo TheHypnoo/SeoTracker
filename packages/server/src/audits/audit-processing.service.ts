@@ -7,10 +7,12 @@ import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import {
   auditEvents,
+  auditActionItems,
   auditIssues,
   auditMetrics,
   auditPages,
   auditRuns,
+  auditUrlInspections,
   sites,
 } from '../database/schema';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -23,6 +25,7 @@ import { SystemLogsService } from '../system-logs/system-logs.service';
 import { AuditComparisonService } from './audit-comparison.service';
 import { AuditOrchestrationService } from './audit-orchestration.service';
 import { ProjectIssuesService } from './site-issues.service';
+import { buildAuditActionItems } from './action-item-builder';
 
 /**
  * Orchestrates the full lifecycle of an audit run from the worker side.
@@ -144,6 +147,12 @@ export class AuditProcessingService {
         maxDepth: crawlConfig.maxDepth,
         userAgent: crawlConfig.userAgent,
       });
+      const urlInspections = analysis.urlInspections ?? [];
+      const actionItems = buildAuditActionItems({
+        issues: analysis.issues,
+        run: { id: run.id, score: analysis.score },
+        site: { domain: site.domain, name: site.name },
+      });
 
       await this.db.transaction(async (tx) => {
         await tx
@@ -193,6 +202,45 @@ export class AuditProcessingService {
               message: issue.message,
               resourceUrl: issue.resourceUrl,
               meta: issue.meta,
+            })),
+          );
+        }
+
+        if (urlInspections.length) {
+          await tx.insert(auditUrlInspections).values(
+            urlInspections.map((inspection) => ({
+              auditRunId: run.id,
+              url: inspection.url,
+              source: inspection.source,
+              statusCode: inspection.statusCode,
+              indexabilityStatus: inspection.indexabilityStatus,
+              canonicalUrl: inspection.canonicalUrl,
+              robotsDirective: inspection.robotsDirective,
+              xRobotsTag: inspection.xRobotsTag,
+              sitemapIncluded: inspection.sitemapIncluded,
+              evidence: inspection.evidence,
+            })),
+          );
+        }
+
+        if (actionItems.length) {
+          await tx.insert(auditActionItems).values(
+            actionItems.map((action) => ({
+              affectedPages: action.affectedPages,
+              affectedPagesCount: action.affectedPagesCount,
+              auditRunId: run.id,
+              category: action.category,
+              effort: action.effort,
+              evidenceSummary: action.evidenceSummary,
+              impact: action.impact,
+              issueCode: action.issueCode,
+              occurrences: action.occurrences,
+              priorityReason: action.priorityReason,
+              priorityScore: action.priorityScore,
+              recommendedAction: action.recommendedAction,
+              remediationPrompt: action.remediationPrompt,
+              scoreImpactPoints: action.scoreImpactPoints,
+              severity: action.severity,
             })),
           );
         }

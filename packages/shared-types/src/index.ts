@@ -174,6 +174,28 @@ export enum IssueCategory {
   PERFORMANCE = 'PERFORMANCE',
 }
 
+export enum IndexabilityStatus {
+  INDEXABLE = 'INDEXABLE',
+  NOINDEX = 'NOINDEX',
+  BLOCKED_BY_ROBOTS = 'BLOCKED_BY_ROBOTS',
+  CANONICALIZED = 'CANONICALIZED',
+  HTTP_ERROR = 'HTTP_ERROR',
+  PRIVATE_EXPECTED = 'PRIVATE_EXPECTED',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export enum SeoActionImpact {
+  HIGH = 'HIGH',
+  MEDIUM = 'MEDIUM',
+  LOW = 'LOW',
+}
+
+export enum SeoActionEffort {
+  HIGH = 'HIGH',
+  MEDIUM = 'MEDIUM',
+  LOW = 'LOW',
+}
+
 export enum LogLevel {
   DEBUG = 'DEBUG',
   INFO = 'INFO',

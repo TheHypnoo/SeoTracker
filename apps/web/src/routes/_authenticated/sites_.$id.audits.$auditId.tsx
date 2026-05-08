@@ -14,6 +14,7 @@ import {
   formatMetricValue,
   httpStatusTone,
   humanizeMetric,
+  isRatioMetric,
 } from '#/components/audit-detail/audit-detail-formatters';
 import type {
   AuditIssue,
@@ -57,6 +58,28 @@ export const Route = createFileRoute('/_authenticated/sites_/$id/audits/$auditId
 
 const ISSUE_GROUPS_PER_PAGE = 8;
 const SEVERITY_ORDER: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+type AuditTab = 'action-plan' | 'technical';
+type IndexabilityStatus =
+  | 'INDEXABLE'
+  | 'NOINDEX'
+  | 'BLOCKED_BY_ROBOTS'
+  | 'CANONICALIZED'
+  | 'HTTP_ERROR'
+  | 'PRIVATE_EXPECTED'
+  | 'UNKNOWN';
+
+type UrlInspection = {
+  id: string;
+  url: string;
+  source: string;
+  statusCode: number | null;
+  indexabilityStatus: IndexabilityStatus;
+  canonicalUrl: string | null;
+  robotsDirective: string | null;
+  xRobotsTag: string | null;
+  sitemapIncluded: boolean;
+  evidence: Record<string, unknown>;
+};
 
 function useAuditDetailUiState() {
   return {
@@ -65,6 +88,7 @@ function useAuditDetailUiState() {
     severityFilterState: useState<Severity | 'ALL'>('ALL'),
     stateFilterState: useState<IssueState | 'ALL'>('ALL'),
     issuePageState: useState(1),
+    auditTabState: useState<AuditTab>('action-plan'),
     scoreDetailsOpenState: useState(false),
   };
 }
@@ -82,6 +106,7 @@ function AuditDetailPage() {
     severityFilterState,
     stateFilterState,
     issuePageState,
+    auditTabState,
     scoreDetailsOpenState,
   } = useAuditDetailUiState();
   const [drawerGroup, setDrawerGroup] = drawerGroupState;
@@ -89,6 +114,7 @@ function AuditDetailPage() {
   const [severityFilter, setSeverityFilter] = severityFilterState;
   const [stateFilter, setStateFilter] = stateFilterState;
   const [issuePage, setIssuePage] = issuePageState;
+  const [auditTab, setAuditTab] = auditTabState;
   const [scoreDetailsOpen, setScoreDetailsOpen] = scoreDetailsOpenState;
 
   const audit = useQuery({
@@ -109,6 +135,19 @@ function AuditDetailPage() {
   const actionPlan = useQuery({
     queryKey: ['audit-action-plan', auditId],
     queryFn: () => auth.api.get<SeoActionPlanPayload>(`/audits/${auditId}/action-plan`),
+    enabled:
+      Boolean(auth.accessToken) &&
+      !isAuditActive &&
+      audit.data?.status !== 'FAILED' &&
+      Boolean(audit.data),
+  });
+
+  const indexability = useQuery({
+    queryKey: ['audit-indexability', auditId],
+    queryFn: () =>
+      auth.api.get<PaginatedResponse<UrlInspection>>(
+        `/audits/${auditId}/indexability?limit=100&offset=0`,
+      ),
     enabled:
       Boolean(auth.accessToken) &&
       !isAuditActive &&
@@ -200,6 +239,7 @@ function AuditDetailPage() {
   });
 
   const runData = audit.data;
+  const showTechnicalSections = runData?.status !== 'COMPLETED' || auditTab === 'technical';
   const issueData = useMemo(() => issues.data?.items ?? [], [issues.data?.items]);
   const allIssuesBySeverity = useMemo(() => groupIssuesBySeverity(issueData), [issueData]);
   const filteredIssueData = useMemo(
@@ -405,185 +445,206 @@ function AuditDetailPage() {
           </div>
 
           {runData.status === 'COMPLETED' ? (
-            <AuditKeyFindingsPanel
-              plan={actionPlan.data ?? null}
-              loading={actionPlan.isLoading || actionPlan.isFetching}
-            />
+            <>
+              <AuditTabs value={auditTab} onChange={setAuditTab} />
+              {auditTab === 'action-plan' ? (
+                <AuditKeyFindingsPanel
+                  plan={actionPlan.data ?? null}
+                  loading={actionPlan.isLoading || actionPlan.isFetching}
+                />
+              ) : (
+                <IndexabilityPanel
+                  inspections={indexability.data?.items ?? []}
+                  loading={indexability.isLoading || indexability.isFetching}
+                />
+              )}
+            </>
           ) : null}
 
-          <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-black tracking-tight text-slate-950">
-                  Incidencias técnicas
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Listado técnico completo. Usa el plan superior para decidir prioridades.
-                </p>
+          {showTechnicalSections ? (
+            <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight text-slate-950">
+                    Incidencias técnicas
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Listado técnico completo. Usa el plan superior para decidir prioridades.
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                  {filteredIssueData.length}/{issueData.length} visibles
+                </span>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                {filteredIssueData.length}/{issueData.length} visibles
-              </span>
-            </div>
 
-            {issueData.length > 0 ? (
-              <div className="mt-5 grid gap-3 md:grid-cols-[minmax(260px,1fr)_minmax(220px,240px)_minmax(180px,220px)]">
-                <label className="block">
-                  <span className="sr-only">Buscar incidencias</span>
-                  <input
-                    type="search"
-                    value={issueSearch}
-                    onChange={(event) => {
-                      setIssueSearch(event.target.value);
-                      setIssuePage(1);
-                    }}
-                    placeholder="Buscar por tipo, mensaje o URL"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
-                  />
-                </label>
-                <label className="block">
-                  <span className="sr-only">Filtrar por severidad</span>
-                  <select
-                    value={severityFilter}
-                    onChange={(event) => {
-                      setSeverityFilter(event.target.value as Severity | 'ALL');
-                      setIssuePage(1);
-                    }}
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
-                  >
-                    <option value="ALL">Todas las severidades</option>
-                    <option value="CRITICAL">Críticas</option>
-                    <option value="HIGH">Altas</option>
-                    <option value="MEDIUM">Medias</option>
-                    <option value="LOW">Bajas</option>
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="sr-only">Filtrar por estado</span>
-                  <select
-                    value={stateFilter}
-                    onChange={(event) => {
-                      setStateFilter(event.target.value as IssueState | 'ALL');
-                      setIssuePage(1);
-                    }}
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
-                  >
-                    <option value="ALL">Todos los estados</option>
-                    <option value="OPEN">Abiertas</option>
-                    <option value="IGNORED">Ignoradas</option>
-                    <option value="FIXED">Resueltas</option>
-                  </select>
-                </label>
-              </div>
-            ) : null}
-
-            {issues.isLoading ? (
-              <p className="mt-5 text-sm text-slate-500">Cargando incidencias…</p>
-            ) : !issueData?.length ? (
-              <div className="mt-5">
-                <EmptyState
-                  title="Sin incidencias"
-                  description="Este dominio está limpio en esta auditoría. Revisa las páginas para confirmar que el rastreo alcanzó el contenido esperado."
-                />
-              </div>
-            ) : filteredIssueData.length === 0 ? (
-              <div className="mt-5">
-                <EmptyState
-                  title="Sin coincidencias"
-                  description="No hay incidencias que encajen con la búsqueda o los filtros actuales."
-                />
-              </div>
-            ) : (
-              <div className="mt-6 space-y-6">
-                {SEVERITY_ORDER.map((sev) => {
-                  const groups = paginatedIssuesBySeverity[sev];
-                  if (groups.length === 0) return null;
-                  const total = groups.reduce((acc, g) => acc + g.items.length, 0);
-                  return (
-                    <section key={sev} className="space-y-3">
-                      <header className="flex items-center gap-2">
-                        <SeverityChip severity={sev} />
-                        <span className="text-xs font-semibold text-slate-500">
-                          {total} {total === 1 ? 'incidencia' : 'incidencias'} · {groups.length}{' '}
-                          {groups.length === 1 ? 'tipo' : 'tipos'}
-                        </span>
-                      </header>
-                      <ul className="space-y-2">
-                        {groups.map((group) => (
-                          <li key={group.code}>
-                            <IssueGroupCard
-                              group={group}
-                              onOpen={() => setDrawerGroup(group)}
-                              remediationPrompt={
-                                promptByIssueCode.get(group.code)?.remediationPrompt ?? null
-                              }
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  );
-                })}
-                {issueGroups.length > ISSUE_GROUPS_PER_PAGE ? (
-                  <IssuePagination
-                    currentPage={issuePage}
-                    pageSize={ISSUE_GROUPS_PER_PAGE}
-                    totalGroups={issueGroups.length}
-                    totalPages={totalIssuePages}
-                    onPageChange={setIssuePage}
-                  />
-                ) : null}
-              </div>
-            )}
-          </article>
-
-          <div className="space-y-3">
-            <CollapsibleSection title="Páginas analizadas" count={runData.pages.length}>
-              {runData.pages.length === 0 ? (
-                <p className="text-sm text-slate-500">No se registraron páginas.</p>
-              ) : (
-                <ul className="divide-y divide-slate-100">
-                  {runData.pages.map((page) => (
-                    <li key={page.id} className="flex flex-wrap items-center gap-3 py-2.5">
-                      <HttpStatusPill status={page.statusCode} />
-                      <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-700">
-                        {page.url}
-                      </span>
-                      <PageScorePill score={page.score} />
-                      <span className="inline-flex shrink-0 items-center gap-1 text-xs text-slate-500">
-                        <Timer size={10} aria-hidden="true" />
-                        {page.responseMs ?? '--'} ms
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CollapsibleSection>
-
-            <CollapsibleSection title="Métricas SEO" count={runData.metrics.length}>
-              {runData.metrics.length === 0 ? (
-                <p className="text-sm text-slate-500">Sin métricas registradas.</p>
-              ) : (
-                <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-                  {runData.metrics.map((metric) => (
-                    <div
-                      key={metric.id}
-                      className="flex items-baseline justify-between gap-3 border-b border-slate-100 py-1.5"
+              {issueData.length > 0 ? (
+                <div className="mt-5 grid gap-3 md:grid-cols-[minmax(260px,1fr)_minmax(220px,240px)_minmax(180px,220px)]">
+                  <label className="block">
+                    <span className="sr-only">Buscar incidencias</span>
+                    <input
+                      type="search"
+                      value={issueSearch}
+                      onChange={(event) => {
+                        setIssueSearch(event.target.value);
+                        setIssuePage(1);
+                      }}
+                      placeholder="Buscar por tipo, mensaje o URL"
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="sr-only">Filtrar por severidad</span>
+                    <select
+                      value={severityFilter}
+                      onChange={(event) => {
+                        setSeverityFilter(event.target.value as Severity | 'ALL');
+                        setIssuePage(1);
+                      }}
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
                     >
-                      <dt className="text-sm text-slate-600">{humanizeMetric(metric.key)}</dt>
-                      <dd className="text-sm font-semibold tabular-nums text-slate-900">
-                        {formatMetricValue(metric.valueNum, metric.valueText)}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+                      <option value="ALL">Todas las severidades</option>
+                      <option value="CRITICAL">Críticas</option>
+                      <option value="HIGH">Altas</option>
+                      <option value="MEDIUM">Medias</option>
+                      <option value="LOW">Bajas</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="sr-only">Filtrar por estado</span>
+                    <select
+                      value={stateFilter}
+                      onChange={(event) => {
+                        setStateFilter(event.target.value as IssueState | 'ALL');
+                        setIssuePage(1);
+                      }}
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+                    >
+                      <option value="ALL">Todos los estados</option>
+                      <option value="OPEN">Abiertas</option>
+                      <option value="IGNORED">Ignoradas</option>
+                      <option value="FIXED">Resueltas</option>
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+
+              {issues.isLoading ? (
+                <p className="mt-5 text-sm text-slate-500">Cargando incidencias…</p>
+              ) : !issueData?.length ? (
+                <div className="mt-5">
+                  <EmptyState
+                    title="Sin incidencias"
+                    description="Este dominio está limpio en esta auditoría. Revisa las páginas para confirmar que el rastreo alcanzó el contenido esperado."
+                  />
+                </div>
+              ) : filteredIssueData.length === 0 ? (
+                <div className="mt-5">
+                  <EmptyState
+                    title="Sin coincidencias"
+                    description="No hay incidencias que encajen con la búsqueda o los filtros actuales."
+                  />
+                </div>
+              ) : (
+                <div className="mt-6 space-y-6">
+                  {SEVERITY_ORDER.map((sev) => {
+                    const groups = paginatedIssuesBySeverity[sev];
+                    if (groups.length === 0) return null;
+                    const total = groups.reduce((acc, g) => acc + g.items.length, 0);
+                    return (
+                      <section key={sev} className="space-y-3">
+                        <header className="flex items-center gap-2">
+                          <SeverityChip severity={sev} />
+                          <span className="text-xs font-semibold text-slate-500">
+                            {total} {total === 1 ? 'incidencia' : 'incidencias'} · {groups.length}{' '}
+                            {groups.length === 1 ? 'tipo' : 'tipos'}
+                          </span>
+                        </header>
+                        <ul className="space-y-2">
+                          {groups.map((group) => (
+                            <li key={group.code}>
+                              <IssueGroupCard
+                                group={group}
+                                onOpen={() => setDrawerGroup(group)}
+                                remediationPrompt={
+                                  promptByIssueCode.get(group.code)?.remediationPrompt ?? null
+                                }
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    );
+                  })}
+                  {issueGroups.length > ISSUE_GROUPS_PER_PAGE ? (
+                    <IssuePagination
+                      currentPage={issuePage}
+                      pageSize={ISSUE_GROUPS_PER_PAGE}
+                      totalGroups={issueGroups.length}
+                      totalPages={totalIssuePages}
+                      onPageChange={setIssuePage}
+                    />
+                  ) : null}
+                </div>
               )}
-            </CollapsibleSection>
-          </div>
+            </article>
+          ) : null}
+
+          {showTechnicalSections ? (
+            <div className="space-y-3">
+              <CollapsibleSection title="Páginas analizadas" count={runData.pages.length}>
+                {runData.pages.length === 0 ? (
+                  <p className="text-sm text-slate-500">No se registraron páginas.</p>
+                ) : (
+                  <ul className="divide-y divide-slate-100">
+                    {runData.pages.map((page) => (
+                      <li key={page.id} className="flex flex-wrap items-center gap-3 py-2.5">
+                        <HttpStatusPill status={page.statusCode} />
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-700">
+                          {page.url}
+                        </span>
+                        <PageScorePill score={page.score} />
+                        <span className="inline-flex shrink-0 items-center gap-1 text-xs text-slate-500">
+                          <Timer size={10} aria-hidden="true" />
+                          {page.responseMs ?? '--'} ms
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CollapsibleSection>
+
+              <CollapsibleSection title="Métricas SEO" count={runData.metrics.length}>
+                {runData.metrics.length === 0 ? (
+                  <p className="text-sm text-slate-500">Sin métricas registradas.</p>
+                ) : (
+                  <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                    {runData.metrics.map((metric) => (
+                      <div
+                        key={metric.id}
+                        className="flex items-baseline justify-between gap-3 border-b border-slate-100 py-1.5"
+                      >
+                        <dt className="text-sm text-slate-600">{humanizeMetric(metric.key)}</dt>
+                        <dd className="text-sm font-semibold tabular-nums text-slate-900">
+                          {isRatioMetric(metric.key) && metric.valueNum !== null
+                            ? `${Math.round(metric.valueNum * 100)}%`
+                            : formatMetricValue(metric.valueNum, metric.valueText)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </CollapsibleSection>
+            </div>
+          ) : null}
 
           <IssueDetailDrawer
             group={drawerGroup}
             onClose={() => setDrawerGroup(null)}
+            evidenceSummary={
+              drawerGroup
+                ? (promptByIssueCode.get(drawerGroup.code)?.evidenceSummary ?? null)
+                : null
+            }
             remediationPrompt={
               drawerGroup
                 ? (promptByIssueCode.get(drawerGroup.code)?.remediationPrompt ?? null)
@@ -649,6 +710,160 @@ function IssuePagination({
       </div>
     </nav>
   );
+}
+
+function AuditTabs({ value, onChange }: { value: AuditTab; onChange: (value: AuditTab) => void }) {
+  const tabs: Array<{ id: AuditTab; label: string }> = [
+    { id: 'action-plan', label: 'Plan de acción' },
+    { id: 'technical', label: 'Diagnóstico técnico' },
+  ];
+  return (
+    <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+      {tabs.map((tab) => {
+        const active = value === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={`rounded-xl px-4 py-2 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+              active ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function IndexabilityPanel({
+  inspections,
+  loading,
+}: {
+  inspections: UrlInspection[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <article className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
+        Cargando diagnóstico de indexabilidad...
+      </article>
+    );
+  }
+
+  if (inspections.length === 0) {
+    return (
+      <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <EmptyState
+          title="Sin diagnóstico de indexabilidad"
+          description="Esta auditoría no tiene todavía la matriz técnica por URL. Las auditorías nuevas la generarán automáticamente."
+        />
+      </article>
+    );
+  }
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 p-5">
+        <h2 className="text-lg font-black tracking-tight text-slate-950">
+          Matriz de indexabilidad
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Cruce de estado HTTP, sitemap, robots, canonical y política interna de URLs privadas.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-100 text-sm">
+          <thead className="bg-slate-50 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            <tr>
+              <th className="px-4 py-3">URL</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">HTTP</th>
+              <th className="px-4 py-3">Fuente</th>
+              <th className="px-4 py-3">Sitemap</th>
+              <th className="px-4 py-3">Canonical / robots</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {inspections.map((inspection) => (
+              <tr key={inspection.id} className="align-top">
+                <td className="max-w-md px-4 py-3">
+                  <div className="break-all font-mono text-xs leading-5 text-slate-700">
+                    {inspection.url}
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-slate-500">
+                    {typeof inspection.evidence?.reason === 'string'
+                      ? inspection.evidence.reason
+                      : indexabilityStatusLabel(inspection.indexabilityStatus)}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <IndexabilityPill status={inspection.indexabilityStatus} />
+                </td>
+                <td className="px-4 py-3 font-semibold tabular-nums text-slate-700">
+                  {inspection.statusCode ?? '--'}
+                </td>
+                <td className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">
+                  {inspection.source}
+                </td>
+                <td className="px-4 py-3 text-xs font-bold text-slate-700">
+                  {inspection.sitemapIncluded ? 'Sí' : 'No'}
+                </td>
+                <td className="max-w-sm px-4 py-3 text-xs leading-5 text-slate-600">
+                  {inspection.canonicalUrl ? (
+                    <div className="break-all">
+                      <span className="font-bold">Canonical:</span> {inspection.canonicalUrl}
+                    </div>
+                  ) : null}
+                  {inspection.robotsDirective ? (
+                    <div className="break-all">
+                      <span className="font-bold">Robots:</span> {inspection.robotsDirective}
+                    </div>
+                  ) : null}
+                  {inspection.xRobotsTag ? (
+                    <div className="break-all">
+                      <span className="font-bold">X-Robots:</span> {inspection.xRobotsTag}
+                    </div>
+                  ) : null}
+                  {!inspection.canonicalUrl && !inspection.robotsDirective && !inspection.xRobotsTag
+                    ? '--'
+                    : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  );
+}
+
+function IndexabilityPill({ status }: { status: IndexabilityStatus }) {
+  const tone =
+    status === 'INDEXABLE'
+      ? 'bg-emerald-100 text-emerald-800'
+      : status === 'PRIVATE_EXPECTED'
+        ? 'bg-slate-100 text-slate-700'
+        : status === 'UNKNOWN'
+          ? 'bg-amber-100 text-amber-800'
+          : 'bg-rose-100 text-rose-800';
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${tone}`}>
+      {indexabilityStatusLabel(status)}
+    </span>
+  );
+}
+
+function indexabilityStatusLabel(status: IndexabilityStatus) {
+  if (status === 'INDEXABLE') return 'Indexable';
+  if (status === 'NOINDEX') return 'Noindex';
+  if (status === 'BLOCKED_BY_ROBOTS') return 'Bloqueada por robots';
+  if (status === 'CANONICALIZED') return 'Canonicalizada';
+  if (status === 'HTTP_ERROR') return 'Error HTTP';
+  if (status === 'PRIVATE_EXPECTED') return 'Privada esperada';
+  return 'Desconocida';
 }
 
 function findIssueGroup(buckets: Record<Severity, IssueGroup[]>, code: string): IssueGroup | null {

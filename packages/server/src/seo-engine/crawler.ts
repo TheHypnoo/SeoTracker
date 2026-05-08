@@ -69,6 +69,7 @@ export async function fetchRobots(
     const responseMs = Math.round(performance.now() - startedAt);
     const page: SeoPageResult = {
       contentType: response.headers.get('content-type') ?? undefined,
+      source: 'probe',
       responseMs,
       statusCode: response.status,
       url,
@@ -352,6 +353,7 @@ export async function existsUrl(url: string, timeoutMs: number, userAgent: strin
         statusCode: response.status,
         responseMs,
         contentType: response.headers.get('content-type') ?? undefined,
+        source: 'head',
       } satisfies SeoPageResult,
       statusCode: response.status,
     };
@@ -363,6 +365,7 @@ export async function existsUrl(url: string, timeoutMs: number, userAgent: strin
         statusCode: undefined,
         responseMs: undefined,
         contentType: undefined,
+        source: 'head',
       } satisfies SeoPageResult,
       statusCode: undefined,
     };
@@ -519,6 +522,7 @@ export async function analyzeInternalPage(
   let statusCode: number | undefined;
   let responseMs: number | undefined;
   let contentType: string | undefined;
+  let xRobotsTag: string | undefined;
 
   try {
     const startedAt = performance.now();
@@ -529,18 +533,27 @@ export async function analyzeInternalPage(
     responseMs = Math.round(performance.now() - startedAt);
     statusCode = response.status;
     contentType = response.headers.get('content-type') ?? undefined;
+    xRobotsTag = response.headers.get('x-robots-tag')?.toLowerCase() ?? undefined;
 
     if (response.status >= 400) {
-      return { issues: pageIssues, page: { contentType, responseMs, statusCode, url: pageUrl } };
+      return {
+        issues: pageIssues,
+        page: { contentType, responseMs, source: 'crawl', statusCode, url: pageUrl, xRobotsTag },
+      };
     }
     if (contentType && !contentType.includes('text/html')) {
-      return { issues: pageIssues, page: { contentType, responseMs, statusCode, url: pageUrl } };
+      return {
+        issues: pageIssues,
+        page: { contentType, responseMs, source: 'crawl', statusCode, url: pageUrl, xRobotsTag },
+      };
     }
 
     const html = await response.text();
     const $ = load(html);
     const text = extractTextForComparison($);
     const finalUrl = response.url || pageUrl;
+    const canonical = $('link[rel="canonical"]').first().attr('href')?.trim();
+    const canonicalUrl = canonical ? safeResolveUrl(canonical, finalUrl) : undefined;
     for (const issue of runBlogChecks(pageUrl, $, text)) {
       pageIssues.push(issue);
     }
@@ -551,6 +564,7 @@ export async function analyzeInternalPage(
         category: getIssueCategory(IssueCode.MISSING_TITLE),
         issueCode: IssueCode.MISSING_TITLE,
         message: 'Missing <title> tag',
+        meta: { expected: '30-60 chars', found: null, selector: 'title' },
         resourceUrl: pageUrl,
         severity: Severity.HIGH,
       });
@@ -559,7 +573,7 @@ export async function analyzeInternalPage(
         category: getIssueCategory(IssueCode.TITLE_TOO_SHORT),
         issueCode: IssueCode.TITLE_TOO_SHORT,
         message: `Title too short (${titleText.length} chars)`,
-        meta: { length: titleText.length },
+        meta: { expected: '30-60 chars', found: titleText, length: titleText.length },
         resourceUrl: pageUrl,
         severity: Severity.LOW,
       });
@@ -568,7 +582,7 @@ export async function analyzeInternalPage(
         category: getIssueCategory(IssueCode.TITLE_TOO_LONG),
         issueCode: IssueCode.TITLE_TOO_LONG,
         message: `Title too long (${titleText.length} chars)`,
-        meta: { length: titleText.length },
+        meta: { expected: '30-60 chars', found: titleText, length: titleText.length },
         resourceUrl: pageUrl,
         severity: Severity.LOW,
       });
@@ -580,6 +594,7 @@ export async function analyzeInternalPage(
         category: getIssueCategory(IssueCode.MISSING_META_DESCRIPTION),
         issueCode: IssueCode.MISSING_META_DESCRIPTION,
         message: 'Missing meta description',
+        meta: { expected: '120-160 chars', found: null, selector: 'meta[name="description"]' },
         resourceUrl: pageUrl,
         severity: Severity.MEDIUM,
       });
@@ -588,7 +603,7 @@ export async function analyzeInternalPage(
         category: getIssueCategory(IssueCode.META_DESCRIPTION_TOO_SHORT),
         issueCode: IssueCode.META_DESCRIPTION_TOO_SHORT,
         message: `Meta description too short (${metaDescription.length} chars)`,
-        meta: { length: metaDescription.length },
+        meta: { expected: '120-160 chars', found: metaDescription, length: metaDescription.length },
         resourceUrl: pageUrl,
         severity: Severity.LOW,
       });
@@ -597,7 +612,7 @@ export async function analyzeInternalPage(
         category: getIssueCategory(IssueCode.META_DESCRIPTION_TOO_LONG),
         issueCode: IssueCode.META_DESCRIPTION_TOO_LONG,
         message: `Meta description too long (${metaDescription.length} chars)`,
-        meta: { length: metaDescription.length },
+        meta: { expected: '120-160 chars', found: metaDescription, length: metaDescription.length },
         resourceUrl: pageUrl,
         severity: Severity.LOW,
       });
@@ -651,12 +666,17 @@ export async function analyzeInternalPage(
     }
 
     const metaRobots = $('meta[name="robots"]').attr('content')?.toLowerCase() ?? '';
-    if (metaRobots.includes('noindex') && !isExpectedNoindexUrl(pageUrl)) {
+    const hasNoindex = metaRobots.includes('noindex') || xRobotsTag?.includes('noindex');
+    if (hasNoindex && !isExpectedNoindexUrl(pageUrl)) {
       pageIssues.push({
         category: getIssueCategory(IssueCode.META_NOINDEX),
         issueCode: IssueCode.META_NOINDEX,
         message: 'Page has noindex directive',
-        meta: { content: metaRobots },
+        meta: {
+          content: metaRobots || xRobotsTag,
+          expectedNoindex: false,
+          source: metaRobots.includes('noindex') ? 'meta' : 'x-robots-tag',
+        },
         resourceUrl: pageUrl,
         severity: Severity.HIGH,
       });
@@ -739,13 +759,22 @@ export async function analyzeInternalPage(
     return {
       issues: pageIssues,
       links: discovered,
-      page: { contentType, responseMs, statusCode, url: pageUrl },
+      page: {
+        canonicalUrl,
+        contentType,
+        responseMs,
+        robotsDirective: metaRobots || undefined,
+        source: 'crawl',
+        statusCode,
+        url: pageUrl,
+        xRobotsTag,
+      },
       text,
     };
   } catch {
     return {
       issues: pageIssues,
-      page: { contentType, responseMs, statusCode, url: pageUrl },
+      page: { contentType, responseMs, source: 'crawl', statusCode, url: pageUrl, xRobotsTag },
     };
   }
 }

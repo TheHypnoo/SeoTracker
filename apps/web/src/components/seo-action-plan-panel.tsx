@@ -15,6 +15,7 @@ import { formatNumericDate } from '#/lib/date-format';
 
 type ActionStatus = 'OPEN' | 'IGNORED' | 'FIXED';
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+type ActionLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface SeoActionPlanPayload {
   site: {
@@ -57,12 +58,15 @@ export interface SeoActionPlanPayload {
     severity: Severity;
     status: ActionStatus;
     priority: number;
-    impact: 'Alto' | 'Medio' | 'Bajo';
-    effort: 'Alto' | 'Medio' | 'Bajo';
+    impact: ActionLevel;
+    effort: ActionLevel;
     estimatedImpactPoints: number;
+    scoreImpactPoints: number;
     occurrences: number;
     affectedPagesCount: number;
     affectedPages: string[];
+    evidenceSummary: string;
+    priorityReason: string;
     regressionCount: number;
     recommendedAction: string;
     remediationPrompt: string;
@@ -310,8 +314,8 @@ function DomainActionItem({ action, index }: { action: ActionItem; index: number
           <p className="mt-1 text-sm leading-6 text-slate-600">{action.recommendedAction}</p>
         </div>
         <div className="grid shrink-0 grid-cols-2 gap-2 text-right text-xs">
-          <MiniStat label="Impacto" value={action.impact} />
-          <MiniStat label="Esfuerzo" value={action.effort} />
+          <MiniStat label="Impacto" value={actionLevelLabel(action.impact)} />
+          <MiniStat label="Esfuerzo" value={actionLevelLabel(action.effort)} />
         </div>
       </div>
 
@@ -321,9 +325,13 @@ function DomainActionItem({ action, index }: { action: ActionItem; index: number
         </span>
         <span>{action.occurrences} ocurrencias</span>
         <span>{action.affectedPagesCount} páginas</span>
-        <span>+{action.estimatedImpactPoints} pts estimados</span>
+        <span>{action.scoreImpactPoints ?? action.estimatedImpactPoints} pts de score</span>
         <CopyPromptButton prompt={action.remediationPrompt} />
       </div>
+      <p className="mt-2 text-xs leading-5 text-slate-600">
+        <span className="font-bold text-slate-800">Evidencia:</span> {action.evidenceSummary}
+      </p>
+      <p className="mt-1 text-[11px] font-semibold text-slate-500">{action.priorityReason}</p>
 
       <AffectedPages pages={action.affectedPages} />
     </li>
@@ -350,7 +358,10 @@ function AuditFindingItem({ action, index }: { action: ActionItem; index: number
           <p className="mt-0.5 text-xs leading-5 text-slate-500">
             {action.affectedPagesCount} {action.affectedPagesCount === 1 ? 'URL' : 'URLs'} ·{' '}
             {action.occurrences} {action.occurrences === 1 ? 'ocurrencia' : 'ocurrencias'} ·{' '}
-            {action.impact}/{action.effort}
+            {actionLevelLabel(action.impact)}/{actionLevelLabel(action.effort)}
+          </p>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
+            {action.evidenceSummary}
           </p>
         </div>
         <CopyPromptButton prompt={action.remediationPrompt} />
@@ -556,6 +567,12 @@ function severityLabel(severity: Severity) {
     return 'Media';
   }
   return 'Baja';
+}
+
+function actionLevelLabel(level: ActionLevel) {
+  if (level === 'HIGH') return 'Alto';
+  if (level === 'MEDIUM') return 'Medio';
+  return 'Bajo';
 }
 
 function formatAuditSource(value: string, auditId: string) {

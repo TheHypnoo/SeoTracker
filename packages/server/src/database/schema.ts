@@ -6,6 +6,7 @@ import {
   ExportFormat,
   ExportKind,
   ExportStatus,
+  IndexabilityStatus,
   IssueCategory,
   IssueCode,
   IssueState,
@@ -13,10 +14,13 @@ import {
   OutboundDeliveryStatus,
   Role,
   ScheduleFrequency,
+  SeoActionEffort,
+  SeoActionImpact,
   Severity,
 } from '@seotracker/shared-types';
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -75,6 +79,21 @@ export const issueCodeEnum = pgEnum(
 export const issueCategoryEnum = pgEnum(
   'issue_category',
   Object.values(IssueCategory) as [IssueCategory, ...IssueCategory[]],
+);
+
+export const indexabilityStatusEnum = pgEnum(
+  'indexability_status',
+  Object.values(IndexabilityStatus) as [IndexabilityStatus, ...IndexabilityStatus[]],
+);
+
+export const seoActionImpactEnum = pgEnum(
+  'seo_action_impact',
+  Object.values(SeoActionImpact) as [SeoActionImpact, ...SeoActionImpact[]],
+);
+
+export const seoActionEffortEnum = pgEnum(
+  'seo_action_effort',
+  Object.values(SeoActionEffort) as [SeoActionEffort, ...SeoActionEffort[]],
 );
 
 /** Log severity used by `system_logs` for structured backend traces. */
@@ -434,6 +453,33 @@ export const auditPages = pgTable(
   (table) => [index('audit_pages_run_idx').on(table.auditRunId)],
 );
 
+export type UrlInspectionEvidence = Record<string, unknown>;
+
+export const auditUrlInspections = pgTable(
+  'audit_url_inspections',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    auditRunId: uuid('audit_run_id')
+      .notNull()
+      .references(() => auditRuns.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    source: varchar('source', { length: 40 }).notNull(),
+    statusCode: integer('status_code'),
+    indexabilityStatus: indexabilityStatusEnum('indexability_status').notNull(),
+    canonicalUrl: text('canonical_url'),
+    robotsDirective: text('robots_directive'),
+    xRobotsTag: text('x_robots_tag'),
+    sitemapIncluded: boolean('sitemap_included').notNull().default(false),
+    evidence: jsonb('evidence').$type<UrlInspectionEvidence>().default({}).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('audit_url_inspections_run_idx').on(table.auditRunId),
+    index('audit_url_inspections_status_idx').on(table.auditRunId, table.indexabilityStatus),
+    index('audit_url_inspections_source_idx').on(table.auditRunId, table.source),
+  ],
+);
+
 /** Issues detected within a single audit run. Use `site_issues` for the cross-run state machine view. */
 export const auditIssues = pgTable(
   'audit_issues',
@@ -455,6 +501,38 @@ export const auditIssues = pgTable(
     index('audit_issues_severity_idx').on(table.severity),
     index('audit_issues_category_idx').on(table.category),
     index('audit_issues_run_code_idx').on(table.auditRunId, table.issueCode),
+  ],
+);
+
+export type AuditActionAffectedPages = string[];
+
+export const auditActionItems = pgTable(
+  'audit_action_items',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    auditRunId: uuid('audit_run_id')
+      .notNull()
+      .references(() => auditRuns.id, { onDelete: 'cascade' }),
+    issueCode: issueCodeEnum('issue_code').notNull(),
+    category: issueCategoryEnum('category').notNull().default(IssueCategory.TECHNICAL),
+    severity: severityEnum('severity').notNull(),
+    priorityScore: integer('priority_score').notNull(),
+    impact: seoActionImpactEnum('impact').notNull(),
+    effort: seoActionEffortEnum('effort').notNull(),
+    scoreImpactPoints: integer('score_impact_points').notNull(),
+    occurrences: integer('occurrences').notNull(),
+    affectedPagesCount: integer('affected_pages_count').notNull(),
+    affectedPages: jsonb('affected_pages').$type<AuditActionAffectedPages>().default([]).notNull(),
+    evidenceSummary: text('evidence_summary').notNull(),
+    priorityReason: text('priority_reason').notNull(),
+    recommendedAction: text('recommended_action').notNull(),
+    remediationPrompt: text('remediation_prompt').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('audit_action_items_run_code_uk').on(table.auditRunId, table.issueCode),
+    index('audit_action_items_run_idx').on(table.auditRunId),
+    index('audit_action_items_priority_idx').on(table.auditRunId, table.priorityScore),
   ],
 );
 
@@ -508,7 +586,7 @@ export const auditMetrics = pgTable(
       .notNull()
       .references(() => auditRuns.id, { onDelete: 'cascade' }),
     key: varchar('key', { length: 120 }).notNull(),
-    valueNum: integer('value_num'),
+    valueNum: doublePrecision('value_num'),
     valueText: text('value_text'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },

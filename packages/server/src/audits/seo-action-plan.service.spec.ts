@@ -4,6 +4,7 @@ import {
   IssueCategory,
   IssueCode,
   IssueState,
+  SeoActionEffort,
   Severity,
 } from '@seotracker/shared-types';
 
@@ -139,6 +140,7 @@ describe('SeoActionPlanService', () => {
           },
         ]),
       )
+      .mockReturnValueOnce(thenable([]))
       .mockReturnValueOnce(
         thenable([
           {
@@ -209,7 +211,7 @@ describe('SeoActionPlanService', () => {
       status: IssueState.OPEN,
     });
     expect(plan.actions[1]).toMatchObject({
-      effort: 'Alto',
+      effort: SeoActionEffort.HIGH,
       issueCode: IssueCode.PAGE_TOO_HEAVY,
       status: IssueState.FIXED,
     });
@@ -220,6 +222,7 @@ describe('SeoActionPlanService', () => {
   it('loads a plan for a specific audit id and reports a clean executive summary', async () => {
     db.where
       .mockReturnValueOnce(thenable([latestRun]))
+      .mockReturnValueOnce(thenable([]))
       .mockReturnValueOnce(thenable([]))
       .mockReturnValueOnce(thenable([]))
       .mockReturnValueOnce(thenable([]))
@@ -239,5 +242,53 @@ describe('SeoActionPlanService', () => {
     expect(plan.executiveSummary.copyText).toContain(
       'Sin incidencias abiertas en la auditoría seleccionada.',
     );
+  });
+
+  it('prefers persisted action items when available', async () => {
+    db.where
+      .mockReturnValueOnce(thenable([latestRun]))
+      .mockReturnValueOnce(thenable([]))
+      .mockReturnValueOnce(
+        thenable([
+          {
+            affectedPages: ['https://example.test/'],
+            affectedPagesCount: 1,
+            category: IssueCategory.ON_PAGE,
+            effort: SeoActionEffort.LOW,
+            evidenceSummary: 'Longitud detectada: 12',
+            impact: 'HIGH',
+            issueCode: IssueCode.MISSING_TITLE,
+            occurrences: 1,
+            priorityReason: 'Alta · impacto estimado 14 pts · 1 ocurrencias',
+            priorityScore: 114,
+            recommendedAction: 'Añadir títulos únicos',
+            remediationPrompt: 'Prompt persisted',
+            scoreImpactPoints: 14,
+            severity: Severity.HIGH,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        thenable([
+          {
+            issueCode: IssueCode.MISSING_TITLE,
+            resourceKey: 'https://example.test/',
+            state: IssueState.OPEN,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(thenable([{ score: 70 }]))
+      .mockReturnValueOnce(thenable([]));
+
+    const plan = await service.getForAudit('audit-2', 'user-1');
+
+    expect(plan.actions[0]).toMatchObject({
+      evidenceSummary: 'Longitud detectada: 12',
+      priority: 114,
+      priorityReason: 'Alta · impacto estimado 14 pts · 1 ocurrencias',
+      remediationPrompt: 'Prompt persisted',
+      scoreImpactPoints: 14,
+      status: IssueState.OPEN,
+    });
   });
 });

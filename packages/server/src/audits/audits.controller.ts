@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { IndexabilityStatus } from '@seotracker/shared-types';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PaginationQueryDto, resolvePagination } from '../common/dto/pagination.dto';
@@ -28,6 +29,23 @@ export class AuditsController {
     @Query() query: PaginationQueryDto,
   ) {
     return this.auditsService.getAuditIssues(auditId, user.sub, resolvePagination(query));
+  }
+
+  @Get(':auditId/indexability')
+  @ApiOperation({ summary: 'Diagnostico de indexabilidad por URL' })
+  getIndexability(
+    @CurrentUser() user: { sub: string },
+    @Param('auditId', UUID_V4_PIPE) auditId: string,
+    @Query() query: PaginationQueryDto & {
+      indexabilityStatus?: IndexabilityStatus;
+      source?: string;
+    },
+  ) {
+    return this.auditsService.getAuditIndexability(auditId, user.sub, {
+      indexabilityStatus: query.indexabilityStatus,
+      pagination: resolvePagination(query),
+      source: query.source,
+    });
   }
 
   @Get(':auditId/action-plan')

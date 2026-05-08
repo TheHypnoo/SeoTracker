@@ -9,6 +9,7 @@ export type AuditIssue = {
   issueCode: string;
   message: string;
   resourceUrl: string | null;
+  meta: Record<string, unknown> | null;
   projectIssueId: string | null;
   state: IssueState | null;
   firstSeenAt: string | null;

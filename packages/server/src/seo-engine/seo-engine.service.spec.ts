@@ -70,6 +70,7 @@ describe('SeoEngineService', () => {
       sitemapUrls: ['https://example.com/sitemap.xml'],
     });
     (buildLinkGraph as jest.Mock).mockReturnValue({
+      crawlCandidateCount: 1,
       depth1Selected: ['https://example.com/about'],
       externalLinks: ['https://external.test'],
       homepageKey: 'https://example.com/',
@@ -81,6 +82,7 @@ describe('SeoEngineService', () => {
       metrics: [{ key: 'crawled_pages', valueNum: 1 }],
       pageTexts: [{ text: 'About text', url: 'https://example.com/about' }],
       pages: [{ statusCode: 200, url: 'https://example.com/about' }],
+      totalAnalyzed: 2,
     });
     (runCrossPageChecks as jest.Mock).mockReturnValue({
       issues: [],
@@ -131,6 +133,12 @@ describe('SeoEngineService', () => {
         { score: 95, url: 'https://example.com/about' },
       ],
     });
+    expect(result.metrics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'crawl_confidence_score', valueNum: expect.any(Number) }),
+        expect.objectContaining({ key: 'crawl_confidence_level', valueText: expect.any(String) }),
+      ]),
+    );
   });
 
   it('returns a critical unreachable issue when the homepage fetch is blocked', async () => {

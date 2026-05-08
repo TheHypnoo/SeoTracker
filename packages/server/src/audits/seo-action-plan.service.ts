@@ -5,6 +5,8 @@ import {
   IssueCategory,
   IssueCode,
   IssueState,
+  SeoActionEffort,
+  SeoActionImpact,
   Severity,
 } from '@seotracker/shared-types';
 import { and, desc, eq, lt } from 'drizzle-orm';
@@ -14,6 +16,7 @@ import type { Db } from '../database/database.types';
 import {
   auditComparisonChanges,
   auditComparisons,
+  auditActionItems,
   auditIssues,
   auditRuns,
   siteIssues,
@@ -22,10 +25,11 @@ import { SitesService } from '../sites/sites.service';
 import { ProjectIssuesService } from './site-issues.service';
 
 type AuditRunRow = typeof auditRuns.$inferSelect;
+type AuditActionItemRow = typeof auditActionItems.$inferSelect;
 type SiteRow = Awaited<ReturnType<SitesService['getById']>>;
 type ActionStatus = IssueState.OPEN | IssueState.IGNORED | IssueState.FIXED;
-type ImpactLevel = 'Alto' | 'Medio' | 'Bajo';
-type EffortLevel = 'Alto' | 'Medio' | 'Bajo';
+type ImpactLevel = SeoActionImpact;
+type EffortLevel = SeoActionEffort;
 
 const SEVERITY_WEIGHT: Record<Severity, number> = {
   [Severity.CRITICAL]: 100,
@@ -41,7 +45,7 @@ const SEVERITY_RANK: Record<Severity, number> = {
   [Severity.LOW]: 1,
 };
 
-const CATEGORY_LABEL: Record<IssueCategory, string> = {
+export const CATEGORY_LABEL: Record<IssueCategory, string> = {
   [IssueCategory.ON_PAGE]: 'Contenido on-page',
   [IssueCategory.TECHNICAL]: 'SEO técnico',
   [IssueCategory.CRAWLABILITY]: 'Rastreo e indexación',
@@ -49,7 +53,7 @@ const CATEGORY_LABEL: Record<IssueCategory, string> = {
   [IssueCategory.PERFORMANCE]: 'Rendimiento',
 };
 
-const ACTION_COPY: Partial<Record<IssueCode, string>> = {
+export const ACTION_COPY: Partial<Record<IssueCode, string>> = {
   [IssueCode.DOMAIN_UNREACHABLE]:
     'Restaurar disponibilidad del dominio y validar DNS, TLS y respuesta HTTP.',
   [IssueCode.MISSING_TITLE]: 'Añadir títulos únicos y descriptivos en las páginas afectadas.',
@@ -131,9 +135,12 @@ export interface SeoActionPlanItem {
   impact: ImpactLevel;
   effort: EffortLevel;
   estimatedImpactPoints: number;
+  scoreImpactPoints: number;
   occurrences: number;
   affectedPagesCount: number;
   affectedPages: string[];
+  evidenceSummary: string;
+  priorityReason: string;
   regressionCount: number;
   recommendedAction: string;
   remediationPrompt: string;
@@ -209,24 +216,26 @@ export class SeoActionPlanService {
   }
 
   private async buildPlan(site: SiteRow, run: AuditRunRow): Promise<SeoActionPlan> {
-    const [issues, siteIssueRows, previousRun, comparisonContext] = await Promise.all([
-      this.db.select().from(auditIssues).where(eq(auditIssues.auditRunId, run.id)),
-      this.db.select().from(siteIssues).where(eq(siteIssues.siteId, site.id)),
-      this.db
-        .select({ score: auditRuns.score })
-        .from(auditRuns)
-        .where(
-          and(
-            eq(auditRuns.siteId, site.id),
-            eq(auditRuns.status, AuditStatus.COMPLETED),
-            lt(auditRuns.createdAt, run.createdAt),
-          ),
-        )
-        .orderBy(desc(auditRuns.createdAt))
-        .limit(1)
-        .then((rows) => rows[0] ?? null),
-      this.loadComparisonContext(site.id, run.id),
-    ]);
+    const [issues, persistedActions, siteIssueRows, previousRun, comparisonContext] =
+      await Promise.all([
+        this.db.select().from(auditIssues).where(eq(auditIssues.auditRunId, run.id)),
+        this.db.select().from(auditActionItems).where(eq(auditActionItems.auditRunId, run.id)),
+        this.db.select().from(siteIssues).where(eq(siteIssues.siteId, site.id)),
+        this.db
+          .select({ score: auditRuns.score })
+          .from(auditRuns)
+          .where(
+            and(
+              eq(auditRuns.siteId, site.id),
+              eq(auditRuns.status, AuditStatus.COMPLETED),
+              lt(auditRuns.createdAt, run.createdAt),
+            ),
+          )
+          .orderBy(desc(auditRuns.createdAt))
+          .limit(1)
+          .then((rows) => rows[0] ?? null),
+        this.loadComparisonContext(site.id, run.id),
+      ]);
 
     const stateByKey = new Map(
       siteIssueRows.map((row) => [`${row.issueCode}::${row.resourceKey}`, row]),
@@ -243,47 +252,13 @@ export class SeoActionPlanService {
       }
     }
 
-    const grouped = new Map<IssueCode, ActionAccumulator>();
-
-    for (const issue of issues) {
-      const resourceKey = ProjectIssuesService.fingerprintResource(issue.resourceUrl);
-      const stateRow = stateByKey.get(`${issue.issueCode}::${resourceKey}`);
-      const state = stateRow?.state ?? IssueState.OPEN;
-      const existing = grouped.get(issue.issueCode);
-
-      if (existing) {
-        existing.occurrences += 1;
-        existing.states[state] += 1;
-        existing.affectedPages.add(resourceKey);
-
-        if (SEVERITY_RANK[issue.severity] > SEVERITY_RANK[existing.severity]) {
-          existing.severity = issue.severity;
-          existing.message = issue.message;
-        }
-
-        continue;
-      }
-
-      grouped.set(issue.issueCode, {
-        affectedPages: new Set([resourceKey]),
-        category: issue.category,
-        issueCode: issue.issueCode,
-        message: issue.message,
-        occurrences: 1,
-        regressionCount: regressionsByCode.get(issue.issueCode) ?? 0,
-        severity: issue.severity,
-        states: {
-          [IssueState.OPEN]: state === IssueState.OPEN ? 1 : 0,
-          [IssueState.IGNORED]: state === IssueState.IGNORED ? 1 : 0,
-          [IssueState.FIXED]: state === IssueState.FIXED ? 1 : 0,
-        },
-      });
-    }
-
-    const actions = [...grouped.values()]
-      .map((entry) => this.toActionPlanItem(entry, site, run))
-      .toSorted((left, right) => right.priority - left.priority)
-      .slice(0, 12);
+    const actions =
+      persistedActions.length > 0
+        ? persistedActions
+            .map((action) => this.fromPersistedAction(action, stateByKey, regressionsByCode))
+            .toSorted((left, right) => right.priority - left.priority)
+            .slice(0, 12)
+        : this.buildFallbackActions(issues, site, run, stateByKey, regressionsByCode);
 
     const previousScore = previousRun?.score ?? null;
     const scoreDelta =
@@ -341,6 +316,56 @@ export class SeoActionPlanService {
     };
   }
 
+  private buildFallbackActions(
+    issues: Array<typeof auditIssues.$inferSelect>,
+    site: SiteRow,
+    run: AuditRunRow,
+    stateByKey: Map<string, typeof siteIssues.$inferSelect>,
+    regressionsByCode: Map<IssueCode, number>,
+  ) {
+    const grouped = new Map<IssueCode, ActionAccumulator>();
+
+    for (const issue of issues) {
+      const resourceKey = ProjectIssuesService.fingerprintResource(issue.resourceUrl);
+      const stateRow = stateByKey.get(`${issue.issueCode}::${resourceKey}`);
+      const state = stateRow?.state ?? IssueState.OPEN;
+      const existing = grouped.get(issue.issueCode);
+
+      if (existing) {
+        existing.occurrences += 1;
+        existing.states[state] += 1;
+        existing.affectedPages.add(resourceKey);
+
+        if (SEVERITY_RANK[issue.severity] > SEVERITY_RANK[existing.severity]) {
+          existing.severity = issue.severity;
+          existing.message = issue.message;
+        }
+
+        continue;
+      }
+
+      grouped.set(issue.issueCode, {
+        affectedPages: new Set([resourceKey]),
+        category: issue.category,
+        issueCode: issue.issueCode,
+        message: issue.message,
+        occurrences: 1,
+        regressionCount: regressionsByCode.get(issue.issueCode) ?? 0,
+        severity: issue.severity,
+        states: {
+          [IssueState.OPEN]: state === IssueState.OPEN ? 1 : 0,
+          [IssueState.IGNORED]: state === IssueState.IGNORED ? 1 : 0,
+          [IssueState.FIXED]: state === IssueState.FIXED ? 1 : 0,
+        },
+      });
+    }
+
+    return [...grouped.values()]
+      .map((entry) => this.toActionPlanItem(entry, site, run))
+      .toSorted((left, right) => right.priority - left.priority)
+      .slice(0, 12);
+  }
+
   private async loadComparisonContext(siteId: string, auditRunId: string) {
     const [comparison] = await this.db
       .select()
@@ -395,11 +420,13 @@ export class SeoActionPlanService {
       categoryLabel: CATEGORY_LABEL[entry.category],
       effort: estimateEffort(affectedPages.length, entry.category),
       estimatedImpactPoints: estimateImpactPoints(entry.severity, affectedPages.length),
+      evidenceSummary: entry.message,
       id: entry.issueCode,
       impact: estimateImpact(entry.severity),
       issueCode: entry.issueCode,
       occurrences: entry.occurrences,
       priority,
+      priorityReason: `${entry.severity} · ${entry.occurrences} ocurrencias`,
       recommendedAction,
       remediationPrompt: buildRemediationPrompt({
         affectedPages,
@@ -414,9 +441,48 @@ export class SeoActionPlanService {
         title: humanizeIssueCode(entry.issueCode),
       }),
       regressionCount: entry.regressionCount,
+      scoreImpactPoints: estimateImpactPoints(entry.severity, affectedPages.length),
       severity: entry.severity,
       status,
       title: humanizeIssueCode(entry.issueCode),
+    };
+  }
+
+  private fromPersistedAction(
+    action: AuditActionItemRow,
+    stateByKey: Map<string, typeof siteIssues.$inferSelect>,
+    regressionsByCode: Map<IssueCode, number>,
+  ): SeoActionPlanItem {
+    const states = resolveStatesForAction(action, stateByKey);
+    const status = resolveActionStatus(states);
+    const regressionCount = regressionsByCode.get(action.issueCode) ?? 0;
+    return {
+      affectedPages: action.affectedPages.slice(0, 8),
+      affectedPagesCount: action.affectedPagesCount,
+      category: action.category,
+      categoryLabel: CATEGORY_LABEL[action.category],
+      effort: action.effort,
+      estimatedImpactPoints: action.scoreImpactPoints,
+      evidenceSummary: action.evidenceSummary,
+      id: action.issueCode,
+      impact: action.impact,
+      issueCode: action.issueCode,
+      occurrences: action.occurrences,
+      priority: Math.max(
+        0,
+        action.priorityScore +
+          regressionCount * 15 -
+          (status === IssueState.IGNORED ? 35 : 0) -
+          (status === IssueState.FIXED ? 80 : 0),
+      ),
+      priorityReason: action.priorityReason,
+      recommendedAction: action.recommendedAction,
+      remediationPrompt: action.remediationPrompt,
+      regressionCount,
+      scoreImpactPoints: action.scoreImpactPoints,
+      severity: action.severity,
+      status,
+      title: humanizeIssueCode(action.issueCode),
     };
   }
 
@@ -511,6 +577,24 @@ function resolveActionStatus(states: Record<ActionStatus, number>): ActionStatus
   return IssueState.FIXED;
 }
 
+function resolveStatesForAction(
+  action: AuditActionItemRow,
+  stateByKey: Map<string, typeof siteIssues.$inferSelect>,
+): Record<ActionStatus, number> {
+  const states = {
+    [IssueState.OPEN]: 0,
+    [IssueState.IGNORED]: 0,
+    [IssueState.FIXED]: 0,
+  };
+  const resources = action.affectedPages.length > 0 ? action.affectedPages : [''];
+  for (const resource of resources) {
+    const key = `${action.issueCode}::${ProjectIssuesService.fingerprintResource(resource)}`;
+    const state = stateByKey.get(key)?.state ?? IssueState.OPEN;
+    states[state] += 1;
+  }
+  return states;
+}
+
 function humanizeIssueCode(issueCode: IssueCode): string {
   return issueCode
     .toLowerCase()
@@ -521,22 +605,22 @@ function humanizeIssueCode(issueCode: IssueCode): string {
 
 function estimateImpact(severity: Severity): ImpactLevel {
   if (severity === Severity.CRITICAL || severity === Severity.HIGH) {
-    return 'Alto';
+    return SeoActionImpact.HIGH;
   }
 
-  return severity === Severity.MEDIUM ? 'Medio' : 'Bajo';
+  return severity === Severity.MEDIUM ? SeoActionImpact.MEDIUM : SeoActionImpact.LOW;
 }
 
 function estimateEffort(affectedPages: number, category: IssueCategory): EffortLevel {
   if (affectedPages > 10 || category === IssueCategory.PERFORMANCE) {
-    return 'Alto';
+    return SeoActionEffort.HIGH;
   }
 
   if (affectedPages > 3 || category === IssueCategory.CRAWLABILITY) {
-    return 'Medio';
+    return SeoActionEffort.MEDIUM;
   }
 
-  return 'Bajo';
+  return SeoActionEffort.LOW;
 }
 
 function estimateImpactPoints(severity: Severity, affectedPages: number): number {

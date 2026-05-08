@@ -137,6 +137,7 @@ export function analyzeHomepageHtml(input: AnalyzeInput): HomepageHtmlAnalysis {
       category: getIssueCategory(IssueCode.MISSING_TITLE),
       severity: Severity.HIGH,
       message: 'Missing <title> tag',
+      meta: { expected: '30-60 chars', found: null, selector: 'title' },
     });
   } else if (titleText.length < 30) {
     issues.push({
@@ -144,7 +145,7 @@ export function analyzeHomepageHtml(input: AnalyzeInput): HomepageHtmlAnalysis {
       category: getIssueCategory(IssueCode.TITLE_TOO_SHORT),
       severity: Severity.LOW,
       message: `Title too short (${titleText.length} chars, recommended 30-60)`,
-      meta: { length: titleText.length },
+      meta: { expected: '30-60 chars', found: titleText, length: titleText.length },
     });
   } else if (titleText.length > 60) {
     issues.push({
@@ -152,7 +153,7 @@ export function analyzeHomepageHtml(input: AnalyzeInput): HomepageHtmlAnalysis {
       category: getIssueCategory(IssueCode.TITLE_TOO_LONG),
       severity: Severity.LOW,
       message: `Title too long (${titleText.length} chars, recommended 30-60)`,
-      meta: { length: titleText.length },
+      meta: { expected: '30-60 chars', found: titleText, length: titleText.length },
     });
   }
 
@@ -162,6 +163,7 @@ export function analyzeHomepageHtml(input: AnalyzeInput): HomepageHtmlAnalysis {
       category: getIssueCategory(IssueCode.MISSING_META_DESCRIPTION),
       severity: Severity.MEDIUM,
       message: 'Missing meta description',
+      meta: { expected: '120-160 chars', found: null, selector: 'meta[name="description"]' },
     });
   } else if (metaDescription.length < 120) {
     issues.push({
@@ -169,7 +171,7 @@ export function analyzeHomepageHtml(input: AnalyzeInput): HomepageHtmlAnalysis {
       category: getIssueCategory(IssueCode.META_DESCRIPTION_TOO_SHORT),
       severity: Severity.LOW,
       message: `Meta description too short (${metaDescription.length} chars, recommended 120-160)`,
-      meta: { length: metaDescription.length },
+      meta: { expected: '120-160 chars', found: metaDescription, length: metaDescription.length },
     });
   } else if (metaDescription.length > 160) {
     issues.push({
@@ -177,7 +179,7 @@ export function analyzeHomepageHtml(input: AnalyzeInput): HomepageHtmlAnalysis {
       category: getIssueCategory(IssueCode.META_DESCRIPTION_TOO_LONG),
       severity: Severity.LOW,
       message: `Meta description too long (${metaDescription.length} chars, recommended 120-160)`,
-      meta: { length: metaDescription.length },
+      meta: { expected: '120-160 chars', found: metaDescription, length: metaDescription.length },
     });
   }
 
@@ -265,14 +267,19 @@ export function analyzeHomepageHtml(input: AnalyzeInput): HomepageHtmlAnalysis {
   }
 
   const metaRobots = $('meta[name="robots"]').attr('content')?.toLowerCase() ?? '';
-  if (metaRobots.includes('noindex')) {
+  const xRobotsTag = response.headers.get('x-robots-tag')?.toLowerCase() ?? '';
+  if (metaRobots.includes('noindex') || xRobotsTag.includes('noindex')) {
     issues.push({
       issueCode: IssueCode.META_NOINDEX,
       category: getIssueCategory(IssueCode.META_NOINDEX),
       severity: Severity.CRITICAL,
       message:
         'Homepage has <meta name="robots" content="noindex"> — search engines will not index it',
-      meta: { content: metaRobots },
+      meta: {
+        content: metaRobots || xRobotsTag,
+        expectedNoindex: false,
+        source: metaRobots.includes('noindex') ? 'meta' : 'x-robots-tag',
+      },
     });
   }
   if (metaRobots.includes('nofollow')) {

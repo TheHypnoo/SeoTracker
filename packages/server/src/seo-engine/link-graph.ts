@@ -17,6 +17,8 @@ export type LinkGraph = {
   depth1Selected: string[];
   /** Internal links not picked for depth-1; HEAD-checked at the end. */
   remainingInternal: string[];
+  /** Unique same-host URLs eligible for full page analysis, excluding the homepage. */
+  crawlCandidateCount: number;
   metrics: SeoMetric[];
 };
 
@@ -113,6 +115,7 @@ export function buildLinkGraph(input: BuildInput): LinkGraph {
 
   return {
     homepageKey,
+    crawlCandidateCount: crawlCandidatePool.length,
     internalLinks,
     externalLinks,
     depth1Selected,
