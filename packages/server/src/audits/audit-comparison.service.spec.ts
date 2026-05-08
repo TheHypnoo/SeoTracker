@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { ComparisonChangeType, Severity } from '@seotracker/shared-types';
+import { AuditStatus, ComparisonChangeType, Severity } from '@seotracker/shared-types';
 
 import { DRIZZLE } from '../database/database.constants';
 import { SitesService } from '../sites/sites.service';
@@ -8,7 +8,7 @@ import { AuditComparisonService } from './audit-comparison.service';
 
 function thenable<T>(rows: T) {
   return {
-    limit: jest.fn().mockResolvedValue(rows),
+    limit: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     offset: jest.fn().mockResolvedValue(rows),
     returning: jest.fn().mockResolvedValue(rows),
@@ -219,6 +219,146 @@ describe('AuditComparisonService', () => {
       // Cached comparison returned — no insert was called.
       expect(db.insert).not.toHaveBeenCalled();
       expect((out as { comparison?: { id: string } }).comparison?.id).toBe('c1');
+    });
+  });
+
+  describe('listProjectComparisons', () => {
+    it('returns an empty paginated list when no comparisons exist', async () => {
+      db.where.mockReturnValueOnce(thenable([{ total: 0 }])).mockReturnValueOnce(thenable([]));
+
+      await expect(
+        service.listProjectComparisons('s1', 'u1', { limit: 10, offset: 5 }),
+      ).resolves.toEqual({
+        items: [],
+        limit: 10,
+        offset: 5,
+        total: 0,
+      });
+      expect(sites.getById).toHaveBeenCalledWith('s1', 'u1');
+    });
+
+    it('attaches baseline and target runs to stored comparisons', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ total: 1 }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'c1',
+              baselineAuditRunId: 'r-old',
+              targetAuditRunId: 'r-new',
+              siteId: 's1',
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([RUN_A, RUN_B]));
+
+      const out = await service.listProjectComparisons('s1', 'u1');
+
+      expect(out.items).toEqual([
+        expect.objectContaining({
+          baselineRun: RUN_A,
+          id: 'c1',
+          targetRun: RUN_B,
+        }),
+      ]);
+    });
+  });
+
+  describe('resolveRuns', () => {
+    it('resolves explicit baseline and target ids regardless of query order', async () => {
+      db.where.mockReturnValueOnce(thenable([RUN_B, RUN_A]));
+
+      const [from, to] = await service.resolveRuns('s1', 'r-old', 'r-new');
+
+      expect(from?.id).toBe('r-old');
+      expect(to?.id).toBe('r-new');
+    });
+  });
+
+  describe('persistComparisonForRun', () => {
+    const site = { domain: 'example.com', id: 's1', name: 'Example', projectId: 'p1' };
+
+    it('returns null until there are two completed runs including the target', async () => {
+      db.where.mockReturnValueOnce(thenable([{ ...RUN_B, status: AuditStatus.COMPLETED }]));
+
+      await expect(service.persistComparisonForRun({ site, targetRunId: 'r-new' })).resolves.toBe(
+        null,
+      );
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('returns an existing comparison without rebuilding it', async () => {
+      const existing = {
+        id: 'c-existing',
+        baselineAuditRunId: 'r-old',
+        targetAuditRunId: 'r-new',
+      };
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            { ...RUN_B, status: AuditStatus.COMPLETED },
+            { ...RUN_A, status: AuditStatus.COMPLETED },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([existing]));
+
+      await expect(service.persistComparisonForRun({ site, targetRunId: 'r-new' })).resolves.toBe(
+        existing,
+      );
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('persists comparison rows and individual changes for a new target run', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            { ...RUN_B, status: AuditStatus.COMPLETED },
+            { ...RUN_A, status: AuditStatus.COMPLETED },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'i1',
+              issueCode: 'TITLE_MISSING',
+              category: 'META',
+              severity: Severity.CRITICAL,
+              message: 'no title',
+              resourceUrl: '/page-1',
+            },
+          ]),
+        );
+      db.returning.mockResolvedValueOnce([{ id: 'c-new' }]);
+
+      await expect(
+        service.persistComparisonForRun({ site, targetRunId: 'r-new' }),
+      ).resolves.toEqual({
+        id: 'c-new',
+      });
+
+      expect(db.insert).toHaveBeenCalledTimes(2);
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baselineAuditRunId: 'r-old',
+          regressionsCount: 2,
+          siteId: 's1',
+          targetAuditRunId: 'r-new',
+        }),
+      );
+      expect(db.values).toHaveBeenLastCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            changeType: ComparisonChangeType.SCORE_DROP,
+            comparisonId: 'c-new',
+          }),
+          expect.objectContaining({
+            changeType: ComparisonChangeType.NEW_ISSUE,
+            comparisonId: 'c-new',
+          }),
+        ]),
+      );
     });
   });
 });

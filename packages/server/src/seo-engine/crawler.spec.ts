@@ -4,10 +4,14 @@ import { load } from 'cheerio';
 import {
   analyzeInternalPage,
   analyzeSitemap,
+  analyzeJsonLdBlocks,
+  checkCanonicalTags,
   checkSoft404,
+  countImagesMissingDimensions,
   existsUrl,
   extractSitemapHintsFromHtml,
   extractSitemapUrls,
+  findInvalidHreflangLinks,
   fetchRobots,
   probeSitemap,
 } from './crawler';
@@ -149,6 +153,19 @@ describe('probeSitemap', () => {
     expect(result.isSitemap).toBe(false);
     expect(result.page.statusCode).toBe(404);
   });
+
+  it('returns isSitemap=false on fetch errors with an empty page result', async () => {
+    safeFetch.mockRejectedValueOnce(new Error('network down'));
+
+    const result = await probeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
+
+    expect(result.isSitemap).toBe(false);
+    expect(result.page).toMatchObject({
+      contentType: undefined,
+      statusCode: undefined,
+      url: 'https://x.test/sitemap.xml',
+    });
+  });
 });
 
 describe('analyzeSitemap', () => {
@@ -245,6 +262,27 @@ describe('extractSitemapUrls', () => {
     const urls = await extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 3);
     expect(urls.length).toBe(3);
   });
+
+  it('skips unreachable child sitemaps and keeps collecting from the remaining queue', async () => {
+    safeFetch
+      .mockResolvedValueOnce(
+        xmlResponse(
+          200,
+          `<sitemapindex>
+            <sitemap><loc>https://x.test/failing.xml</loc></sitemap>
+            <sitemap><loc>https://x.test/working.xml</loc></sitemap>
+          </sitemapindex>`,
+        ),
+      )
+      .mockRejectedValueOnce(new Error('child down'))
+      .mockResolvedValueOnce(
+        xmlResponse(200, '<urlset><url><loc>https://x.test/page-ok</loc></url></urlset>'),
+      );
+
+    await expect(extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 10)).resolves.toEqual(
+      ['https://x.test/page-ok'],
+    );
+  });
 });
 
 describe('existsUrl', () => {
@@ -314,5 +352,115 @@ describe('analyzeInternalPage', () => {
     );
     const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
     expect(result.issues.some((i) => i.issueCode === IssueCode.TITLE_TOO_SHORT)).toBe(true);
+  });
+
+  it('collects common on-page issues and internal links from HTML pages', async () => {
+    safeFetch.mockResolvedValueOnce(
+      htmlResponse(
+        200,
+        `<html lang="en">
+          <head>
+            <title>${'A'.repeat(70)}</title>
+            <meta name="description" content="${'B'.repeat(170)}">
+            <meta name="robots" content="noindex,nofollow">
+            <link rel="canonical" href="/canonical">
+            <link rel="alternate" hreflang="bad_lang" href="::::">
+            <script type="application/ld+json">{not-json}</script>
+          </head>
+          <body>
+            <h1>One</h1><h1>Two</h1>
+            <img src="/a.png"><img src="/b.png" alt="B" width="0" height="10">
+            <a href="/inside?utm_source=newsletter">Inside</a>
+            <a href="https://other.test/outside">Outside</a>
+            <a href="mailto:test@example.com">Mail</a>
+          </body>
+        </html>`,
+      ),
+    );
+
+    const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
+    const codes = result.issues.map((issue) => issue.issueCode);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        IssueCode.TITLE_TOO_LONG,
+        IssueCode.META_DESCRIPTION_TOO_LONG,
+        IssueCode.MULTIPLE_H1,
+        IssueCode.CANONICAL_MISMATCH,
+        IssueCode.IMAGE_WITHOUT_ALT,
+        IssueCode.IMAGE_MISSING_DIMENSIONS,
+        IssueCode.META_NOINDEX,
+        IssueCode.META_NOFOLLOW,
+        IssueCode.INVALID_HREFLANG,
+      ]),
+    );
+    expect(result.links).toEqual(['https://x.test/inside']);
+    expect(result.text).toEqual(expect.any(String));
+  });
+
+  it('returns the partial page metadata when fetching HTML throws', async () => {
+    safeFetch.mockRejectedValueOnce(new Error('network down'));
+
+    const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
+
+    expect(result.issues).toEqual([]);
+    expect(result.page.statusCode).toBeUndefined();
+  });
+});
+
+describe('low-level HTML checks', () => {
+  it('detects missing, duplicate, relative and mismatched canonical tags', () => {
+    const $ = load(`
+      <link rel="canonical" href="/relative">
+      <link rel="canonical" href="https://x.test/other">
+    `);
+
+    const issues = checkCanonicalTags($, 'https://x.test/p', 'https://x.test/p');
+    const codes = issues.map((issue) => issue.issueCode);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        IssueCode.MULTIPLE_CANONICALS,
+        IssueCode.CANONICAL_NOT_ABSOLUTE,
+        IssueCode.CANONICAL_MISMATCH,
+      ]),
+    );
+  });
+
+  it('counts images without positive integer dimensions', () => {
+    const $ = load('<img width="10" height="10"><img><img width="0" height="1">');
+
+    expect(countImagesMissingDimensions($)).toBe(2);
+  });
+
+  it('reports invalid hreflang language, href and duplicates', () => {
+    const $ = load(`
+      <link rel="alternate" hreflang="en" href="/en">
+      <link rel="alternate" hreflang="en" href="/en-duplicate">
+      <link rel="alternate" hreflang="bad_lang" href="::::">
+    `);
+
+    expect(findInvalidHreflangLinks($, 'https://x.test/p')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reason: 'duplicate-lang' }),
+        expect.objectContaining({ reason: 'invalid-lang' }),
+      ]),
+    );
+  });
+
+  it('handles JSON-LD arrays, @graph blocks, invalid JSON and missing @type', () => {
+    const $ = load(`
+      <script type="application/ld+json">[{"@type":"Article"}]</script>
+      <script type="application/ld+json">{"@graph":[{"@type":"BreadcrumbList"}]}</script>
+      <script type="application/ld+json">{bad-json}</script>
+      <script type="application/ld+json">{"name":"No type"}</script>
+      <script type="application/ld+json"></script>
+    `);
+
+    expect(analyzeJsonLdBlocks($)).toEqual({
+      invalidBlocks: [2],
+      missingTypeBlocks: [3, 4],
+      total: 5,
+    });
   });
 });

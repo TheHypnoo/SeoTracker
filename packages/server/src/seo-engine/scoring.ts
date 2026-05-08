@@ -25,6 +25,10 @@ export const SITE_LEVEL_CODES: ReadonlySet<IssueCode> = new Set<IssueCode>([
   IssueCode.PAGE_TOO_HEAVY,
 ]);
 
+const ZERO_SCORE_CODES: ReadonlySet<IssueCode> = new Set<IssueCode>([
+  IssueCode.DOMAIN_UNREACHABLE,
+]);
+
 const SEVERITY_WEIGHTS: Record<Severity, number> = {
   [Severity.CRITICAL]: 25,
   [Severity.HIGH]: 12,
@@ -43,6 +47,10 @@ export function scoreForIssues(issues: SeoIssue[]): {
   score: number;
   breakdown: ScoreBreakdown;
 } {
+  if (issues.some((issue) => ZERO_SCORE_CODES.has(issue.issueCode))) {
+    return zeroScore();
+  }
+
   const codeCounts = new Map<string, { severity: Severity; count: number }>();
   for (const issue of issues) {
     const entry = codeCounts.get(issue.issueCode);
@@ -97,6 +105,18 @@ export function scoreAudit(
   breakdown: ScoreBreakdown;
   pageScores: Map<string, number>;
 } {
+  const hasZeroScoreIssue = issues.some((issue) => ZERO_SCORE_CODES.has(issue.issueCode));
+  if (hasZeroScoreIssue) {
+    return {
+      breakdown: zeroScore().breakdown,
+      categoryScores: Object.fromEntries(
+        Object.values(IssueCategory).map((cat) => [cat, 0]),
+      ) as Record<IssueCategory, number>,
+      pageScores: new Map(pages.map((page) => [page.url, 0])),
+      score: 0,
+    };
+  }
+
   const overall = scoreForIssues(issues);
 
   const categoryScores = Object.fromEntries(
@@ -130,6 +150,21 @@ export function scoreAudit(
     categoryScores,
     pageScores,
     score: overall.score,
+  };
+}
+
+function zeroScore(): { score: number; breakdown: ScoreBreakdown } {
+  return {
+    breakdown: {
+      perSeverity: {
+        [Severity.CRITICAL]: { cappedDeduction: 100, rawDeduction: 100 },
+        [Severity.HIGH]: { cappedDeduction: 0, rawDeduction: 0 },
+        [Severity.MEDIUM]: { cappedDeduction: 0, rawDeduction: 0 },
+        [Severity.LOW]: { cappedDeduction: 0, rawDeduction: 0 },
+      },
+      totalDeduction: 100,
+    },
+    score: 0,
   };
 }
 

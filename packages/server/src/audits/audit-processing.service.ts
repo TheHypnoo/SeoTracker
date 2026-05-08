@@ -287,10 +287,14 @@ export class AuditProcessingService {
         body: `Score ${analysis.score}. Problemas detectados: ${analysis.issues.length}.`,
       });
 
-      await this.notificationsService.sendEmailToProjectMembers(site.projectId, {
-        subject: `SEOTracker - Auditoria completada (${site.name})`,
-        text: `Proyecto: ${site.name}\nDominio: ${site.domain}\nScore: ${analysis.score}\nIssues: ${analysis.issues.length}`,
-      });
+      await this.notificationsService.sendEmailToProjectMembers(
+        site.projectId,
+        {
+          subject: `SEOTracker - Auditoria completada (${site.name})`,
+          text: `Proyecto: ${site.name}\nDominio: ${site.domain}\nScore: ${analysis.score}\nIssues: ${analysis.issues.length}`,
+        },
+        { bestEffort: true, notificationType: 'AUDIT_COMPLETED' },
+      );
 
       const criticalCount = analysis.issues.filter(
         (issue) => issue.severity === Severity.CRITICAL,

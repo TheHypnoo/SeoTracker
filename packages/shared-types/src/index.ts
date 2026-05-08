@@ -121,6 +121,7 @@ export function computeEffectivePermissions(
  */
 export enum ActivityAction {
   PROJECT_CREATED = 'project.created',
+  PROJECT_UPDATED = 'project.updated',
   MEMBER_INVITED = 'member.invited',
   MEMBER_ACCEPTED = 'member.accepted',
   MEMBER_REMOVED = 'member.removed',

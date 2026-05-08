@@ -30,7 +30,7 @@ export class AuditComparisonService {
     const [fromRun, toRun] = await this.resolveRuns(siteId, fromId, toId);
 
     if (!fromRun || !toRun) {
-      throw new NotFoundException('Two audit runs are required for comparison');
+      throw new NotFoundException('Se necesitan dos auditorías completadas para comparar');
     }
 
     const existing = await this.getStoredComparison(fromRun.id, toRun.id);
@@ -89,7 +89,13 @@ export class AuditComparisonService {
       const rows = await this.db
         .select()
         .from(auditRuns)
-        .where(and(eq(auditRuns.siteId, siteId), inArray(auditRuns.id, [fromId, toId])));
+        .where(
+          and(
+            eq(auditRuns.siteId, siteId),
+            eq(auditRuns.status, AuditStatus.COMPLETED),
+            inArray(auditRuns.id, [fromId, toId]),
+          ),
+        );
       const from = rows.find((row) => row.id === fromId);
       const to = rows.find((row) => row.id === toId);
       return [from, to] as const;
@@ -98,7 +104,7 @@ export class AuditComparisonService {
     const rows = await this.db
       .select()
       .from(auditRuns)
-      .where(eq(auditRuns.siteId, siteId))
+      .where(and(eq(auditRuns.siteId, siteId), eq(auditRuns.status, AuditStatus.COMPLETED)))
       .orderBy(desc(auditRuns.createdAt))
       .limit(2);
     return [rows[1], rows[0]] as const;

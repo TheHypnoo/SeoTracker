@@ -136,6 +136,7 @@ export interface SeoActionPlanItem {
   affectedPages: string[];
   regressionCount: number;
   recommendedAction: string;
+  remediationPrompt: string;
 }
 
 export interface SeoActionPlan {
@@ -280,7 +281,7 @@ export class SeoActionPlanService {
     }
 
     const actions = [...grouped.values()]
-      .map((entry) => this.toActionPlanItem(entry))
+      .map((entry) => this.toActionPlanItem(entry, site, run))
       .toSorted((left, right) => right.priority - left.priority)
       .slice(0, 12);
 
@@ -366,7 +367,11 @@ export class SeoActionPlanService {
     };
   }
 
-  private toActionPlanItem(entry: ActionAccumulator): SeoActionPlanItem {
+  private toActionPlanItem(
+    entry: ActionAccumulator,
+    site: SiteRow,
+    run: AuditRunRow,
+  ): SeoActionPlanItem {
     const status = resolveActionStatus(entry.states);
     const affectedPages = [...entry.affectedPages].filter(Boolean);
     const priority = Math.max(
@@ -378,6 +383,10 @@ export class SeoActionPlanService {
         (status === IssueState.IGNORED ? 35 : 0) -
         (status === IssueState.FIXED ? 80 : 0),
     );
+
+    const recommendedAction =
+      ACTION_COPY[entry.issueCode] ??
+      `Resolver "${entry.message}" en las URLs afectadas y validar de nuevo.`;
 
     return {
       affectedPages: affectedPages.slice(0, 6),
@@ -391,9 +400,19 @@ export class SeoActionPlanService {
       issueCode: entry.issueCode,
       occurrences: entry.occurrences,
       priority,
-      recommendedAction:
-        ACTION_COPY[entry.issueCode] ??
-        `Resolver "${entry.message}" en las URLs afectadas y validar de nuevo.`,
+      recommendedAction,
+      remediationPrompt: buildRemediationPrompt({
+        affectedPages,
+        categoryLabel: CATEGORY_LABEL[entry.category],
+        issueCode: entry.issueCode,
+        message: entry.message,
+        occurrences: entry.occurrences,
+        recommendedAction,
+        run,
+        severity: entry.severity,
+        site,
+        title: humanizeIssueCode(entry.issueCode),
+      }),
       regressionCount: entry.regressionCount,
       severity: entry.severity,
       status,
@@ -428,6 +447,56 @@ export class SeoActionPlanService {
       nextActions || 'Sin incidencias abiertas en la auditoría seleccionada.',
     ].join('\n');
   }
+}
+
+export function buildRemediationPrompt(input: {
+  affectedPages: string[];
+  categoryLabel: string;
+  issueCode: IssueCode;
+  message: string;
+  occurrences: number;
+  recommendedAction: string;
+  run: Pick<AuditRunRow, 'id' | 'score'>;
+  severity: Severity;
+  site: Pick<SiteRow, 'domain' | 'name'>;
+  title: string;
+}) {
+  const urls =
+    input.affectedPages.length > 0
+      ? input.affectedPages
+          .slice(0, 8)
+          .map((url, index) => `${index + 1}. ${url}`)
+          .join('\n')
+      : 'Sin URL concreta; revisa la configuración global del dominio.';
+
+  return [
+    'Actúa como especialista en SEO técnico y desarrollo web.',
+    '',
+    'Contexto:',
+    `- Dominio: ${input.site.domain}`,
+    `- Proyecto: ${input.site.name}`,
+    `- Auditoría: ${input.run.id}`,
+    `- Score actual: ${input.run.score ?? 'N/D'}/100`,
+    `- Incidencia: ${input.title} (${input.issueCode})`,
+    `- Severidad: ${input.severity}`,
+    `- Categoría: ${input.categoryLabel}`,
+    `- Ocurrencias: ${input.occurrences}`,
+    `- Mensaje detectado: ${input.message}`,
+    '',
+    'URLs afectadas:',
+    urls,
+    '',
+    'Objetivo:',
+    input.recommendedAction,
+    '',
+    'Entrega una solución práctica con:',
+    '1. Causa probable del problema.',
+    '2. Cambios concretos en HTML, CMS, servidor, CDN o código según aplique.',
+    '3. Ejemplos de implementación cuando sea útil.',
+    '4. Checklist de validación para confirmar que el error desaparece en la próxima auditoría.',
+    '',
+    'Prioriza cambios seguros, reversibles y medibles. No propongas acciones genéricas si la evidencia permite una corrección concreta.',
+  ].join('\n');
 }
 
 function resolveActionStatus(states: Record<ActionStatus, number>): ActionStatus {

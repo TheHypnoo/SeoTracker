@@ -115,6 +115,13 @@ describe('AuditOrchestrationService', () => {
   });
 
   describe('runWebhook', () => {
+    it('throws NotFoundException when the webhook site does not exist', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await expect(service.runWebhook('missing')).rejects.toBeInstanceOf(NotFoundException);
+      expect(queue.enqueueAuditRun).not.toHaveBeenCalled();
+    });
+
     it('creates a WEBHOOK run and enqueues it', async () => {
       db.where.mockReturnValueOnce(thenable([{ id: 's1' }]));
       db.returning.mockResolvedValueOnce([{ id: 'run-3' }]);
@@ -155,6 +162,56 @@ describe('AuditOrchestrationService', () => {
         err,
         expect.objectContaining({ auditRunId: 'run-x' }),
         'run-x',
+      );
+    });
+  });
+
+  describe('reconcileQueuedRuns', () => {
+    it('re-enqueues stale queued runs with unique reconcile job ids', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          { id: 'run-1', siteId: 'site-1' },
+          { id: 'run-2', siteId: 'site-2' },
+        ]),
+      );
+
+      await expect(service.reconcileQueuedRuns({ limit: 2, staleAfterMs: 1_000 })).resolves.toEqual(
+        {
+          checked: 2,
+          requeued: 2,
+        },
+      );
+      expect(queue.enqueueAuditRun).toHaveBeenCalledWith(
+        { auditRunId: 'run-1', siteId: 'site-1' },
+        expect.objectContaining({ jobId: expect.stringContaining('run-1:reconcile:') }),
+      );
+      expect(queue.enqueueAuditRun).toHaveBeenCalledWith(
+        { auditRunId: 'run-2', siteId: 'site-2' },
+        expect.objectContaining({ jobId: expect.stringContaining('run-2:reconcile:') }),
+      );
+    });
+
+    it('logs per-run reconcile failures and keeps processing remaining candidates', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          { id: 'run-1', siteId: 'site-1' },
+          { id: 'run-2', siteId: 'site-2' },
+        ]),
+      );
+      queue.enqueueAuditRun
+        .mockRejectedValueOnce(new Error('queue down'))
+        .mockResolvedValueOnce(undefined);
+
+      await expect(service.reconcileQueuedRuns({ limit: 2 })).resolves.toEqual({
+        checked: 2,
+        requeued: 1,
+      });
+      expect(systemLogs.error).toHaveBeenCalledWith(
+        AuditOrchestrationService.name,
+        'Queued audit run could not be reconciled',
+        expect.any(Error),
+        { auditRunId: 'run-1', siteId: 'site-1' },
+        'run-1',
       );
     });
   });

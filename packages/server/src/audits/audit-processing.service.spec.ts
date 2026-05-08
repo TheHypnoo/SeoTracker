@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { AuditStatus } from '@seotracker/shared-types';
+import { AuditStatus, OutboundEvent, Severity } from '@seotracker/shared-types';
 
 import { AlertsService } from '../alerts/alerts.service';
 import { DRIZZLE } from '../database/database.constants';
@@ -242,6 +242,84 @@ describe('AuditProcessingService', () => {
       // AUDIT_FAILED webhook attempted (dispatched even if dispatcher itself errors).
       const events = outbound.dispatch.mock.calls.map((c) => c[0]?.event);
       expect(events).toContain('audit.failed');
+    });
+  });
+
+  describe('processQueuedRun — successful side effects', () => {
+    it('persists metrics, rescores ignored issues and dispatches critical/regression webhooks', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([{ id: 'r1', siteId: 's1', status: AuditStatus.QUEUED, trigger: 'MANUAL' }]),
+        )
+        .mockReturnValueOnce(thenable([{ total: 0 }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 's1',
+              projectId: 'p1',
+              name: 'Site',
+              domain: 'x.test',
+              normalizedDomain: 'x.test',
+            },
+          ]),
+        );
+      const tx = {
+        update: jest.fn().mockReturnValue({
+          set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) }),
+        }),
+        insert: jest.fn().mockReturnValue({
+          values: jest.fn().mockResolvedValue(undefined),
+        }),
+      };
+      db.transaction.mockImplementation(async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx));
+      seo.analyzeDomain.mockResolvedValueOnce({
+        ...SAMPLE_ANALYSIS,
+        metrics: [{ key: 'pages_total', valueNum: 1, valueText: null }],
+        issues: [
+          {
+            issueCode: 'TITLE',
+            category: 'META',
+            severity: Severity.WARNING,
+            message: 'ignored title',
+            resourceUrl: null,
+            meta: null,
+          },
+          {
+            issueCode: 'SSL',
+            category: 'SECURITY',
+            severity: Severity.CRITICAL,
+            message: 'critical',
+            resourceUrl: 'https://x.test/',
+            meta: null,
+          },
+        ],
+      });
+      projectIssues.getIgnoredFingerprints.mockResolvedValueOnce(new Set(['TITLE::']));
+      comparison.persistComparisonForRun.mockResolvedValueOnce({
+        id: 'comparison-1',
+        scoreDelta: -12,
+      });
+
+      await service.processQueuedRun('r1', 5);
+
+      expect(db.transaction).toHaveBeenCalledTimes(2);
+      expect(alerts.evaluateRegression).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 's1', projectId: 'p1' }),
+        expect.objectContaining({ id: 'comparison-1', scoreDelta: -12 }),
+      );
+      const events = outbound.dispatch.mock.calls.map((call) => call[0]?.event);
+      expect(events).toEqual(
+        expect.arrayContaining([
+          OutboundEvent.AUDIT_COMPLETED,
+          OutboundEvent.ISSUE_CRITICAL,
+          OutboundEvent.SITE_REGRESSION,
+        ]),
+      );
+      expect(notifications.createForProjectMembers).toHaveBeenCalledWith(
+        'p1',
+        expect.objectContaining({ type: 'AUDIT_COMPLETED' }),
+      );
+      expect(orchestration.markRunFailed).not.toHaveBeenCalled();
     });
   });
 
