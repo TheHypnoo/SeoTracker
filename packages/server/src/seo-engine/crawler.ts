@@ -7,6 +7,7 @@ import { extractTextForComparison } from './content-utils';
 import { getIssueCategory } from './scoring';
 import type { SeoIssue, SeoPageResult } from './seo-engine.types';
 import { normalizeForComparison, safeResolveUrl, stripTrackingParams } from './url-utils';
+import { isExpectedNoindexUrl, isSeoCrawlCandidateUrl } from './url-policy';
 
 type Cheerio = ReturnType<typeof load>;
 
@@ -650,7 +651,7 @@ export async function analyzeInternalPage(
     }
 
     const metaRobots = $('meta[name="robots"]').attr('content')?.toLowerCase() ?? '';
-    if (metaRobots.includes('noindex')) {
+    if (metaRobots.includes('noindex') && !isExpectedNoindexUrl(pageUrl)) {
       pageIssues.push({
         category: getIssueCategory(IssueCode.META_NOINDEX),
         issueCode: IssueCode.META_NOINDEX,
@@ -718,6 +719,9 @@ export async function analyzeInternalPage(
             continue;
           }
         } catch {
+          continue;
+        }
+        if (!isSeoCrawlCandidateUrl(resolved)) {
           continue;
         }
         const normalized = stripTrackingParams(resolved);

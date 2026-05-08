@@ -7,6 +7,7 @@ import {
   stratifiedSample,
   stripTrackingParams,
 } from './url-utils';
+import { isSeoCrawlCandidateUrl } from './url-policy';
 
 export type LinkGraph = {
   homepageKey: string;
@@ -48,6 +49,7 @@ export function buildLinkGraph(input: BuildInput): LinkGraph {
   const internalLinks: string[] = [];
   const externalLinks: string[] = [];
   const seenLinks = new Set<string>();
+  let excludedInternalLinks = 0;
 
   for (const node of $('a[href]').toArray()) {
     const raw = $(node).attr('href')?.trim();
@@ -69,6 +71,10 @@ export function buildLinkGraph(input: BuildInput): LinkGraph {
     try {
       const host = new URL(resolved).host;
       if (host === homepageHost) {
+        if (!isSeoCrawlCandidateUrl(resolved)) {
+          excludedInternalLinks += 1;
+          continue;
+        }
         internalLinks.push(resolved);
       } else {
         externalLinks.push(resolved);
@@ -81,7 +87,11 @@ export function buildLinkGraph(input: BuildInput): LinkGraph {
 
   const sitemapSameHost = sitemapUrls.filter((u) => {
     try {
-      return new URL(u).host === homepageHost && normalizeForComparison(u) !== homepageKey;
+      return (
+        new URL(u).host === homepageHost &&
+        normalizeForComparison(u) !== homepageKey &&
+        isSeoCrawlCandidateUrl(u)
+      );
     } catch {
       return false;
     }
@@ -110,6 +120,7 @@ export function buildLinkGraph(input: BuildInput): LinkGraph {
     metrics: [
       { key: 'sitemap_urls_sampled', valueNum: sitemapSameHost.length },
       { key: 'internal_links_found', valueNum: internalLinks.length },
+      { key: 'internal_links_excluded', valueNum: excludedInternalLinks },
       { key: 'external_links_found', valueNum: externalLinks.length },
     ],
   };

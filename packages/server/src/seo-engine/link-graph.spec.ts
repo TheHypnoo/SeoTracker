@@ -98,6 +98,33 @@ describe('buildLinkGraph', () => {
     expect(out.depth1Selected.some((u) => u.includes('other.test'))).toBe(false);
   });
 
+  it('excludes infrastructure and expected-private URLs from crawl candidates', () => {
+    const html = `
+      <a href="/pricing">pricing</a>
+      <a href="/cdn-cgi/content?id=token">cloudflare</a>
+      <a href="/account/settings">account</a>
+      <a href="/settings">settings</a>
+    `;
+    const out = buildLinkGraph({
+      $: load(html),
+      homepageUrl: 'https://example.test/',
+      effectiveHomepageUrl: 'https://example.test/',
+      sitemapUrls: ['https://example.test/dashboard', 'https://example.test/blog/how-to-rank'],
+      maxLinks: 100,
+      maxPages: 5,
+      maxDepth: 1,
+    });
+
+    expect(out.internalLinks).toEqual(['https://example.test/pricing']);
+    expect(out.depth1Selected).toEqual(
+      expect.arrayContaining(['https://example.test/blog/how-to-rank']),
+    );
+    expect(out.depth1Selected).not.toEqual(
+      expect.arrayContaining(['https://example.test/dashboard']),
+    );
+    expect(out.metrics).toContainEqual({ key: 'internal_links_excluded', valueNum: 3 });
+  });
+
   it('reduces depth-1 budget to 60% of maxPages when maxDepth >= 2', () => {
     const html = Array.from({ length: 30 }, (_, i) => `<a href="/x-${i}">l</a>`).join('');
     const out = buildLinkGraph({
@@ -113,7 +140,7 @@ describe('buildLinkGraph', () => {
     expect(out.depth1Selected.length).toBeLessThanOrEqual(6);
   });
 
-  it('emits 3 metrics: sitemap_urls_sampled, internal_links_found, external_links_found', () => {
+  it('emits link discovery metrics', () => {
     const out = buildLinkGraph({
       $: load('<a href="/x">x</a>'),
       homepageUrl: 'https://example.test/',
@@ -125,6 +152,7 @@ describe('buildLinkGraph', () => {
     });
     expect(out.metrics.map((m) => m.key).sort()).toEqual([
       'external_links_found',
+      'internal_links_excluded',
       'internal_links_found',
       'sitemap_urls_sampled',
     ]);

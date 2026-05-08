@@ -94,7 +94,6 @@ export async function discoverSiteMetadata(input: DiscoverInput): Promise<Discov
 
   // ── soft-404 probe ────────────────────────────────────────────────────
   const soft404 = await checkSoft404(homepageUrl, timeoutMs, userAgent);
-  if (soft404.page) pages.push(soft404.page);
   if (soft404.isSoft404) {
     issues.push({
       issueCode: IssueCode.SOFT_404,

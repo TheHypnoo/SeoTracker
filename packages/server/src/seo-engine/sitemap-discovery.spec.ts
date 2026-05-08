@@ -167,6 +167,31 @@ describe('discoverSiteMetadata', () => {
     });
 
     expect(result.issues.find((i) => i.issueCode === IssueCode.SOFT_404)).toBeDefined();
+    expect(result.pages.find((page) => page.url === 'soft')).toBeUndefined();
+  });
+
+  it('does not expose successful 404 probes as analyzed pages', async () => {
+    fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
+    checkSoft404Mock.mockResolvedValueOnce({
+      page: fakePage('https://x.test/__seotracker_nonexistent_123__'),
+      isSoft404: false,
+      probedUrl: 'https://x.test/__seotracker_nonexistent_123__',
+    });
+    probeSitemapMock.mockResolvedValue({ page: fakePage('s'), isSitemap: false });
+
+    const result = await discoverSiteMetadata({
+      homepageUrl: 'https://x.test',
+      $: cheerio.load(''),
+      hasFaviconLink: true,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+      sitemapSampleMax: 100,
+    });
+
+    expect(result.issues.find((i) => i.issueCode === IssueCode.SOFT_404)).toBeUndefined();
+    expect(result.pages.map((page) => page.url)).not.toContain(
+      'https://x.test/__seotracker_nonexistent_123__',
+    );
   });
 
   it('finds sitemap, extracts urls, emits sitemap_urls metric', async () => {

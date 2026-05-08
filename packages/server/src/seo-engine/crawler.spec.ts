@@ -398,6 +398,40 @@ describe('analyzeInternalPage', () => {
     expect(result.text).toEqual(expect.any(String));
   });
 
+  it('does not report noindex on expected private pages', async () => {
+    safeFetch.mockResolvedValueOnce(
+      htmlResponse(
+        200,
+        '<html><head><title>Account settings overview page</title><meta name="robots" content="noindex,nofollow"></head><body><h1>Settings</h1></body></html>',
+      ),
+    );
+
+    const result = await analyzeInternalPage('https://x.test/settings', 1000, 'UA');
+
+    expect(result.issues.some((issue) => issue.issueCode === IssueCode.META_NOINDEX)).toBe(false);
+  });
+
+  it('does not discover infrastructure or expected private URLs for deeper crawling', async () => {
+    safeFetch.mockResolvedValueOnce(
+      htmlResponse(
+        200,
+        `<html>
+          <head><title>Useful public page title</title></head>
+          <body>
+            <h1>Useful public page</h1>
+            <a href="/public">Public</a>
+            <a href="/cdn-cgi/content?id=token">Cloudflare</a>
+            <a href="/account">Account</a>
+          </body>
+        </html>`,
+      ),
+    );
+
+    const result = await analyzeInternalPage('https://x.test/page', 1000, 'UA');
+
+    expect(result.links).toEqual(['https://x.test/public']);
+  });
+
   it('returns the partial page metadata when fetching HTML throws', async () => {
     safeFetch.mockRejectedValueOnce(new Error('network down'));
 

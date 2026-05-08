@@ -176,7 +176,9 @@ function OccurrencesSection({
               }`}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="min-w-0 flex-1 text-sm leading-6 text-slate-800">{issue.message}</p>
+                <p className="min-w-0 flex-1 break-words text-sm leading-6 text-slate-800">
+                  {issue.message}
+                </p>
                 {issue.projectIssueId ? (
                   <button
                     type="button"
@@ -199,7 +201,7 @@ function OccurrencesSection({
                 ) : null}
               </div>
               {issue.resourceUrl ? (
-                <p className="mt-1 truncate font-mono text-xs text-slate-500">
+                <p className="mt-1 break-all font-mono text-xs leading-5 text-slate-500">
                   {issue.resourceUrl}
                 </p>
               ) : null}
