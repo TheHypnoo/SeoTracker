@@ -7,7 +7,6 @@ import react from 'ultracite/oxlint/react';
 import vitest from 'ultracite/oxlint/vitest';
 
 const jestRules = {
-  'jest/max-expects': 'off',
   'jest/no-confusing-set-timeout': 'off',
 };
 

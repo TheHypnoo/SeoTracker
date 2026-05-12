@@ -80,14 +80,16 @@ describe('startWorkerHttpServer', () => {
       });
     }
 
-    expect(livenessBody).toStrictEqual({
-      service: 'jobs',
-      status: 'ok',
-    });
-    expect(readinessBody).toStrictEqual({
-      checks: { database: 'ok', redis: 'ok' },
-      service: 'jobs',
-      status: 'ready',
+    expect({ livenessBody, readinessBody }).toStrictEqual({
+      livenessBody: {
+        service: 'jobs',
+        status: 'ok',
+      },
+      readinessBody: {
+        checks: { database: 'ok', redis: 'ok' },
+        service: 'jobs',
+        status: 'ready',
+      },
     });
     expect(metricsText).toBe('metric_name 1\n');
     expect(metricsContentType).toContain('text/plain');

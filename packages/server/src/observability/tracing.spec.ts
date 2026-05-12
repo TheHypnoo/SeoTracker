@@ -94,6 +94,32 @@ async function loadTracing(): Promise<LoadedTracing> {
   };
 }
 
+function expectTracingStartedOnce(mocks: LoadedTracing['mocks'], onceSpy: jest.SpyInstance) {
+  expect({
+    autoInstrumentation: mocks.getNodeAutoInstrumentations.mock.calls[0]?.[0],
+    diag: mocks.diagSetLogger.mock.calls[0],
+    nodeSdkStarts: mocks.start.mock.calls.length,
+    nodeSdkInstances: mocks.nodeSdkCtor.mock.calls.length,
+    otlpExporter: mocks.otlpCtor.mock.calls[0]?.[0],
+    resource: mocks.resourceFromAttributes.mock.calls[0]?.[0],
+    signals: onceSpy.mock.calls.map(([event]) => event),
+  }).toMatchObject({
+    autoInstrumentation: {
+      '@opentelemetry/instrumentation-dns': { enabled: false },
+      '@opentelemetry/instrumentation-fs': { enabled: false },
+    },
+    diag: [expect.anything(), 'DEBUG'],
+    nodeSdkStarts: 1,
+    nodeSdkInstances: 1,
+    otlpExporter: { url: 'https://otel.example.test/v1/traces' },
+    resource: {
+      'service.name': 'api-env',
+      'service.version': '1.2.3',
+    },
+    signals: expect.arrayContaining(['SIGTERM', 'SIGINT']),
+  });
+}
+
 describe('startTracing', () => {
   const originalEnv = process.env;
   let onceSpy: jest.SpyInstance;
@@ -148,22 +174,7 @@ describe('startTracing', () => {
     startTracing({ serviceName: 'api', serviceVersion: '1.2.3' });
     startTracing({ serviceName: 'api', serviceVersion: '1.2.3' });
 
-    expect(mocks.diagSetLogger).toHaveBeenCalledWith(expect.anything(), 'DEBUG');
-    expect(mocks.getNodeAutoInstrumentations).toHaveBeenCalledWith({
-      '@opentelemetry/instrumentation-dns': { enabled: false },
-      '@opentelemetry/instrumentation-fs': { enabled: false },
-    });
-    expect(mocks.resourceFromAttributes).toHaveBeenCalledWith({
-      'service.name': 'api-env',
-      'service.version': '1.2.3',
-    });
-    expect(mocks.otlpCtor).toHaveBeenCalledWith({
-      url: 'https://otel.example.test/v1/traces',
-    });
-    expect(mocks.nodeSdkCtor).toHaveBeenCalledTimes(1);
-    expect(mocks.start).toHaveBeenCalledTimes(1);
-    expect(onceSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
-    expect(onceSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+    expectTracingStartedOnce(mocks, onceSpy);
   });
 
   it('logs shutdown failures from registered signal handlers', async () => {

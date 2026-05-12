@@ -50,6 +50,46 @@ function makeDb(): DbMock {
   };
 }
 
+function expectSuccessfulDelivery(fetchMock: jest.Mock, db: DbMock, createdAt: Date) {
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  const headers = init.headers as Record<string, string>;
+  const body = init.body as string;
+  expect({ headers, method: init.method, url }).toMatchObject({
+    headers: {
+      'x-api-key': 'receiver-secret',
+      'x-seotracker-delivery-id': 'd1',
+      'x-seotracker-event': OutboundEvent.AUDIT_COMPLETED,
+    },
+    method: 'POST',
+    url: 'https://receiver.test/hooks',
+  });
+  expect(JSON.parse(body)).toStrictEqual({
+    event: OutboundEvent.AUDIT_COMPLETED,
+    deliveryId: 'd1',
+    createdAt: createdAt.toISOString(),
+    payload: { score: 90 },
+  });
+  expect(
+    OutboundWebhooksService.verifySignature({
+      secret: 'shared-secret',
+      timestamp: headers['x-seotracker-timestamp'] ?? '',
+      body,
+      signature: headers['x-seotracker-signature'] ?? '',
+    }),
+  ).toBe(true);
+  expect(db.set).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      status: OutboundDeliveryStatus.SUCCESS,
+      attemptCount: 1,
+      statusCode: 202,
+      responseBody: 'accepted',
+      errorMessage: null,
+      deliveredAt: expect.any(Date),
+    }),
+  );
+}
+
 describe('outboundWebhooksService', () => {
   let service: OutboundWebhooksService;
   let db: DbMock;
@@ -455,39 +495,7 @@ describe('outboundWebhooksService', () => {
 
       await service.processDelivery('d1');
 
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-      expect(url).toBe('https://receiver.test/hooks');
-      expect(init.method).toBe('POST');
-      const headers = init.headers as Record<string, string>;
-      const body = init.body as string;
-      expect(JSON.parse(body)).toStrictEqual({
-        event: OutboundEvent.AUDIT_COMPLETED,
-        deliveryId: 'd1',
-        createdAt: createdAt.toISOString(),
-        payload: { score: 90 },
-      });
-      expect(headers['x-api-key']).toBe('receiver-secret');
-      expect(headers['x-seotracker-event']).toBe(OutboundEvent.AUDIT_COMPLETED);
-      expect(headers['x-seotracker-delivery-id']).toBe('d1');
-      expect(
-        OutboundWebhooksService.verifySignature({
-          secret: 'shared-secret',
-          timestamp: headers['x-seotracker-timestamp'] ?? '',
-          body,
-          signature: headers['x-seotracker-signature'] ?? '',
-        }),
-      ).toBe(true);
-      expect(db.set).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          status: OutboundDeliveryStatus.SUCCESS,
-          attemptCount: 1,
-          statusCode: 202,
-          responseBody: 'accepted',
-          errorMessage: null,
-          deliveredAt: expect.any(Date),
-        }),
-      );
+      expectSuccessfulDelivery(fetchMock, db, createdAt);
     });
 
     it('persists HTTP failures before the BullMQ retry error is rethrown', async () => {

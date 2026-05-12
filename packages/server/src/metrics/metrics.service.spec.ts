@@ -18,13 +18,15 @@ describe('metricsService', () => {
     const out = await service.metrics();
 
     // The registry serialization includes one line per registered metric.
-    expect(out).toContain('http_requests_total');
-    expect(out).toContain('http_request_duration_seconds');
-    expect(out).toContain('bullmq_jobs_total');
-    expect(out).toContain('bullmq_job_duration_seconds');
-    expect(out).toContain('bullmq_queue_depth');
-    // Default Node metrics are also collected.
-    expect(out).toContain('process_cpu_user_seconds_total');
+    const expectedMetrics = [
+      'http_requests_total',
+      'http_request_duration_seconds',
+      'bullmq_jobs_total',
+      'bullmq_job_duration_seconds',
+      'bullmq_queue_depth',
+      'process_cpu_user_seconds_total',
+    ];
+    expect(expectedMetrics.filter((metric) => !out.includes(metric))).toStrictEqual([]);
   });
 
   it('reports the standard Prometheus content type', () => {

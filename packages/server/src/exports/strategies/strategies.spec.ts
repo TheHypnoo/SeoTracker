@@ -365,10 +365,12 @@ describe('auditResultCsvStrategy', () => {
     expect(out.rows).toHaveLength(10);
     expect(out.rows[0]).toStrictEqual(['summary', 'auditId', 'r1']);
     expect(out.rows[5]).toStrictEqual(['metric', 'lcp', '1.2']);
-    expect(out.rows[6]?.[0]).toBe('page');
-    expect(out.rows[7]?.[0]).toBe('issue');
-    expect(out.rows[8]?.[0]).toBe('action');
-    expect(out.rows[9]?.[0]).toBe('indexability');
+    expect(out.rows.slice(6).map((row) => row[0])).toStrictEqual([
+      'page',
+      'issue',
+      'action',
+      'indexability',
+    ]);
   });
 });
 

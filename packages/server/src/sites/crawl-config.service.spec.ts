@@ -66,12 +66,14 @@ describe('crawlConfigService', () => {
     it('returns env defaults when no per-site override exists', async () => {
       db.where.mockReturnValueOnce(thenable([]));
       const out = await service.resolve('s1');
-      expect(out.maxPages).toBe(50);
-      expect(out.maxDepth).toBe(2);
-      expect(out.maxConcurrentPages).toBe(5);
-      expect(out.requestDelayMs).toBe(0);
-      expect(out.respectCrawlDelay).toBe(true);
-      expect(out.userAgent).toBeNull();
+      expect(out).toMatchObject({
+        maxConcurrentPages: 5,
+        maxDepth: 2,
+        maxPages: 50,
+        requestDelayMs: 0,
+        respectCrawlDelay: true,
+        userAgent: null,
+      });
     });
 
     it('falls back to defaults for null fields in the row', async () => {
