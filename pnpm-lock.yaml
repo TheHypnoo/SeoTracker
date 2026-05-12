@@ -201,9 +201,6 @@ importers:
       '@base-ui/react':
         specifier: ^1.4.1
         version: 1.4.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@seotracker/config-tailwind':
-        specifier: workspace:*
-        version: link:../../packages/config-tailwind
       '@seotracker/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -350,8 +347,6 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
-
-  packages/config-tailwind: {}
 
   packages/config-typescript: {}
 

@@ -50,7 +50,6 @@ Cada app importa de `packages/server`, donde vive todo el c√≥digo compartido (m√
 | [packages/server](packages/server)                                                       | Runtime compartido del backend. Todo el dominio. ~30k LOC.                                                      |
 | [packages/shared-types](packages/shared-types)                                           | Enums + tipos comunes back/front (`AuditStatus`, `Severity`, `OutboundEvent`, etc.).                            |
 | [packages/config-typescript](packages/config-typescript)                                 | tsconfigs base (`base.json`, `nest.json`, `web.json`).                                                          |
-| [packages/config-tailwind](packages/config-tailwind)                                     | CSS tokens compartidos (Tailwind v4, CSS-first).                                                                |
 | [infra/docker](infra/docker)                                                             | Dockerfiles + `docker-compose.yml` para stack local.                                                            |
 | [infra/proxy](infra/proxy), [infra/render](infra/render), [infra/railway](infra/railway) | Reverse proxy + manifests de despliegue.                                                                        |
 

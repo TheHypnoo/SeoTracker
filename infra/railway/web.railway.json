@@ -6,7 +6,6 @@
     "watchPatterns": [
       "apps/web/**",
       "packages/shared-types/**",
-      "packages/config-tailwind/**",
       "packages/config-typescript/**",
       "package.json",
       "pnpm-lock.yaml",

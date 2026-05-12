@@ -15,8 +15,7 @@ seotracker/
 ├── packages/
 │   ├── server/        # Shared backend runtime (Drizzle schema, Nest modules, queue, lock)
 │   ├── shared-types/  # Enums + ApiError + PaginatedResponse shared by backend and frontend
-│   ├── config-typescript/  # Shared TS preset
-│   └── config-tailwind/    # Shared Tailwind v4 preset
+│   └── config-typescript/  # Shared TS preset
 ├── infra/
 │   ├── docker/        # Dockerfiles + docker-compose dev stack
 │   ├── proxy/         # Reverse-proxy config
