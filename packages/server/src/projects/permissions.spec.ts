@@ -20,30 +20,23 @@ import {
 describe('Permission catalog invariants', () => {
   it('OWNER role grants every permission in the enum', () => {
     const ownerSet = ROLE_PERMISSIONS[Role.OWNER];
-    for (const p of Object.values(Permission)) {
-      expect(ownerSet.has(p)).toBe(true);
-    }
+    expect(ownerSet).toStrictEqual(new Set(Object.values(Permission)));
   });
 
   it('VIEWER role only grants .read permissions', () => {
     const viewerSet = ROLE_PERMISSIONS[Role.VIEWER];
-    for (const p of viewerSet) {
-      expect(p).toMatch(/\.(view|read)$/);
-    }
+    expect([...viewerSet].every((p) => /\.(view|read)$/.test(p))).toBe(true);
   });
 
   it('MEMBER role does NOT include any owner-exclusive permission by default', () => {
     const memberSet = ROLE_PERMISSIONS[Role.MEMBER];
-    for (const p of OWNER_EXCLUSIVE_PERMISSIONS) {
-      expect(memberSet.has(p)).toBe(false);
-    }
+    expect([...OWNER_EXCLUSIVE_PERMISSIONS].some((p) => memberSet.has(p))).toBe(false);
   });
 
   it('GRANTABLE_PERMISSIONS exactly equals all perms minus owner-exclusive', () => {
     const all = new Set(Object.values(Permission));
     for (const p of OWNER_EXCLUSIVE_PERMISSIONS) all.delete(p);
-    expect(GRANTABLE_PERMISSIONS.size).toBe(all.size);
-    for (const p of GRANTABLE_PERMISSIONS) expect(all.has(p)).toBe(true);
+    expect(GRANTABLE_PERMISSIONS).toStrictEqual(all);
   });
 });
 
@@ -105,7 +98,6 @@ describe('computeEffectivePermissions', () => {
   it('default-call (no overrides) returns the role defaults verbatim', () => {
     const out = computeEffectivePermissions(Role.MEMBER);
     const defaults = ROLE_PERMISSIONS[Role.MEMBER];
-    expect(out.size).toBe(defaults.size);
-    for (const p of defaults) expect(out.has(p)).toBe(true);
+    expect(out).toStrictEqual(defaults);
   });
 });

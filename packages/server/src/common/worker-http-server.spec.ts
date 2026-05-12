@@ -51,27 +51,23 @@ describe('startWorkerHttpServer', () => {
   it('serves liveness, readiness, metrics and fallback HTTP responses', async () => {
     const server = await startWorkerHttpServer(app as never, { port: 0, serviceName: 'jobs' });
     const port = (server.address() as AddressInfo).port;
+    let livenessBody: unknown;
+    let readinessBody: unknown;
+    let metricsText = '';
+    let metricsContentType: string | null = null;
+    let missingStatus = 0;
+    let postLivenessStatus = 0;
 
     try {
-      await expect(readPlainJson(port, '/health/liveness')).resolves.toStrictEqual({
-        service: 'jobs',
-        status: 'ok',
-      });
-
-      await expect(readPlainJson(port, '/health/readiness')).resolves.toStrictEqual({
-        checks: { database: 'ok', redis: 'ok' },
-        service: 'jobs',
-        status: 'ready',
-      });
-
+      livenessBody = await readPlainJson(port, '/health/liveness');
+      readinessBody = await readPlainJson(port, '/health/readiness');
       const metricsResponse = await request(port, '/metrics');
-      await expect(metricsResponse.text()).resolves.toBe('metric_name 1\n');
-      expect(metricsResponse.headers.get('content-type')).toContain('text/plain');
-
-      await expect(request(port, '/missing').then((res) => res.status)).resolves.toBe(404);
-      await expect(
-        request(port, '/health/liveness', 'POST').then((res) => res.status),
-      ).resolves.toBe(405);
+      metricsText = await metricsResponse.text();
+      metricsContentType = metricsResponse.headers.get('content-type');
+      missingStatus = await request(port, '/missing').then((res) => res.status);
+      postLivenessStatus = await request(port, '/health/liveness', 'POST').then(
+        (res) => res.status,
+      );
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => {
@@ -83,6 +79,20 @@ describe('startWorkerHttpServer', () => {
         });
       });
     }
+
+    expect(livenessBody).toStrictEqual({
+      service: 'jobs',
+      status: 'ok',
+    });
+    expect(readinessBody).toStrictEqual({
+      checks: { database: 'ok', redis: 'ok' },
+      service: 'jobs',
+      status: 'ready',
+    });
+    expect(metricsText).toBe('metric_name 1\n');
+    expect(metricsContentType).toContain('text/plain');
+    expect(missingStatus).toBe(404);
+    expect(postLivenessStatus).toBe(405);
   });
 
   it('returns unavailable readiness when a dependency fails and 500 when metrics fail', async () => {
@@ -90,18 +100,15 @@ describe('startWorkerHttpServer', () => {
     metricsService.metrics.mockRejectedValueOnce(new Error('metrics down'));
     const server = await startWorkerHttpServer(app as never, { port: 0, serviceName: 'scheduler' });
     const port = (server.address() as AddressInfo).port;
+    let readinessBody: unknown;
+    let readinessStatus = 0;
+    let metricsStatus = 0;
 
     try {
       const readinessResponse = await request(port, '/health/readiness');
-      const readinessBody = toPlainJson(await readinessResponse.json());
-      expect(readinessBody).toStrictEqual({
-        checks: { database: 'fail', redis: 'ok' },
-        service: 'scheduler',
-        status: 'unavailable',
-      });
-      expect(readinessResponse.status).toBe(503);
-
-      await expect(request(port, '/metrics').then((res) => res.status)).resolves.toBe(500);
+      readinessBody = toPlainJson(await readinessResponse.json());
+      readinessStatus = readinessResponse.status;
+      metricsStatus = await request(port, '/metrics').then((res) => res.status);
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => {
@@ -113,5 +120,13 @@ describe('startWorkerHttpServer', () => {
         });
       });
     }
+
+    expect(readinessBody).toStrictEqual({
+      checks: { database: 'fail', redis: 'ok' },
+      service: 'scheduler',
+      status: 'unavailable',
+    });
+    expect(readinessStatus).toBe(503);
+    expect(metricsStatus).toBe(500);
   });
 });

@@ -291,19 +291,19 @@ describe('analyzeHomepageHtml', () => {
         homepageUrl: 'https://example.test/',
       });
       const keys = out.metrics.map((m) => m.key);
-      for (const expected of [
-        'dom_nodes',
-        'hreflang_tags',
-        'title_length',
-        'meta_description_length',
-        'h1_count',
-        'h2_count',
-        'h3_count',
-        'images_without_alt',
-        'json_ld_blocks',
-      ]) {
-        expect(keys).toContain(expected);
-      }
+      expect(keys).toStrictEqual(
+        expect.arrayContaining([
+          'dom_nodes',
+          'hreflang_tags',
+          'title_length',
+          'meta_description_length',
+          'h1_count',
+          'h2_count',
+          'h3_count',
+          'images_without_alt',
+          'json_ld_blocks',
+        ]),
+      );
     });
   });
 });

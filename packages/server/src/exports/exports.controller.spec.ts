@@ -77,26 +77,33 @@ describe('ExportsController', () => {
   it('download resolves the file, sets CSV headers and streams the content', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'seotracker-controller-export-'));
     const storagePath = path.join(dir, 'history.csv');
-    await writeFile(storagePath, 'Name\nExample\n', 'utf-8');
-    service.resolveDownload.mockResolvedValueOnce({ fileName: 'history.csv', storagePath });
-    const chunks: Buffer[] = [];
-    const response = new Writable({
-      write(chunk: Buffer, _encoding, callback) {
-        chunks.push(Buffer.from(chunk));
-        callback();
-      },
-    }) as Writable & { setHeader: jest.Mock };
-    response.setHeader = jest.fn();
+    let streamed = '';
 
-    await controller.download(USER, 'e1', response as never);
+    try {
+      await writeFile(storagePath, 'Name\nExample\n', 'utf-8');
+      service.resolveDownload.mockResolvedValueOnce({ fileName: 'history.csv', storagePath });
+      const chunks: Buffer[] = [];
+      const response = new Writable({
+        write(chunk: Buffer, _encoding, callback) {
+          chunks.push(Buffer.from(chunk));
+          callback();
+        },
+      }) as Writable & { setHeader: jest.Mock };
+      response.setHeader = jest.fn();
 
-    expect(service.resolveDownload).toHaveBeenCalledWith('e1', 'u-1');
-    expect(response.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
-    expect(response.setHeader).toHaveBeenCalledWith(
-      'Content-Disposition',
-      'attachment; filename="history.csv"',
-    );
-    expect(Buffer.concat(chunks).toString('utf-8')).toBe('Name\nExample\n');
-    await rm(dir, { force: true, recursive: true });
+      await controller.download(USER, 'e1', response as never);
+      streamed = Buffer.concat(chunks).toString('utf-8');
+
+      expect(service.resolveDownload).toHaveBeenCalledWith('e1', 'u-1');
+      expect(response.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+      expect(response.setHeader).toHaveBeenCalledWith(
+        'Content-Disposition',
+        'attachment; filename="history.csv"',
+      );
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+
+    expect(streamed).toBe('Name\nExample\n');
   });
 });

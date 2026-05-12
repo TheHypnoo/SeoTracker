@@ -73,17 +73,19 @@ describe('BullmqMetricsCollector', () => {
       { queue: AUDIT_QUEUE_NAME, state: 'waiting' },
       9,
     );
-    for (const queue of [
-      EXPORT_QUEUE_NAME,
-      OUTBOUND_DELIVERIES_QUEUE_NAME,
-      EMAIL_DELIVERIES_QUEUE_NAME,
-    ]) {
-      expect(metricsService.bullmqQueueDepth.set).toHaveBeenCalledWith(
-        { queue, state: 'completed' },
-        4,
-      );
-    }
-
     collector.onModuleDestroy();
+
+    expect(metricsService.bullmqQueueDepth.set).toHaveBeenCalledWith(
+      { queue: EXPORT_QUEUE_NAME, state: 'completed' },
+      4,
+    );
+    expect(metricsService.bullmqQueueDepth.set).toHaveBeenCalledWith(
+      { queue: OUTBOUND_DELIVERIES_QUEUE_NAME, state: 'completed' },
+      4,
+    );
+    expect(metricsService.bullmqQueueDepth.set).toHaveBeenCalledWith(
+      { queue: EMAIL_DELIVERIES_QUEUE_NAME, state: 'completed' },
+      4,
+    );
   });
 });
