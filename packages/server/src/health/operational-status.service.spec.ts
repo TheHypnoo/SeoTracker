@@ -82,6 +82,45 @@ function mockStatusQueries(
     .mockReturnValueOnce(latestRows(options.latestFailures ?? []));
 }
 
+function expectHealthyStatus(
+  status: Awaited<ReturnType<OperationalStatusService['getStatus']>>,
+  dependencies: Pick<ReturnType<typeof makeService>, 'db' | 'queueService' | 'redis'>,
+) {
+  expect(status).toMatchObject({
+    status: 'ok',
+    checks: {
+      database: { status: 'ok' },
+      redis: { status: 'ok' },
+    },
+    counts: {
+      audits: {
+        [AuditStatus.COMPLETED]: 3,
+        [AuditStatus.FAILED]: 0,
+        [AuditStatus.QUEUED]: 0,
+        [AuditStatus.RUNNING]: 0,
+      },
+      emailDeliveries: {
+        [EmailDeliveryStatus.FAILED]: 0,
+        [EmailDeliveryStatus.SENT]: 5,
+      },
+      outboundDeliveries: {
+        [OutboundDeliveryStatus.FAILED]: 0,
+        [OutboundDeliveryStatus.SUCCESS]: 2,
+      },
+    },
+    failures: { failedJobs24h: 0, latest: [] },
+    queues: [
+      {
+        counts: { active: 0, completed: 1, delayed: 0, failed: 0, waiting: 0 },
+        name: 'seo-audits',
+      },
+    ],
+  });
+  expect(dependencies.db.execute).toHaveBeenCalledTimes(1);
+  expect(dependencies.redis.ping).toHaveBeenCalledTimes(1);
+  expect(dependencies.queueService.getQueueSummary).toHaveBeenCalledTimes(1);
+}
+
 describe('operationalStatusService', () => {
   it('returns ok status with zero-filled counts when dependencies are healthy', async () => {
     const { db, queueService, redis, service } = makeService();
@@ -94,33 +133,7 @@ describe('operationalStatusService', () => {
 
     const status = await service.getStatus();
 
-    expect(status.status).toBe('ok');
-    expect(status.checks.database.status).toBe('ok');
-    expect(status.checks.redis.status).toBe('ok');
-    expect(status.counts.audits).toMatchObject({
-      [AuditStatus.COMPLETED]: 3,
-      [AuditStatus.FAILED]: 0,
-      [AuditStatus.QUEUED]: 0,
-      [AuditStatus.RUNNING]: 0,
-    });
-    expect(status.counts.emailDeliveries).toMatchObject({
-      [EmailDeliveryStatus.FAILED]: 0,
-      [EmailDeliveryStatus.SENT]: 5,
-    });
-    expect(status.counts.outboundDeliveries).toMatchObject({
-      [OutboundDeliveryStatus.FAILED]: 0,
-      [OutboundDeliveryStatus.SUCCESS]: 2,
-    });
-    expect(status.failures).toStrictEqual({ failedJobs24h: 0, latest: [] });
-    expect(status.queues).toStrictEqual([
-      {
-        counts: { active: 0, completed: 1, delayed: 0, failed: 0, waiting: 0 },
-        name: 'seo-audits',
-      },
-    ]);
-    expect(db.execute).toHaveBeenCalledTimes(1);
-    expect(redis.ping).toHaveBeenCalledTimes(1);
-    expect(queueService.getQueueSummary).toHaveBeenCalledTimes(1);
+    expectHealthyStatus(status, { db, queueService, redis });
   });
 
   it('returns degraded status when health checks or operational failure counters are failing', async () => {
@@ -146,18 +159,20 @@ describe('operationalStatusService', () => {
 
     const status = await service.getStatus();
 
-    expect(status.status).toBe('degraded');
-    expect(status.checks.database).toMatchObject({
-      error: 'db unavailable',
-      status: 'fail',
+    expect(status).toMatchObject({
+      status: 'degraded',
+      checks: {
+        database: { error: 'db unavailable', status: 'fail' },
+        redis: { error: 'redis unavailable', status: 'fail' },
+      },
+      counts: {
+        emailDeliveries: { [EmailDeliveryStatus.FAILED]: 1 },
+        outboundDeliveries: { [OutboundDeliveryStatus.FAILED]: 4 },
+      },
+      failures: {
+        failedJobs24h: 2,
+        latest: [expect.objectContaining({ id: 'failure-1' })],
+      },
     });
-    expect(status.checks.redis).toMatchObject({
-      error: 'redis unavailable',
-      status: 'fail',
-    });
-    expect(status.counts.emailDeliveries[EmailDeliveryStatus.FAILED]).toBe(1);
-    expect(status.counts.outboundDeliveries[OutboundDeliveryStatus.FAILED]).toBe(4);
-    expect(status.failures.failedJobs24h).toBe(2);
-    expect(status.failures.latest).toHaveLength(1);
   });
 });

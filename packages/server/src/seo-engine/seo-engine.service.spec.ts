@@ -42,6 +42,36 @@ jest.mock<typeof import('./scoring')>('./scoring', () => ({
   scoreAudit: jest.fn(),
 }));
 
+function expectCoordinatedAnalysis(result: Awaited<ReturnType<SeoEngineService['analyzeDomain']>>) {
+  expect(safeFetch).toHaveBeenCalledWith(
+    'https://example.com',
+    expect.objectContaining({ headers: { 'User-Agent': expect.any(String) } }),
+  );
+  expect(discoverSiteMetadata).toHaveBeenCalledWith(
+    expect.objectContaining({ hasFaviconLink: true, sitemapSampleMax: 5 }),
+  );
+  expect(crawlPages).toHaveBeenCalledWith(expect.objectContaining({ maxDepth: 1, maxPages: 2 }));
+  expect(runCrossPageChecks).toHaveBeenCalledWith({
+    pageTexts: [
+      { text: 'Homepage text', url: 'https://example.com' },
+      { text: 'About text', url: 'https://example.com/about' },
+    ],
+  });
+  expect(result).toMatchObject({
+    httpStatus: 200,
+    metrics: expect.arrayContaining([
+      expect.objectContaining({ key: 'crawl_confidence_score', valueNum: expect.any(Number) }),
+      expect.objectContaining({ key: 'crawl_confidence_level', valueText: expect.any(String) }),
+    ]),
+    score: 98,
+    pages: [
+      { score: 100, url: 'https://example.com' },
+      { url: 'https://example.com/robots.txt' },
+      { score: 95, url: 'https://example.com/about' },
+    ],
+  });
+}
+
 describe('seoEngineService', () => {
   const configService = {
     get: jest.fn((key: string) => {
@@ -111,35 +141,7 @@ describe('seoEngineService', () => {
 
     const result = await service.analyzeDomain('example.com', { maxDepth: 1, maxPages: 2 });
 
-    expect(safeFetch).toHaveBeenCalledWith(
-      'https://example.com',
-      expect.objectContaining({ headers: { 'User-Agent': expect.any(String) } }),
-    );
-    expect(discoverSiteMetadata).toHaveBeenCalledWith(
-      expect.objectContaining({ hasFaviconLink: true, sitemapSampleMax: 5 }),
-    );
-    expect(crawlPages).toHaveBeenCalledWith(expect.objectContaining({ maxDepth: 1, maxPages: 2 }));
-    expect(runCrossPageChecks).toHaveBeenCalledWith({
-      pageTexts: [
-        { text: 'Homepage text', url: 'https://example.com' },
-        { text: 'About text', url: 'https://example.com/about' },
-      ],
-    });
-    expect(result).toMatchObject({
-      httpStatus: 200,
-      score: 98,
-      pages: [
-        { score: 100, url: 'https://example.com' },
-        { url: 'https://example.com/robots.txt' },
-        { score: 95, url: 'https://example.com/about' },
-      ],
-    });
-    expect(result.metrics).toStrictEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ key: 'crawl_confidence_score', valueNum: expect.any(Number) }),
-        expect.objectContaining({ key: 'crawl_confidence_level', valueText: expect.any(String) }),
-      ]),
-    );
+    expectCoordinatedAnalysis(result);
   });
 
   it('returns a critical unreachable issue when the homepage fetch is blocked', async () => {

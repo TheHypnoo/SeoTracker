@@ -34,6 +34,12 @@ function makeDb(): DbMock {
   };
 }
 
+function expectPromptToContainAll(prompt: string, fragments: string[]) {
+  for (const fragment of fragments) {
+    expect(prompt).toContain(fragment);
+  }
+}
+
 describe('buildRemediationPrompt', () => {
   it('creates a concrete prompt with audit context and affected URLs', () => {
     const prompt = buildRemediationPrompt({
@@ -49,13 +55,15 @@ describe('buildRemediationPrompt', () => {
       title: 'Missing Title',
     });
 
-    expect(prompt).toContain('Actúa como especialista en SEO técnico');
-    expect(prompt).toContain('Dominio: example.test');
-    expect(prompt).toContain('Auditoría: audit-1');
-    expect(prompt).toContain(`Incidencia: Missing Title (${IssueCode.MISSING_TITLE})`);
-    expect(prompt).toContain('1. https://example.test/');
-    expect(prompt).toContain('2. https://example.test/pricing');
-    expect(prompt).toContain('Checklist de validación');
+    expectPromptToContainAll(prompt, [
+      'Actúa como especialista en SEO técnico',
+      'Dominio: example.test',
+      'Auditoría: audit-1',
+      `Incidencia: Missing Title (${IssueCode.MISSING_TITLE})`,
+      '1. https://example.test/',
+      '2. https://example.test/pricing',
+      'Checklist de validación',
+    ]);
   });
 
   it('handles domain-level issues without a concrete URL', () => {
@@ -216,8 +224,10 @@ describe('seoActionPlanService', () => {
       issueCode: IssueCode.PAGE_TOO_HEAVY,
       status: IssueState.FIXED,
     });
-    expect(plan.executiveSummary.copyText).toContain('Score actual: 72/100 (-8 pts)');
-    expect(plan.executiveSummary.nextBestAction).toContain('Añadir títulos únicos');
+    expect(plan.executiveSummary).toMatchObject({
+      copyText: expect.stringContaining('Score actual: 72/100 (-8 pts)'),
+      nextBestAction: expect.stringContaining('Añadir títulos únicos'),
+    });
   });
 
   it('loads a plan for a specific audit id and reports a clean executive summary', async () => {

@@ -5,6 +5,12 @@ import { DRIZZLE } from '../database/database.constants';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
 import { PublicBadgesService } from './public-badges.service';
 
+function expectSvgToContainAll(svg: string, fragments: string[]) {
+  for (const fragment of fragments) {
+    expect(svg).toContain(fragment);
+  }
+}
+
 describe('publicBadgesService', () => {
   let service: PublicBadgesService;
   let db: {
@@ -111,11 +117,13 @@ describe('publicBadgesService', () => {
     it('returns green SVG when score >= 80 and caches 5 minutes', async () => {
       db.limit.mockResolvedValueOnce([{ enabled: true, score: 90 }]);
       const out = await service.renderSvg('s1');
-      expect(out.svg).toContain('SEOTracker');
-      expect(out.svg).toContain('width="168"');
-      expect(out.svg).toContain('aria-label="SEOTracker score"');
-      expect(out.svg).toContain('>90/100<');
-      expect(out.svg).toContain('#059669');
+      expectSvgToContainAll(out.svg, [
+        'SEOTracker',
+        'width="168"',
+        'aria-label="SEOTracker score"',
+        '>90/100<',
+        '#059669',
+      ]);
       expect(redis.set).toHaveBeenCalledWith(
         'public-badge:official:svg:s1',
         expect.any(String),

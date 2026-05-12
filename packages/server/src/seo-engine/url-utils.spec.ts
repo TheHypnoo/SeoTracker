@@ -44,16 +44,18 @@ describe('url-utils', () => {
   });
 
   describe('classifyUrlBucket', () => {
-    it('classifies important URL families used by stratified crawling', () => {
-      expect(classifyUrlBucket('https://example.test/')).toBe('home');
-      expect(classifyUrlBucket('https://example.test/blog/post-1')).toBe('article');
-      expect(classifyUrlBucket('https://example.test/product/widget')).toBe('product');
-      expect(classifyUrlBucket('https://example.test/category/widgets')).toBe('category');
-      expect(classifyUrlBucket('https://example.test/page/2')).toBe('pagination');
-      expect(classifyUrlBucket('https://example.test/search?page=2')).toBe('pagination');
-      expect(classifyUrlBucket('https://example.test/contact')).toBe('static');
-      expect(classifyUrlBucket('https://example.test/a/b/c')).toBe('article');
-      expect(classifyUrlBucket('not a url')).toBe('other');
+    it.each([
+      ['https://example.test/', 'home'],
+      ['https://example.test/blog/post-1', 'article'],
+      ['https://example.test/product/widget', 'product'],
+      ['https://example.test/category/widgets', 'category'],
+      ['https://example.test/page/2', 'pagination'],
+      ['https://example.test/search?page=2', 'pagination'],
+      ['https://example.test/contact', 'static'],
+      ['https://example.test/a/b/c', 'article'],
+      ['not a url', 'other'],
+    ] as const)('classifies %s as %s', (url, bucket) => {
+      expect(classifyUrlBucket(url)).toBe(bucket);
     });
   });
 
@@ -75,9 +77,15 @@ describe('url-utils', () => {
       ]);
     });
 
-    it('handles empty inputs, zero budget and budgets larger than the URL list', () => {
+    it('handles empty inputs', () => {
       expect(stratifiedSample([], 10)).toStrictEqual([]);
+    });
+
+    it('handles zero budgets', () => {
       expect(stratifiedSample(['https://example.test/'], 0)).toStrictEqual([]);
+    });
+
+    it('handles budgets larger than the URL list', () => {
       expect(stratifiedSample(['https://example.test/a'], 5)).toStrictEqual([
         'https://example.test/a',
       ]);
