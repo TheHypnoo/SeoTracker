@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import {
   AuditStatus,
   ComparisonChangeType,
@@ -231,7 +232,7 @@ describe('SeoActionPlanService', () => {
     const plan = await service.getForAudit('audit-2', 'user-1');
 
     expect(sites.getById).toHaveBeenCalledWith('site-1', 'user-1');
-    expect(plan.actions).toEqual([]);
+    expect(plan.actions).toStrictEqual([]);
     expect(plan.executiveSummary).toMatchObject({
       criticalOpenActions: 0,
       nextBestAction: null,

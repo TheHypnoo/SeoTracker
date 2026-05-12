@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 type LoadedTracing = {
   startTracing: (options: { serviceName: string; serviceVersion?: string }) => void;
   mocks: {

@@ -26,7 +26,6 @@ pnpm build
 pnpm preview
 pnpm start        # production: node .output/server/index.mjs
 pnpm test         # vitest
-pnpm lint
 pnpm typecheck
 ```
 

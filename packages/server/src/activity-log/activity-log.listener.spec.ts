@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ActivityAction, Role } from '@seotracker/shared-types';
 
 import { ActivityLogService } from './activity-log.service';

@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import type { Request } from 'express';
 
 import { resolveThrottleTracker } from './user-throttler.guard';

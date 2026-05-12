@@ -7,11 +7,7 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "pnpm clean && tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
-    "lint": "NODE_OPTIONS=--experimental-strip-types oxlint --ignore-path ../../.gitignore src",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "check": "pnpm format && NODE_OPTIONS=--experimental-strip-types oxlint --ignore-path ../../.gitignore --fix src",
-    "format": "NODE_OPTIONS=--experimental-strip-types oxfmt --ignore-path ../../.gitignore --write src",
-    "format:check": "NODE_OPTIONS=--experimental-strip-types oxfmt --ignore-path ../../.gitignore --check src"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.19",

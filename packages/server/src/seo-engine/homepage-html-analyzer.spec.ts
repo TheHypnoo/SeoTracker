@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { IssueCode } from '@seotracker/shared-types';
 import { load } from 'cheerio';
 

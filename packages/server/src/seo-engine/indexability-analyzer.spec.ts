@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { IndexabilityStatus, IssueCategory, IssueCode, Severity } from '@seotracker/shared-types';
 
 import { buildIndexabilityMatrix } from './indexability-analyzer';

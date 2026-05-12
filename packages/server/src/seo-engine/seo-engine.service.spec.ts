@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { IssueCode, Severity } from '@seotracker/shared-types';
 
 import { safeFetch, SsrfBlockedError } from '../common/utils/safe-fetch';
@@ -133,7 +134,7 @@ describe('SeoEngineService', () => {
         { score: 95, url: 'https://example.com/about' },
       ],
     });
-    expect(result.metrics).toEqual(
+    expect(result.metrics).toStrictEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'crawl_confidence_score', valueNum: expect.any(Number) }),
         expect.objectContaining({ key: 'crawl_confidence_level', valueText: expect.any(String) }),
@@ -147,7 +148,7 @@ describe('SeoEngineService', () => {
 
     const result = await service.analyzeDomain('example.com');
 
-    expect(result.issues).toEqual([
+    expect(result.issues).toStrictEqual([
       expect.objectContaining({
         issueCode: IssueCode.DOMAIN_UNREACHABLE,
         message: 'Domain redirected to a blocked host: example.com',

@@ -1,3 +1,4 @@
+import { describe, expect, it, jest } from '@jest/globals';
 import {
   AuditStatus,
   EmailDeliveryStatus,
@@ -110,8 +111,8 @@ describe('OperationalStatusService', () => {
       [OutboundDeliveryStatus.FAILED]: 0,
       [OutboundDeliveryStatus.SUCCESS]: 2,
     });
-    expect(status.failures).toEqual({ failedJobs24h: 0, latest: [] });
-    expect(status.queues).toEqual([
+    expect(status.failures).toStrictEqual({ failedJobs24h: 0, latest: [] });
+    expect(status.queues).toStrictEqual([
       {
         counts: { active: 0, completed: 1, delayed: 0, failed: 0, waiting: 0 },
         name: 'seo-audits',

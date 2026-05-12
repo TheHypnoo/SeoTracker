@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import {
   AuditStatus,
   AuditTrigger,
@@ -189,7 +190,7 @@ describe('AuditReadingService', () => {
 
     await expect(
       service.getAuditIssues('run-1', 'user-1', { limit: 10, offset: 0 }),
-    ).resolves.toEqual({
+    ).resolves.toStrictEqual({
       items: [
         {
           ...issue,

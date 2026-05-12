@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { IssueCode } from '@seotracker/shared-types';
 
 import { runCrossPageChecks } from './cross-page-checks';
@@ -5,7 +6,7 @@ import { runCrossPageChecks } from './cross-page-checks';
 describe('runCrossPageChecks', () => {
   it('emits no issues when there is nothing to compare', () => {
     const out = runCrossPageChecks({ pageTexts: [] });
-    expect(out.issues).toEqual([]);
+    expect(out.issues).toStrictEqual([]);
     const dupMetric = out.metrics.find((m) => m.key === 'duplicate_content_pairs');
     expect(dupMetric?.valueNum).toBe(0);
   });

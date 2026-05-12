@@ -16,5 +16,4 @@ The Drizzle schema in `@seotracker/server` consumes these enums directly, so any
 ```bash
 pnpm build
 pnpm typecheck
-pnpm lint
 ```

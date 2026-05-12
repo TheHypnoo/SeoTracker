@@ -1,19 +1,60 @@
 import { defineConfig } from 'oxlint';
 
 import core from 'ultracite/oxlint/core';
-import react from 'ultracite/oxlint/react';
-import remix from 'ultracite/oxlint/remix';
+import jest from 'ultracite/oxlint/jest';
 import nestjs from 'ultracite/oxlint/nestjs';
+import react from 'ultracite/oxlint/react';
+import vitest from 'ultracite/oxlint/vitest';
 
-// Note on jest: ultracite/oxlint/jest is intentionally NOT extended. Its preset
-// enforces a long list of stylistic jest rules (no-confusing-set-timeout,
-// prefer-strict-equal, prefer-importing-jest-globals, …) that the inherited
-// test suite — ported from feature branches with different conventions —
-// violates en masse. We re-enable the genuinely useful jest rules below in a
-// dedicated override block.
+const jestRules = {
+  'jest/max-expects': 'off',
+  'jest/no-confusing-set-timeout': 'off',
+  'jest/no-untyped-mock-factory': 'off',
+  'jest/padding-around-test-blocks': 'off',
+  'jest/prefer-called-with': 'off',
+  'jest/prefer-ending-with-an-expect': 'off',
+  'jest/prefer-expect-resolves': 'off',
+  'jest/prefer-jest-mocked': 'off',
+  'jest/prefer-lowercase-title': 'off',
+  'jest/prefer-mock-return-shorthand': 'off',
+  'jest/prefer-spy-on': 'off',
+  'jest/prefer-to-be': 'off',
+  'jest/prefer-to-have-length': 'off',
+  'jest/require-top-level-describe': 'off',
+  'jest/valid-title': 'off',
+};
+
+const vitestRules = {
+  'vitest/consistent-test-filename': 'off',
+  'vitest/prefer-called-once': 'off',
+  'vitest/prefer-called-with': 'off',
+  'vitest/prefer-describe-function-title': 'off',
+  'vitest/prefer-import-in-mock': 'off',
+  'vitest/prefer-to-be-falsy': 'off',
+  'vitest/prefer-to-be-truthy': 'off',
+  'vitest/require-mock-type-parameters': 'off',
+};
+
+const jestOverrides = (jest.overrides ?? []).map((override) => ({
+  ...override,
+  files: [
+    'apps/api/**/*.{test,spec}.{ts,tsx,js,jsx}',
+    'packages/server/**/*.{test,spec}.{ts,tsx,js,jsx}',
+  ],
+  rules: { ...override.rules, ...jestRules },
+}));
+
+const vitestOverrides = (vitest.overrides ?? []).map((override) => ({
+  ...override,
+  files: [
+    'apps/web/**/*.{test,spec}.{ts,tsx,js,jsx}',
+    'apps/web/**/__tests__/**/*.{ts,tsx,js,jsx}',
+  ],
+  rules: { ...override.rules, ...vitestRules },
+}));
 
 export default defineConfig({
-  extends: [core, react, remix, nestjs],
+  extends: [core, react, nestjs],
   ignorePatterns: [
     'apps/api/drizzle/**/*.js',
     'apps/api/drizzle/**/*.js.map',
@@ -36,7 +77,6 @@ export default defineConfig({
     'import/consistent-type-specifier-style': 'off',
     'import/first': 'off',
     'import/no-duplicates': 'off',
-    'jest/valid-title': 'off',
     'max-classes-per-file': 'off',
     complexity: 'off',
     'no-alert': 'off',
@@ -98,22 +138,6 @@ export default defineConfig({
     'jsdoc/check-tag-names': 'off',
     // Reports false positives on `.catch((reason: unknown) => {})` callbacks.
     'promise/valid-params': 'off',
-    'vitest/consistent-test-filename': 'off',
-    'vitest/prefer-importing-vitest-globals': 'off',
   },
-  overrides: [
-    {
-      files: ['**/*.{test,spec}.{ts,tsx,js,jsx}', '**/__tests__/**/*.{ts,tsx,js,jsx}'],
-      plugins: ['jest'],
-      rules: {
-        // Genuinely useful safety rules: keep on.
-        'jest/no-disabled-tests': 'error',
-        'jest/no-focused-tests': 'error',
-        'jest/no-identical-title': 'error',
-        'jest/no-conditional-expect': 'error',
-        'jest/expect-expect': 'error',
-        'jest/no-commented-out-tests': 'warn',
-      },
-    },
-  ],
+  overrides: [...vitestOverrides, ...jestOverrides],
 });

@@ -25,7 +25,7 @@ seotracker/
 ├── scripts/           # Scripts auxiliares del repo (ej. setup de git hooks)
 ├── .github/workflows/ # CI + dependency review
 ├── package.json, pnpm-workspace.yaml, turbo.json
-├── .oxlintrc.jsonc, .oxfmtrc.mjs
+├── oxlint.config.ts, oxfmt.config.ts
 └── README.md
 ```
 
@@ -103,13 +103,14 @@ pnpm db:studio      # drizzle-kit studio
 
 El monorepo usa `oxlint` + `oxfmt` con presets de Ultracite.
 
-- Base compartida en la raíz: `.oxlintrc.jsonc`, `.oxfmtrc.mjs`.
-- Cada app puede añadir overrides específicos del framework (por ejemplo `apps/web/.oxlintrc.jsonc` para reglas de React).
+- Configuración en la raíz: `oxlint.config.ts`, `oxfmt.config.ts`.
+- Los scripts por package quedan reservados para build, dev, test y typecheck. Linting y formato corren desde la raíz.
 
 ```bash
 pnpm format        # reescribe archivos con oxfmt
 pnpm lint          # oxlint en todo el monorepo
-pnpm check         # format + oxlint --fix por workspace
+pnpm check         # comprobación agregada de Ultracite
+pnpm fix           # aplica autofixes de Ultracite
 pnpm verify        # comprobación completa pre-push
 ```
 
@@ -157,4 +158,4 @@ pnpm db:studio
 - **`docker compose up` falla** — asegúrate de que Docker Desktop está arrancado y de que los puertos 5432/6379/1025/8025 están libres.
 - **La API no arranca y dice "JWT secret looks like a placeholder"** — genera secretos reales con `openssl rand -base64 48` y actualiza `apps/api/.env`. El validador rechaza valores que empiezan por `change-this`, `__replace_me__` o `replace-me`.
 - **El frontend entra en bucle de 401** — el proxy de desarrollo debe poder llegar a la API; comprueba que la API está levantada en `http://localhost:4000` y que `apps/web/.env` coincide con el `CSRF_COOKIE_NAME` de la API.
-- **El hook de pre-commit dice que no hay cambios pero el lint sigue fallando** — ejecuta `pnpm check` para aplicar autofixes y vuelve a stagear los cambios.
+- **El hook de pre-commit dice que no hay cambios pero el lint sigue fallando** — ejecuta `pnpm fix` para aplicar autofixes y vuelve a stagear los cambios.

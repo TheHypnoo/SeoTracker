@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
@@ -152,7 +153,7 @@ describe('NotificationsService', () => {
       .mockResolvedValueOnce([{ total: 2 }])
       .mockReturnValueOnce(paginatedRows(items) as never);
 
-    await expect(service.listForUser('u1', { limit: 10, offset: 5 })).resolves.toEqual({
+    await expect(service.listForUser('u1', { limit: 10, offset: 5 })).resolves.toStrictEqual({
       items,
       limit: 10,
       offset: 5,
@@ -163,7 +164,7 @@ describe('NotificationsService', () => {
   it('marks one notification as read and reports not found for foreign ids', async () => {
     db.where.mockReturnValueOnce(thenable([{ id: 'n1' }])).mockReturnValueOnce(thenable([]));
 
-    await expect(service.markAsRead('u1', 'n1')).resolves.toEqual({ success: true });
+    await expect(service.markAsRead('u1', 'n1')).resolves.toStrictEqual({ success: true });
     await expect(service.markAsRead('u1', 'foreign')).rejects.toBeInstanceOf(NotFoundException);
     expect(db.set).toHaveBeenCalledWith({ readAt: expect.any(Date) });
   });
@@ -183,7 +184,7 @@ describe('NotificationsService', () => {
         title: 'Audit finished',
         body: 'The audit is ready.',
       }),
-    ).resolves.toEqual([
+    ).resolves.toStrictEqual([
       { email: 'a@example.com', userId: 'u1' },
       { email: 'b@example.com', userId: 'u2' },
     ]);
@@ -319,13 +320,13 @@ describe('NotificationsService', () => {
 
     const out = await service.markManyAsRead('u1', ['n1', 'n1', 'n2']);
 
-    expect(out).toEqual({ success: true, updated: 2 });
+    expect(out).toStrictEqual({ success: true, updated: 2 });
     expect(db.set).toHaveBeenCalledWith({ readAt: expect.any(Date) });
     expect(db.returning).toHaveBeenCalledWith({ id: expect.anything() });
   });
 
   it('short-circuits markManyAsRead when no ids are supplied', async () => {
-    await expect(service.markManyAsRead('u1', [])).resolves.toEqual({
+    await expect(service.markManyAsRead('u1', [])).resolves.toStrictEqual({
       success: true,
       updated: 0,
     });
@@ -372,7 +373,7 @@ describe('NotificationsService', () => {
       staleAfterMs: 1_000,
     });
 
-    expect(out).toEqual({ reconciled: 2 });
+    expect(out).toStrictEqual({ reconciled: 2 });
     expect(queue.enqueueEmailDelivery).toHaveBeenCalledTimes(2);
     expect(queue.enqueueEmailDelivery).toHaveBeenCalledWith(
       { deliveryId: 'e-pending' },
@@ -412,7 +413,7 @@ describe('NotificationsService', () => {
       }),
     );
     expect(queue.enqueueEmailDelivery).toHaveBeenCalledWith({ deliveryId: 'e1' });
-    expect(out).toEqual({ success: true });
+    expect(out).toStrictEqual({ success: true });
   });
 
   it('lists project email deliveries for owners and applies status filters', async () => {
@@ -428,7 +429,7 @@ describe('NotificationsService', () => {
         { limit: 15, offset: 30 },
         { status: EmailDeliveryStatus.FAILED },
       ),
-    ).resolves.toEqual({
+    ).resolves.toStrictEqual({
       items,
       limit: 15,
       offset: 30,

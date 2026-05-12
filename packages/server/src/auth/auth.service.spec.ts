@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -168,7 +169,7 @@ describe('AuthService', () => {
       });
       expect(jwt.signAsync).toHaveBeenCalledTimes(2); // access + refresh
       expect(res.cookie).toHaveBeenCalledTimes(2); // refresh_token + csrf_token
-      expect(result).toEqual(
+      expect(result).toStrictEqual(
         expect.objectContaining({
           accessToken: 'jwt-token',
           csrfToken: expect.any(String),
@@ -284,7 +285,9 @@ describe('AuthService', () => {
         .mockResolvedValueOnce([{ id: 'u', email: 'a@b.c', name: 'A' }]);
       const res = makeResponse();
 
-      await expect(service.refresh('refresh-jwt', 'csrf', 'csrf', res as never)).resolves.toEqual(
+      await expect(
+        service.refresh('refresh-jwt', 'csrf', 'csrf', res as never),
+      ).resolves.toStrictEqual(
         expect.objectContaining({
           accessToken: 'jwt-token',
           csrfToken: expect.any(String),
@@ -323,7 +326,7 @@ describe('AuthService', () => {
 
       const user = await service.getSession('jwt');
 
-      expect(user).toEqual({ id: 'u', email: 'a@b.c', name: 'A' });
+      expect(user).toStrictEqual({ id: 'u', email: 'a@b.c', name: 'A' });
       // Critical invariant: getSession MUST NOT call signAsync (no rotation).
       expect(jwt.signAsync).not.toHaveBeenCalled();
     });
@@ -335,7 +338,7 @@ describe('AuthService', () => {
 
       const result = await service.logout('refresh-jwt', 'csrf-A', 'csrf-B', res as never);
 
-      expect(result).toEqual({ success: true });
+      expect(result).toStrictEqual({ success: true });
       expect(res.clearCookie).toHaveBeenCalled();
       // No DB mutation when CSRF is invalid.
       expect(db.update).not.toHaveBeenCalled();
@@ -385,7 +388,7 @@ describe('AuthService', () => {
 
       const out = await service.requestPasswordReset(' A@B.C ');
 
-      expect(out).toEqual({ success: true });
+      expect(out).toStrictEqual({ success: true });
       expect(users.findByEmail).toHaveBeenCalledWith('a@b.c');
       expect(db.values).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -410,7 +413,7 @@ describe('AuthService', () => {
 
       const out = await service.requestPasswordReset('missing@x.test');
 
-      expect(out).toEqual({ success: true });
+      expect(out).toStrictEqual({ success: true });
       expect(notifications.enqueueEmailDelivery).not.toHaveBeenCalled();
     });
 
@@ -418,7 +421,7 @@ describe('AuthService', () => {
       users.findByEmail.mockResolvedValueOnce([{ id: 'u1', email: 'a@b.c', name: 'Ada' }]);
       notifications.enqueueEmailDelivery.mockRejectedValueOnce(new Error('queue down'));
 
-      await expect(service.requestPasswordReset('a@b.c')).resolves.toEqual({ success: true });
+      await expect(service.requestPasswordReset('a@b.c')).resolves.toStrictEqual({ success: true });
       await Promise.resolve();
 
       expect(notifications.enqueueEmailDelivery).toHaveBeenCalled();
@@ -445,7 +448,7 @@ describe('AuthService', () => {
         cb(tx),
       );
 
-      await expect(service.resetPassword('token', 'New-password-123')).resolves.toEqual({
+      await expect(service.resetPassword('token', 'New-password-123')).resolves.toStrictEqual({
         success: true,
       });
 

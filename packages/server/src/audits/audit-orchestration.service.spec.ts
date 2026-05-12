@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -175,12 +176,12 @@ describe('AuditOrchestrationService', () => {
         ]),
       );
 
-      await expect(service.reconcileQueuedRuns({ limit: 2, staleAfterMs: 1_000 })).resolves.toEqual(
-        {
-          checked: 2,
-          requeued: 2,
-        },
-      );
+      await expect(
+        service.reconcileQueuedRuns({ limit: 2, staleAfterMs: 1_000 }),
+      ).resolves.toStrictEqual({
+        checked: 2,
+        requeued: 2,
+      });
       expect(queue.enqueueAuditRun).toHaveBeenCalledWith(
         { auditRunId: 'run-1', siteId: 'site-1' },
         expect.objectContaining({ jobId: expect.stringContaining('run-1:reconcile:') }),
@@ -202,7 +203,7 @@ describe('AuditOrchestrationService', () => {
         .mockRejectedValueOnce(new Error('queue down'))
         .mockResolvedValueOnce(undefined);
 
-      await expect(service.reconcileQueuedRuns({ limit: 2 })).resolves.toEqual({
+      await expect(service.reconcileQueuedRuns({ limit: 2 })).resolves.toStrictEqual({
         checked: 2,
         requeued: 1,
       });

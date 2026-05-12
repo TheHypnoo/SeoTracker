@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ExportFormat, ExportKind, ExportStatus, Permission } from '@seotracker/shared-types';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
@@ -171,7 +172,7 @@ describe('ExportsService', () => {
 
     await expect(
       service.listForProjectScope('project-1', 'user-1', { limit: 10, offset: 5 }),
-    ).resolves.toEqual({
+    ).resolves.toStrictEqual({
       items: [exportRecord],
       limit: 10,
       offset: 5,
@@ -196,7 +197,7 @@ describe('ExportsService', () => {
 
     await expect(
       service.listForProject('site-1', 'user-1', { limit: 20, offset: 10 }),
-    ).resolves.toEqual({
+    ).resolves.toStrictEqual({
       items,
       limit: 20,
       offset: 10,
@@ -240,7 +241,7 @@ describe('ExportsService', () => {
     };
     const { service } = makeService(db);
 
-    await expect(service.resolveDownload(VALID_EXPORT_ID, 'user-1')).resolves.toEqual({
+    await expect(service.resolveDownload(VALID_EXPORT_ID, 'user-1')).resolves.toStrictEqual({
       fileName: 'history.csv',
       storagePath,
     });
@@ -301,7 +302,7 @@ describe('ExportsService', () => {
     };
     const { queueService, service } = makeService(db);
 
-    await expect(service.retry(VALID_EXPORT_ID, 'user-1')).resolves.toEqual({
+    await expect(service.retry(VALID_EXPORT_ID, 'user-1')).resolves.toStrictEqual({
       id: VALID_EXPORT_ID,
       status: ExportStatus.PENDING,
     });
@@ -357,7 +358,7 @@ describe('ExportsService', () => {
 
     await expect(
       service.reconcilePendingExports({ limit: 2, staleAfterMs: 1000 }),
-    ).resolves.toEqual({
+    ).resolves.toStrictEqual({
       requeued: 1,
     });
     expect(systemLogsService.error).toHaveBeenCalledWith(

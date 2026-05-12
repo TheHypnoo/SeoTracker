@@ -39,12 +39,13 @@ URLs por defecto:
 | ------------------- | ----------------------------------------------------------------------------------------- |
 | `pnpm dev`          | Levanta los 4 servicios en paralelo con watch mode (Turbo)                                |
 | `pnpm build`        | Compila todo a `dist/` y `.output/`                                                       |
-| `pnpm lint`         | `oxlint` en todos los packages que tengan script `lint`                                   |
+| `pnpm lint`         | `oxlint` desde la configuración raíz                                                      |
 | `pnpm format`       | Reescribe ficheros con `oxfmt`                                                            |
 | `pnpm format:check` | Falla si hay drift de formato                                                             |
 | `pnpm typecheck`    | `tsc --noEmit` en todos los packages                                                      |
 | `pnpm test`         | `jest` en backend + `vitest run` en frontend                                              |
-| `pnpm check`        | `format` + `lint --fix` por package                                                       |
+| `pnpm check`        | Comprobación agregada de Ultracite                                                        |
+| `pnpm fix`          | Aplica autofixes de Ultracite                                                             |
 | `pnpm verify`       | `format:check && lint && typecheck && test && build` — lo que corre el pre-push hook y CI |
 | `pnpm db:generate`  | `drizzle-kit generate` (genera migraciones desde el schema)                               |
 | `pnpm db:migrate`   | Aplica migraciones al Postgres conectado                                                  |
@@ -56,13 +57,12 @@ Filtrar a un package: `pnpm --filter <name>` (los nombres están en `package.jso
 
 Stack: `oxlint` + `oxfmt` con preset de `ultracite`.
 
-- Configuración raíz: [.oxlintrc.jsonc](.oxlintrc.jsonc), [.oxfmtrc.mjs](.oxfmtrc.mjs)
-- Cada app tiene un override mínimo en su carpeta
-- **Decisión consciente**: backend (api/jobs/scheduler/server) usa `;`, frontend (web) no. Esto está en sus `.oxfmtrc.mjs` respectivos. No es un bug.
+- Configuración raíz: [oxlint.config.ts](oxlint.config.ts), [oxfmt.config.ts](oxfmt.config.ts)
+- No hay configuración de lint/formato por app o package. Si hace falta una excepción, debe vivir en la config raíz con `ignorePatterns` u `overrides`.
 
 ### Reglas desactivadas globalmente
 
-`categories.pedantic` y `categories.style` están off en el root para reducir ruido. Si quieres activar reglas específicas, hazlo en el `rules` del config raíz, no por app.
+Las reglas de estilo más ruidosas se gestionan en el `rules` del config raíz. Si quieres activar reglas específicas, hazlo ahí, no por app.
 
 ## TypeScript
 

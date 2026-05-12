@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
@@ -112,7 +113,7 @@ describe('WebhooksService', () => {
           ]),
         );
 
-      await expect(service.listProjectEndpoints('p1', 'u-reader')).resolves.toEqual([
+      await expect(service.listProjectEndpoints('p1', 'u-reader')).resolves.toStrictEqual([
         expect.objectContaining({ id: 'e1', hasActiveSecret: true, rotatedAt }),
         expect.objectContaining({ id: 'e2', hasActiveSecret: false, rotatedAt: null }),
       ]);
@@ -121,7 +122,7 @@ describe('WebhooksService', () => {
     it('does not query secrets when the project has no endpoints', async () => {
       db.where.mockReturnValueOnce(thenable([]));
 
-      await expect(service.listProjectEndpoints('p1', 'u-reader')).resolves.toEqual([]);
+      await expect(service.listProjectEndpoints('p1', 'u-reader')).resolves.toStrictEqual([]);
 
       expect(db.select).toHaveBeenCalledTimes(1);
     });
@@ -138,7 +139,7 @@ describe('WebhooksService', () => {
           name: ' Fresh ',
           enabled: false,
         }),
-      ).resolves.toEqual({ id: 'e1', name: 'Fresh', enabled: false });
+      ).resolves.toStrictEqual({ id: 'e1', name: 'Fresh', enabled: false });
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Fresh', enabled: false, updatedAt: expect.any(Date) }),
       );

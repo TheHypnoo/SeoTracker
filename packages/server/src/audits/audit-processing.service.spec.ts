@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
@@ -317,7 +318,7 @@ describe('AuditProcessingService', () => {
         expect.objectContaining({ id: 'comparison-1', scoreDelta: -12 }),
       );
       const events = outbound.dispatch.mock.calls.map((call) => call[0]?.event);
-      expect(events).toEqual(
+      expect(events).toStrictEqual(
         expect.arrayContaining([
           OutboundEvent.AUDIT_COMPLETED,
           OutboundEvent.ISSUE_CRITICAL,

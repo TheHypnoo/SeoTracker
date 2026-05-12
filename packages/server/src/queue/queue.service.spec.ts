@@ -1,3 +1,4 @@
+import { describe, expect, it, jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 
 import type { Env } from '../config/env.schema';
@@ -144,7 +145,7 @@ describe('QueueService', () => {
 
       const summary = await service.getQueueSummary();
 
-      expect(summary).toEqual([
+      expect(summary).toStrictEqual([
         {
           counts: { active: 0, completed: 1, delayed: 0, failed: 0, waiting: 2 },
           name: 'seo-audits',

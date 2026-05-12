@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 jest.mock('./crawler', () => {
   const analyzeInternalPage = jest.fn();
   const existsUrl = jest.fn();
@@ -163,6 +164,6 @@ describe('crawlPages', () => {
     expect(existsMock).toHaveBeenCalledTimes(2);
     const broken = result.issues.filter((i) => i.issueCode === IssueCode.BROKEN_LINK);
     expect(broken).toHaveLength(1);
-    expect(broken[0]?.meta).toEqual({ statusCode: 404 });
+    expect(broken[0]?.meta).toStrictEqual({ statusCode: 404 });
   });
 });

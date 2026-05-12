@@ -50,7 +50,7 @@ describe('useAuthStore', () => {
 
     const state = useAuthStore.getState();
     expect(state.accessToken).toBe('tok-123');
-    expect(state.user).toEqual({ id: 'u1', email: 'a@b.c', name: 'Alice' });
+    expect(state.user).toStrictEqual({ id: 'u1', email: 'a@b.c', name: 'Alice' });
   });
 
   it('register stores session and lets server-side cookies flow', async () => {
@@ -170,7 +170,7 @@ describe('useAuthStore', () => {
     await useAuthStore.getState().resetPassword({ token: 't', password: 'newpw' });
 
     const [, init] = fetchMock.mock.calls[0];
-    expect(JSON.parse(init.body as string)).toEqual({ token: 't', password: 'newpw' });
+    expect(JSON.parse(init.body as string)).toStrictEqual({ token: 't', password: 'newpw' });
   });
 
   it('setSession is partial: only patches fields explicitly provided', () => {

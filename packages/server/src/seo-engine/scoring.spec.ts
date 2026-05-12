@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { IssueCategory, IssueCode, Severity } from '@seotracker/shared-types';
 
 import { getIssueCategory, scoreAudit, scoreForIssues } from './scoring';
@@ -16,11 +17,13 @@ describe('scoreAudit', () => {
 
     expect(result.score).toBe(0);
     expect(result.breakdown.totalDeduction).toBe(100);
-    expect(result.breakdown.perSeverity.CRITICAL).toEqual({
+    expect(result.breakdown.perSeverity.CRITICAL).toStrictEqual({
       cappedDeduction: 100,
       rawDeduction: 100,
     });
-    expect(Object.values(result.categoryScores)).toEqual(Object.values(IssueCategory).map(() => 0));
+    expect(Object.values(result.categoryScores)).toStrictEqual(
+      Object.values(IssueCategory).map(() => 0),
+    );
   });
 
   it('uses issue-specific repeated deductions and exposes raw vs capped totals', () => {

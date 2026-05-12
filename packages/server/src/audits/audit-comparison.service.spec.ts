@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditStatus, ComparisonChangeType, Severity } from '@seotracker/shared-types';
@@ -228,7 +229,7 @@ describe('AuditComparisonService', () => {
 
       await expect(
         service.listProjectComparisons('s1', 'u1', { limit: 10, offset: 5 }),
-      ).resolves.toEqual({
+      ).resolves.toStrictEqual({
         items: [],
         limit: 10,
         offset: 5,
@@ -254,7 +255,7 @@ describe('AuditComparisonService', () => {
 
       const out = await service.listProjectComparisons('s1', 'u1');
 
-      expect(out.items).toEqual([
+      expect(out.items).toStrictEqual([
         expect.objectContaining({
           baselineRun: RUN_A,
           id: 'c1',
@@ -334,7 +335,7 @@ describe('AuditComparisonService', () => {
 
       await expect(
         service.persistComparisonForRun({ site, targetRunId: 'r-new' }),
-      ).resolves.toEqual({
+      ).resolves.toStrictEqual({
         id: 'c-new',
       });
 

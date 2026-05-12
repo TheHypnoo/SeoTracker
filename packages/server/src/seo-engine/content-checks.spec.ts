@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { IssueCode } from '@seotracker/shared-types';
 import { load } from 'cheerio';
 
@@ -5,7 +6,9 @@ import { runBlogChecks } from './content-checks';
 
 describe('runBlogChecks', () => {
   it('returns [] for non-blog pages', () => {
-    expect(runBlogChecks('https://x.test/about', load('<html></html>'), 'plain text')).toEqual([]);
+    expect(
+      runBlogChecks('https://x.test/about', load('<html></html>'), 'plain text'),
+    ).toStrictEqual([]);
   });
 
   it('emits MISSING_ARTICLE_SCHEMA when blog-like and lacks JSON-LD', () => {

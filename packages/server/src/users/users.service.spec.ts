@@ -1,3 +1,4 @@
+import { describe, expect, it, jest } from '@jest/globals';
 import { UsersService } from './users.service';
 
 function selectLimitRows(rows: unknown[]) {
@@ -42,7 +43,9 @@ describe('UsersService', () => {
     };
     const service = new UsersService(db as never);
 
-    await expect(service.findByEmail('  USER@EXAMPLE.COM  ')).resolves.toEqual([{ id: 'user-1' }]);
+    await expect(service.findByEmail('  USER@EXAMPLE.COM  ')).resolves.toStrictEqual([
+      { id: 'user-1' },
+    ]);
 
     expect(db.select).toHaveBeenCalledTimes(1);
   });
@@ -59,7 +62,7 @@ describe('UsersService', () => {
 
     const preferences = await service.getPreferences('user-1');
 
-    expect(preferences).toEqual({
+    expect(preferences).toStrictEqual({
       activeProjectId: 'project-1',
       emailOnAuditCompleted: true,
       emailOnAuditRegression: true,
@@ -116,7 +119,7 @@ describe('UsersService', () => {
       emailOnCriticalIssues: false,
     });
 
-    expect(preferences).toEqual({
+    expect(preferences).toStrictEqual({
       activeProjectId: 'project-2',
       emailOnAuditCompleted: false,
       emailOnAuditRegression: true,
