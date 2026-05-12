@@ -12,7 +12,7 @@
     ],
     "overrides": [
       {
-        "files": ["src/server/api-proxy.ts", "src/server/health.ts"],
+        "files": ["public/sw.js", "src/server/api-proxy.ts", "src/server/health.ts"],
         "rules": ["knip/files"]
       }
     ]

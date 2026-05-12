@@ -1,6 +1,16 @@
 {
+  "id": "/",
   "short_name": "SEOTracker",
   "name": "SEOTracker - auditorías SEO continuas",
+  "description": "Auditorías SEO con histórico, automatización, alertas y colaboración en equipo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0f172a",
+  "background_color": "#f8fafc",
+  "categories": ["business", "productivity", "utilities"],
+  "lang": "es",
   "icons": [
     {
       "src": "/favicon.svg",
@@ -19,12 +29,5 @@
       "sizes": "512x512",
       "purpose": "any maskable"
     }
-  ],
-  "start_url": "/",
-  "display": "standalone",
-  "theme_color": "#0f172a",
-  "background_color": "#f8fafc",
-  "description": "Auditorías SEO con histórico, automatización, alertas y colaboración en equipo.",
-  "categories": ["business", "productivity", "utilities"],
-  "lang": "es"
+  ]
 }

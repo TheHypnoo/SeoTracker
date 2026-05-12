@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 
 import { AppLayout } from '../components/layout';
 import { ToastProvider } from '../components/toast';
+import { ServiceWorkerRegistration } from '../components/service-worker-registration';
 import { ApiClientError } from '../lib/api-client';
 import { AuthProvider } from '../lib/auth-context';
 import { ProjectProvider } from '../lib/project-context';
@@ -53,6 +54,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { name: 'robots', content: 'index, follow, max-image-preview:large' },
       { name: 'theme-color', content: '#0f172a' },
       { name: 'color-scheme', content: 'light' },
+      { name: 'mobile-web-app-capable', content: 'yes' },
+      { name: 'apple-mobile-web-app-capable', content: 'yes' },
+      { name: 'apple-mobile-web-app-title', content: 'SEOTracker' },
+      { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
     ],
   }),
   shellComponent: RootDocument,
@@ -157,6 +162,7 @@ function RootDocument({ children }: { children: ReactNode }) {
           <AuthProvider>
             <ProjectProvider>
               <ToastProvider>
+                <ServiceWorkerRegistration />
                 <AppLayout>
                   <ErrorBoundary>{children}</ErrorBoundary>
                 </AppLayout>
