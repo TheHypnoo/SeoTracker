@@ -20,6 +20,7 @@ describe('countWords', () => {
     expect(countWords('')).toBe(0);
     expect(countWords('   ')).toBe(0);
   });
+
   it('counts words', () => {
     expect(countWords('hello world  foo')).toBe(3);
   });
@@ -29,9 +30,11 @@ describe('buildShingles', () => {
   it('returns single shingle when fewer words than size', () => {
     expect(buildShingles('a b', 4)).toStrictEqual(new Set(['a b']));
   });
+
   it('returns empty set on empty text', () => {
     expect(buildShingles('', 4).size).toBe(0);
   });
+
   it('builds rolling N-grams', () => {
     const result = buildShingles('a b c d e', 3);
     expect(result.has('a b c')).toBe(true);
@@ -45,9 +48,11 @@ describe('jaccard', () => {
   it('returns 0 when both empty', () => {
     expect(jaccard(new Set(), new Set())).toBe(0);
   });
+
   it('returns 1 when sets equal', () => {
     expect(jaccard(new Set(['a', 'b']), new Set(['a', 'b']))).toBe(1);
   });
+
   it('returns proportion of intersection over union', () => {
     expect(jaccard(new Set(['a', 'b']), new Set(['b', 'c']))).toBeCloseTo(1 / 3);
   });
@@ -96,6 +101,7 @@ describe('detectHeadingSkips', () => {
     const $ = load('<h1>a</h1><h3>b</h3>');
     expect(detectHeadingSkips($)).toStrictEqual([{ from: 1, to: 3 }]);
   });
+
   it('returns empty when sequential', () => {
     const $ = load('<h1>a</h1><h2>b</h2><h3>c</h3>');
     expect(detectHeadingSkips($)).toStrictEqual([]);
@@ -118,6 +124,7 @@ describe('extractJsonLdTypes', () => {
     const $ = load('<script type="application/ld+json">{"@type":"Article"}</script>');
     expect(extractJsonLdTypes($)).toStrictEqual(['Article']);
   });
+
   it('extracts from arrays and @graph', () => {
     const $ = load(
       '<script type="application/ld+json">{"@graph":[{"@type":"Person"},{"@type":["BlogPosting","Article"]}]}</script>',
@@ -125,6 +132,7 @@ describe('extractJsonLdTypes', () => {
     const types = extractJsonLdTypes($);
     expect(types).toStrictEqual(expect.arrayContaining(['Person', 'BlogPosting', 'Article']));
   });
+
   it('ignores invalid JSON', () => {
     const $ = load('<script type="application/ld+json">{ invalid }</script>');
     expect(extractJsonLdTypes($)).toStrictEqual([]);
@@ -179,13 +187,16 @@ describe('isBlogLike', () => {
   it('matches /blog/ in URL', () => {
     expect(isBlogLike('https://x.com/blog/foo', load(''))).toBe(true);
   });
+
   it('matches <article> tag', () => {
     expect(isBlogLike('https://x.com/foo', load('<article>x</article>'))).toBe(true);
   });
+
   it('matches BlogPosting JSON-LD type', () => {
     const $ = load('<script type="application/ld+json">{"@type":"BlogPosting"}</script>');
     expect(isBlogLike('https://x.com/foo', $)).toBe(true);
   });
+
   it('returns false otherwise', () => {
     expect(isBlogLike('https://x.com/about', load('<p>plain</p>'))).toBe(false);
   });
@@ -195,6 +206,7 @@ describe('computeFleschScore', () => {
   it('returns undefined for short text', () => {
     expect(computeFleschScore('hi there')).toBeUndefined();
   });
+
   it('returns a numeric score for long enough text', () => {
     const text =
       'This is a sample paragraph with enough words to compute a score. ' +

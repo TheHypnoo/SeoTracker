@@ -224,29 +224,34 @@ describe('ExportsService', () => {
   it('resolves a ready, non-expired download to its stored path', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'seotracker-export-'));
     const storagePath = path.join(dir, 'history.csv');
-    await writeFile(storagePath, 'Name\nExample\n', 'utf-8');
-    const db = {
-      select: jest.fn().mockReturnValueOnce(
-        selectRows([
-          {
-            fileName: 'history.csv',
-            id: VALID_EXPORT_ID,
-            siteId: 'site-1',
-            status: ExportStatus.COMPLETED,
-            storagePath,
-            expiresAt: new Date(Date.now() + 60_000),
-          },
-        ]),
-      ),
-    };
-    const { service } = makeService(db);
+    let resolved: Awaited<ReturnType<ExportsService['resolveDownload']>>;
 
-    await expect(service.resolveDownload(VALID_EXPORT_ID, 'user-1')).resolves.toStrictEqual({
+    try {
+      await writeFile(storagePath, 'Name\nExample\n', 'utf-8');
+      const db = {
+        select: jest.fn().mockReturnValueOnce(
+          selectRows([
+            {
+              fileName: 'history.csv',
+              id: VALID_EXPORT_ID,
+              siteId: 'site-1',
+              status: ExportStatus.COMPLETED,
+              storagePath,
+              expiresAt: new Date(Date.now() + 60_000),
+            },
+          ]),
+        ),
+      };
+      const { service } = makeService(db);
+      resolved = await service.resolveDownload(VALID_EXPORT_ID, 'user-1');
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+
+    expect(resolved).toStrictEqual({
       fileName: 'history.csv',
       storagePath,
     });
-
-    await rm(dir, { force: true, recursive: true });
   });
 
   it('rejects downloads that are not ready or already expired', async () => {
