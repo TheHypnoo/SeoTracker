@@ -9,7 +9,7 @@ import {
 
 import { ProjectScopedAuditsController } from './project-scoped.controller';
 
-describe('ProjectScopedAuditsController', () => {
+describe('projectScopedAuditsController', () => {
   const auditsService = { listAuditsForProject: jest.fn() };
   const issuesService = { listForProjectScope: jest.fn() };
 

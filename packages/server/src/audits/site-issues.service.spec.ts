@@ -65,7 +65,7 @@ function makeDb(): DbMock {
   };
 }
 
-describe('ProjectIssuesService', () => {
+describe('projectIssuesService', () => {
   let service: ProjectIssuesService;
   let db: DbMock;
   let sites: { getById: jest.Mock; getByIdWithPermission: jest.Mock };

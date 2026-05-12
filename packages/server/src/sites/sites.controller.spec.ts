@@ -8,7 +8,7 @@ import { SitesService } from './sites.service';
 
 const USER = { sub: 'u-1' };
 
-describe('SitesController', () => {
+describe('sitesController', () => {
   let controller: SitesController;
   let service: Record<string, jest.Mock>;
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { OperationalStatusController } from './operational-status.controller';
 
-describe('OperationalStatusController', () => {
+describe('operationalStatusController', () => {
   it('delegates status reads to OperationalStatusService', () => {
     const service = {
       getStatus: jest.fn().mockReturnValue({ status: 'ok' }),

@@ -11,7 +11,7 @@ import { scoreAudit } from './scoring';
 import { SeoEngineService } from './seo-engine.service';
 import { discoverSiteMetadata } from './sitemap-discovery';
 
-jest.mock('../common/utils/safe-fetch', () => {
+jest.mock<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch', () => {
   class MockSsrfBlockedError extends Error {}
   return {
     SsrfBlockedError: MockSsrfBlockedError,
@@ -19,30 +19,30 @@ jest.mock('../common/utils/safe-fetch', () => {
   };
 });
 
-jest.mock('./homepage-html-analyzer', () => ({
+jest.mock<typeof import('./homepage-html-analyzer')>('./homepage-html-analyzer', () => ({
   analyzeHomepageHtml: jest.fn(),
 }));
-jest.mock('./content-checks', () => ({
+jest.mock<typeof import('./content-checks')>('./content-checks', () => ({
   runBlogChecks: jest.fn(),
 }));
-jest.mock('./sitemap-discovery', () => ({
+jest.mock<typeof import('./sitemap-discovery')>('./sitemap-discovery', () => ({
   discoverSiteMetadata: jest.fn(),
 }));
-jest.mock('./link-graph', () => ({
+jest.mock<typeof import('./link-graph')>('./link-graph', () => ({
   buildLinkGraph: jest.fn(),
 }));
-jest.mock('./page-crawler', () => ({
+jest.mock<typeof import('./page-crawler')>('./page-crawler', () => ({
   crawlPages: jest.fn(),
 }));
-jest.mock('./cross-page-checks', () => ({
+jest.mock<typeof import('./cross-page-checks')>('./cross-page-checks', () => ({
   runCrossPageChecks: jest.fn(),
 }));
-jest.mock('./scoring', () => ({
+jest.mock<typeof import('./scoring')>('./scoring', () => ({
   getIssueCategory: jest.fn(() => 'TECHNICAL'),
   scoreAudit: jest.fn(),
 }));
 
-describe('SeoEngineService', () => {
+describe('seoEngineService', () => {
   const configService = {
     get: jest.fn((key: string) => {
       const values: Record<string, number> = {

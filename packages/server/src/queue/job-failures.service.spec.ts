@@ -22,7 +22,7 @@ const buildConfig = (overrides: Record<string, unknown> = {}) =>
 
 const fetchMock = jest.fn();
 
-describe('JobFailuresService', () => {
+describe('jobFailuresService', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {

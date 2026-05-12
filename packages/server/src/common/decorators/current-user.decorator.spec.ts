@@ -17,7 +17,7 @@ function makeCtx(user: unknown): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-describe('CurrentUser decorator', () => {
+describe('currentUser decorator', () => {
   it('exposes a callable decorator', () => {
     expect(typeof CurrentUser).toBe('function');
   });

@@ -12,7 +12,7 @@ function makeRequest(cookies: Record<string, string> = {}) {
 }
 const RES = {} as Response;
 
-describe('AuthController', () => {
+describe('authController', () => {
   let controller: AuthController;
   let authService: {
     register: jest.Mock;

@@ -64,17 +64,17 @@ describe('envSchema', () => {
     expect(() => envSchema.parse({ ...BASE_ENV, AUDIT_MAX_DEPTH: '0' })).toThrow(/Too small/);
   });
 
-  it('TRUST_PROXY defaults to 0 (no proxy)', () => {
+  it('tRUST_PROXY defaults to 0 (no proxy)', () => {
     const env = envSchema.parse(BASE_ENV);
     expect(env.TRUST_PROXY).toBe(0);
   });
 
-  it('OTEL_ENABLED is false by default and accepts "true" string', () => {
+  it('oTEL_ENABLED is false by default and accepts "true" string', () => {
     expect(envSchema.parse(BASE_ENV).OTEL_ENABLED).toBe(false);
     expect(envSchema.parse({ ...BASE_ENV, OTEL_ENABLED: 'true' }).OTEL_ENABLED).toBe(true);
   });
 
-  it('ALERT_WEBHOOK_URL is optional but rejects malformed URLs', () => {
+  it('aLERT_WEBHOOK_URL is optional but rejects malformed URLs', () => {
     expect(envSchema.parse(BASE_ENV).ALERT_WEBHOOK_URL).toBeUndefined();
     expect(() => envSchema.parse({ ...BASE_ENV, ALERT_WEBHOOK_URL: 'not-a-url' })).toThrow(
       /Invalid URL/,

@@ -10,7 +10,7 @@ import { ExportsService } from './exports.service';
 
 const USER = { sub: 'u-1' };
 
-describe('ExportsController', () => {
+describe('exportsController', () => {
   let controller: ExportsController;
   let service: Record<string, jest.Mock>;
 

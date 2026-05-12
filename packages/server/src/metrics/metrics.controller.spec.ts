@@ -3,7 +3,7 @@ import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 
 import { MetricsController } from './metrics.controller';
 
-describe('MetricsController', () => {
+describe('metricsController', () => {
   const metricsService = {
     contentType: jest.fn().mockReturnValue('text/plain; version=0.0.4'),
     metrics: jest.fn().mockResolvedValue('metric_name 1\n'),

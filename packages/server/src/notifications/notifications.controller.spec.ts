@@ -3,7 +3,7 @@ import { EmailDeliveryStatus } from '@seotracker/shared-types';
 
 import { NotificationsController } from './notifications.controller';
 
-describe('NotificationsController', () => {
+describe('notificationsController', () => {
   const notificationsService = {
     listEmailDeliveriesForProject: jest.fn(),
     listForUser: jest.fn(),

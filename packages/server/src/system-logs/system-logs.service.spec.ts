@@ -17,7 +17,7 @@ function makeDb(): DbMock {
   };
 }
 
-describe('SystemLogsService', () => {
+describe('systemLogsService', () => {
   let service: SystemLogsService;
   let db: DbMock;
 

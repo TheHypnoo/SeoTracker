@@ -39,7 +39,7 @@ function makeDb(): DbMock {
 
 const ISO_DATE = new Date('2026-01-01T00:00:00Z');
 
-describe('HistoryCsvStrategy', () => {
+describe('historyCsvStrategy', () => {
   let strategy: HistoryCsvStrategy;
   let db: DbMock;
 
@@ -177,7 +177,7 @@ describe('HistoryCsvStrategy', () => {
   });
 });
 
-describe('IssuesCsvStrategy', () => {
+describe('issuesCsvStrategy', () => {
   let strategy: IssuesCsvStrategy;
   let db: DbMock;
 
@@ -225,7 +225,7 @@ describe('IssuesCsvStrategy', () => {
   });
 });
 
-describe('MetricsCsvStrategy', () => {
+describe('metricsCsvStrategy', () => {
   let strategy: MetricsCsvStrategy;
   let db: DbMock;
 
@@ -259,7 +259,7 @@ describe('MetricsCsvStrategy', () => {
   });
 });
 
-describe('ComparisonCsvStrategy', () => {
+describe('comparisonCsvStrategy', () => {
   let strategy: ComparisonCsvStrategy;
   let db: DbMock;
 
@@ -313,7 +313,7 @@ describe('ComparisonCsvStrategy', () => {
   });
 });
 
-describe('AuditResultCsvStrategy', () => {
+describe('auditResultCsvStrategy', () => {
   let strategy: AuditResultCsvStrategy;
   let db: DbMock;
 
@@ -372,7 +372,7 @@ describe('AuditResultCsvStrategy', () => {
   });
 });
 
-describe('ActionPlanCsvStrategy', () => {
+describe('actionPlanCsvStrategy', () => {
   let strategy: ActionPlanCsvStrategy;
   let db: DbMock;
 
@@ -423,7 +423,7 @@ describe('ActionPlanCsvStrategy', () => {
   });
 });
 
-describe('IndexabilityCsvStrategy', () => {
+describe('indexabilityCsvStrategy', () => {
   let strategy: IndexabilityCsvStrategy;
   let db: DbMock;
 

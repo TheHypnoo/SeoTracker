@@ -7,7 +7,7 @@ import { WebhooksService } from './webhooks.service';
 
 const USER = { sub: 'u-1' };
 
-describe('WebhooksController', () => {
+describe('webhooksController', () => {
   let controller: WebhooksController;
   let webhooks: Record<string, jest.Mock>;
   let audits: Record<string, jest.Mock>;

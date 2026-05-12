@@ -5,7 +5,7 @@ import { HEADERS_METADATA } from '@nestjs/common/constants';
 import { PublicBadgesController } from './public-badges.controller';
 import { PublicBadgesService } from './public-badges.service';
 
-describe('PublicBadgesController', () => {
+describe('publicBadgesController', () => {
   let controller: PublicBadgesController;
   let service: { renderSvg: jest.Mock };
 

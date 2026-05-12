@@ -27,27 +27,51 @@ async function loadTracing(): Promise<LoadedTracing> {
     start,
   }));
 
-  jest.doMock('@opentelemetry/api', () => ({
-    diag: { setLogger: diagSetLogger },
-    DiagConsoleLogger: jest.fn(),
-    DiagLogLevel: { DEBUG: 'DEBUG' },
-  }));
-  jest.doMock('@opentelemetry/auto-instrumentations-node', () => ({
-    getNodeAutoInstrumentations,
-  }));
-  jest.doMock('@opentelemetry/exporter-trace-otlp-http', () => ({
-    OTLPTraceExporter: otlpCtor,
-  }));
-  jest.doMock('@opentelemetry/resources', () => ({
-    resourceFromAttributes,
-  }));
-  jest.doMock('@opentelemetry/sdk-node', () => ({
-    NodeSDK: nodeSdkCtor,
-  }));
-  jest.doMock('@opentelemetry/semantic-conventions', () => ({
-    ATTR_SERVICE_NAME: 'service.name',
-    ATTR_SERVICE_VERSION: 'service.version',
-  }));
+  jest.doMock<typeof import('@opentelemetry/api')>(
+    '@opentelemetry/api',
+    () =>
+      ({
+        diag: { setLogger: diagSetLogger },
+        DiagConsoleLogger: jest.fn(),
+        DiagLogLevel: { DEBUG: 'DEBUG' },
+      }) as unknown as typeof import('@opentelemetry/api'),
+  );
+  jest.doMock<typeof import('@opentelemetry/auto-instrumentations-node')>(
+    '@opentelemetry/auto-instrumentations-node',
+    () =>
+      ({
+        getNodeAutoInstrumentations,
+      }) as unknown as typeof import('@opentelemetry/auto-instrumentations-node'),
+  );
+  jest.doMock<typeof import('@opentelemetry/exporter-trace-otlp-http')>(
+    '@opentelemetry/exporter-trace-otlp-http',
+    () =>
+      ({
+        OTLPTraceExporter: otlpCtor,
+      }) as unknown as typeof import('@opentelemetry/exporter-trace-otlp-http'),
+  );
+  jest.doMock<typeof import('@opentelemetry/resources')>(
+    '@opentelemetry/resources',
+    () =>
+      ({
+        resourceFromAttributes,
+      }) as unknown as typeof import('@opentelemetry/resources'),
+  );
+  jest.doMock<typeof import('@opentelemetry/sdk-node')>(
+    '@opentelemetry/sdk-node',
+    () =>
+      ({
+        NodeSDK: nodeSdkCtor,
+      }) as unknown as typeof import('@opentelemetry/sdk-node'),
+  );
+  jest.doMock<typeof import('@opentelemetry/semantic-conventions')>(
+    '@opentelemetry/semantic-conventions',
+    () =>
+      ({
+        ATTR_SERVICE_NAME: 'service.name',
+        ATTR_SERVICE_VERSION: 'service.version',
+      }) as unknown as typeof import('@opentelemetry/semantic-conventions'),
+  );
 
   let tracing: typeof import('./tracing') | undefined;
   jest.isolateModules(() => {

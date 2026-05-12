@@ -18,7 +18,7 @@ import {
 } from './crawler';
 
 // Mock safeFetch — every helper in crawler.ts hits the network through it.
-jest.mock('../common/utils/safe-fetch', () => ({
+jest.mock<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch', () => ({
   safeFetch: jest.fn(),
   SsrfBlockedError: class SsrfBlockedError extends Error {},
 }));

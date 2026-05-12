@@ -52,7 +52,7 @@ function makeDb(): DbMock {
   };
 }
 
-describe('ProjectsService', () => {
+describe('projectsService', () => {
   let service: ProjectsService;
   let db: DbMock;
   let events: { emit: jest.Mock; emitAsync: jest.Mock };

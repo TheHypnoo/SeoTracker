@@ -57,7 +57,7 @@ function makeDb(): DbMock {
   };
 }
 
-describe('SitesService', () => {
+describe('sitesService', () => {
   let service: SitesService;
   let db: DbMock;
   let projects: { assertMember: jest.Mock; assertPermission: jest.Mock };

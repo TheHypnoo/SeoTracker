@@ -19,7 +19,7 @@ function makeDb(): DbMock {
   };
 }
 
-describe('OnboardingService', () => {
+describe('onboardingService', () => {
   let service: OnboardingService;
   let db: DbMock;
   let projects: { createProject: jest.Mock };

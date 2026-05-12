@@ -24,7 +24,7 @@ function query<T>(rows: T[]) {
   return builder;
 }
 
-describe('AuditReadingService', () => {
+describe('auditReadingService', () => {
   const sitesService = {
     getById: jest.fn().mockResolvedValue({
       domain: 'example.com',

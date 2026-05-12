@@ -20,7 +20,7 @@ function makeRes() {
   } as unknown as Response & { headers: Record<string, string> };
 }
 
-describe('RequestIdMiddleware', () => {
+describe('requestIdMiddleware', () => {
   let middleware: RequestIdMiddleware;
   beforeEach(() => {
     middleware = new RequestIdMiddleware();

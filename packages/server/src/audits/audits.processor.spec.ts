@@ -15,7 +15,7 @@ type WorkerInstance = {
 
 const mockWorkerInstances: WorkerInstance[] = [];
 
-jest.mock('bullmq', () => ({
+jest.mock<typeof import('bullmq')>('bullmq', () => ({
   Worker: jest.fn().mockImplementation((name, processor, options) => {
     const handlers: WorkerInstance['handlers'] = {};
     const instance: WorkerInstance = {
@@ -31,10 +31,10 @@ jest.mock('bullmq', () => ({
     };
     mockWorkerInstances.push(instance);
     return instance;
-  }),
+  }) as unknown as typeof import('bullmq').Worker,
 }));
 
-describe('AuditsProcessor', () => {
+describe('auditsProcessor', () => {
   const auditsService = { processQueuedRun: jest.fn() };
   const configService = {
     get: jest.fn((key: string) => {

@@ -16,7 +16,7 @@ async function check(password: string) {
   return errors.flatMap((e) => Object.values(e.constraints ?? {}));
 }
 
-describe('StrongPassword (decorator)', () => {
+describe('strongPassword (decorator)', () => {
   it('rejects passwords shorter than the minimum', async () => {
     const errs = await check('Ab1');
     expect(errs.length).toBeGreaterThan(0);

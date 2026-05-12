@@ -20,7 +20,7 @@ function makeQueue(counts: Record<string, number> = {}) {
   };
 }
 
-describe('BullmqMetricsCollector', () => {
+describe('bullmqMetricsCollector', () => {
   const configService = { get: jest.fn() };
   const metricsService = { bullmqQueueDepth: { set: jest.fn() } };
 

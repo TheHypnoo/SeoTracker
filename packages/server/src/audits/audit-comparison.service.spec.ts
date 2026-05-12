@@ -53,7 +53,7 @@ const RUN_B = {
   createdAt: new Date('2026-01-02T00:00:00Z'),
 };
 
-describe('AuditComparisonService', () => {
+describe('auditComparisonService', () => {
   let service: AuditComparisonService;
   let db: DbMock;
   let sites: { getById: jest.Mock };

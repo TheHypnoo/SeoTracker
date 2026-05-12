@@ -6,7 +6,7 @@ import { ProjectsService } from './projects.service';
 
 const USER = { sub: 'u-1' };
 
-describe('ProjectsController', () => {
+describe('projectsController', () => {
   let controller: ProjectsController;
   let service: Record<string, jest.Mock>;
 

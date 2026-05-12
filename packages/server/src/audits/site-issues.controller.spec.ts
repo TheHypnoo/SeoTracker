@@ -5,7 +5,7 @@ import { IssueState } from '@seotracker/shared-types';
 import { ProjectIssuesController } from './site-issues.controller';
 import { ProjectIssuesService } from './site-issues.service';
 
-describe('ProjectIssuesController', () => {
+describe('projectIssuesController', () => {
   let controller: ProjectIssuesController;
   let service: Record<string, jest.Mock>;
 

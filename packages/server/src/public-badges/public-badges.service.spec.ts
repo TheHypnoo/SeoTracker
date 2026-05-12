@@ -5,7 +5,7 @@ import { DRIZZLE } from '../database/database.constants';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
 import { PublicBadgesService } from './public-badges.service';
 
-describe('PublicBadgesService', () => {
+describe('publicBadgesService', () => {
   let service: PublicBadgesService;
   let db: {
     select: jest.Mock;

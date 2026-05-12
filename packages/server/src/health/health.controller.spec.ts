@@ -6,7 +6,7 @@ import { DRIZZLE } from '../database/database.constants';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
 import { HealthController } from './health.controller';
 
-describe('HealthController', () => {
+describe('healthController', () => {
   let controller: HealthController;
   let db: { execute: jest.Mock };
   let redis: { ping: jest.Mock };

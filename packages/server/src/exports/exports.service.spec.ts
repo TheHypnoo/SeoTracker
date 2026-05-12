@@ -93,7 +93,7 @@ function makeService(db: Record<string, jest.Mock>) {
   };
 }
 
-describe('ExportsService', () => {
+describe('exportsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });

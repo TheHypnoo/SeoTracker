@@ -105,7 +105,7 @@ describe('isScheduleDue', () => {
   });
 });
 
-describe('SchedulingService', () => {
+describe('schedulingService', () => {
   it('runs due schedules under a distributed lock and stores lastRunAt', async () => {
     const db = makeDb([
       {

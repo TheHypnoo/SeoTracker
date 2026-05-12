@@ -23,7 +23,7 @@ function makeContext(opts: {
   } as unknown as ExecutionContext;
 }
 
-describe('HttpMetricsInterceptor', () => {
+describe('httpMetricsInterceptor', () => {
   let interceptor: HttpMetricsInterceptor;
   let metrics: MetricsService;
 

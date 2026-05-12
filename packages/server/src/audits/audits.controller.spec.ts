@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { AuditsController } from './audits.controller';
 
-describe('AuditsController', () => {
+describe('auditsController', () => {
   const auditsService = {
     getAuditActionPlan: jest.fn(),
     getAuditIndexability: jest.fn(),

@@ -6,7 +6,7 @@ import { OutboundWebhooksService } from './outbound-webhooks.service';
 
 const USER = { sub: 'u-1' };
 
-describe('OutboundWebhooksController', () => {
+describe('outboundWebhooksController', () => {
   let controller: OutboundWebhooksController;
   let service: Record<string, jest.Mock>;
 

@@ -31,7 +31,7 @@ function mockExecutionContext(opts: {
   } as unknown as ExecutionContext;
 }
 
-describe('PermissionGuard', () => {
+describe('permissionGuard', () => {
   let reflector: Reflector;
   let projectsService: { assertPermission: jest.Mock };
   let db: { select: jest.Mock; from: jest.Mock; where: jest.Mock };
@@ -124,7 +124,7 @@ describe('PermissionGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(InternalServerErrorException);
   });
 
-  it('REQUIRED_PERMISSION_KEY constant is consistent with the decorator metadata', () => {
+  it('rEQUIRED_PERMISSION_KEY constant is consistent with the decorator metadata', () => {
     expect(REQUIRED_PERMISSION_KEY).toBe('required_permission');
   });
 });

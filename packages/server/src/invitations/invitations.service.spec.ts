@@ -43,7 +43,7 @@ function makeDb(): DbMock {
   };
 }
 
-describe('InvitationsService', () => {
+describe('invitationsService', () => {
   let service: InvitationsService;
   let db: DbMock;
   let projects: {

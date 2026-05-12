@@ -77,7 +77,7 @@ describe('buildRemediationPrompt', () => {
   });
 });
 
-describe('SeoActionPlanService', () => {
+describe('seoActionPlanService', () => {
   const site = {
     id: 'site-1',
     name: 'Example',

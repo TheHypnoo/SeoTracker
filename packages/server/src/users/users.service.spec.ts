@@ -36,7 +36,7 @@ function insertReturning(rows: unknown[] = []) {
   };
 }
 
-describe('UsersService', () => {
+describe('usersService', () => {
   it('normalizes email lookups before querying', async () => {
     const db = {
       select: jest.fn().mockReturnValue(selectLimitRows([{ id: 'user-1' }])),

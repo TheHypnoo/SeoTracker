@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { AuditsService } from './audits.service';
 import { ProjectComparisonsController } from './site-comparisons.controller';
 
-describe('ProjectComparisonsController', () => {
+describe('projectComparisonsController', () => {
   let controller: ProjectComparisonsController;
   let service: Record<string, jest.Mock>;
 
