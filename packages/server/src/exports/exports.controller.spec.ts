@@ -83,13 +83,15 @@ describe('ExportsController', () => {
       await writeFile(storagePath, 'Name\nExample\n', 'utf-8');
       service.resolveDownload.mockResolvedValueOnce({ fileName: 'history.csv', storagePath });
       const chunks: Buffer[] = [];
-      const response = new Writable({
-        write(chunk: Buffer, _encoding, callback) {
-          chunks.push(Buffer.from(chunk));
-          callback();
-        },
-      }) as Writable & { setHeader: jest.Mock };
-      response.setHeader = jest.fn();
+      const response = Object.assign(
+        new Writable({
+          write(chunk: Buffer, _encoding, callback) {
+            chunks.push(Buffer.from(chunk));
+            callback();
+          },
+        }),
+        { setHeader: jest.fn() },
+      );
 
       await controller.download(USER, 'e1', response as never);
       streamed = Buffer.concat(chunks).toString('utf-8');
