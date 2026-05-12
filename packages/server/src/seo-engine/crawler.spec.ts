@@ -46,9 +46,9 @@ function xmlResponse(status: number, body: string, headers: Record<string, strin
   });
 }
 
-beforeEach(() => safeFetch.mockReset());
-
 describe('fetchRobots', () => {
+  beforeEach(() => safeFetch.mockReset());
+
   it('parses Sitemap directives (one per line)', async () => {
     safeFetch.mockResolvedValueOnce(
       textResponse(
@@ -98,6 +98,8 @@ describe('fetchRobots', () => {
 });
 
 describe('checkSoft404', () => {
+  beforeEach(() => safeFetch.mockReset());
+
   it('flags soft 404 when nonexistent URL returns 200', async () => {
     safeFetch.mockResolvedValueOnce(htmlResponse(200, '<html>fake page</html>'));
     const out = await checkSoft404('https://x.test', 1000, 'UA');
@@ -135,6 +137,8 @@ describe('extractSitemapHintsFromHtml', () => {
 });
 
 describe('probeSitemap', () => {
+  beforeEach(() => safeFetch.mockReset());
+
   it('detects <urlset> as a valid sitemap', async () => {
     safeFetch.mockResolvedValueOnce(
       xmlResponse(200, '<?xml version="1.0"?><urlset><url><loc>x</loc></url></urlset>'),
@@ -173,6 +177,8 @@ describe('probeSitemap', () => {
 });
 
 describe('analyzeSitemap', () => {
+  beforeEach(() => safeFetch.mockReset());
+
   it('counts <url> entries in a urlset', async () => {
     safeFetch.mockResolvedValueOnce(
       xmlResponse(
@@ -217,6 +223,8 @@ describe('analyzeSitemap', () => {
 });
 
 describe('extractSitemapUrls', () => {
+  beforeEach(() => safeFetch.mockReset());
+
   it('returns urls from a flat urlset, deduped + tracking-stripped', async () => {
     safeFetch.mockResolvedValueOnce(
       xmlResponse(
@@ -290,6 +298,8 @@ describe('extractSitemapUrls', () => {
 });
 
 describe('existsUrl', () => {
+  beforeEach(() => safeFetch.mockReset());
+
   it('returns exists=true when HEAD responds 200', async () => {
     safeFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
     const result = await existsUrl('https://x.test/page', 1000, 'UA');
@@ -326,6 +336,8 @@ describe('existsUrl', () => {
 });
 
 describe('analyzeInternalPage', () => {
+  beforeEach(() => safeFetch.mockReset());
+
   it('returns early on 4xx, no issues collected', async () => {
     safeFetch.mockResolvedValueOnce(htmlResponse(404, 'not found'));
     const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');

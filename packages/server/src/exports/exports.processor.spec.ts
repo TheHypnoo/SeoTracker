@@ -7,6 +7,7 @@ import { ExportsProcessor } from './exports.processor';
 type WorkerInstance = {
   close: jest.Mock;
   handlers: Record<string, (job: Record<string, unknown> | null, error: Error) => void>;
+  on: jest.Mock;
   processor: (job: { data: { exportId: string } }) => Promise<void>;
 };
 
@@ -14,15 +15,16 @@ const mockWorkerInstances: WorkerInstance[] = [];
 
 jest.mock('bullmq', () => ({
   Worker: jest.fn().mockImplementation((_name, processor, _options) => {
-    const instance = {
+    const handlers: WorkerInstance['handlers'] = {};
+    const instance: WorkerInstance = {
       close: jest.fn().mockResolvedValue(undefined),
-      handlers: {},
+      handlers,
+      on: jest.fn((event: string, handler) => {
+        handlers[event] = handler;
+        return instance;
+      }),
       processor,
-    } as WorkerInstance & { on: jest.Mock };
-    instance.on = jest.fn((event: string, handler) => {
-      instance.handlers[event] = handler;
-      return instance;
-    });
+    };
     mockWorkerInstances.push(instance);
     return instance;
   }),

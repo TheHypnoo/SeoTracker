@@ -8,6 +8,7 @@ type WorkerInstance = {
   close: jest.Mock;
   handlers: Record<string, (job: Record<string, unknown> | null, error: Error) => void>;
   name: string;
+  on: jest.Mock;
   options: Record<string, unknown>;
   processor: (job: { data: { auditRunId: string } }) => Promise<void>;
 };
@@ -16,17 +17,18 @@ const mockWorkerInstances: WorkerInstance[] = [];
 
 jest.mock('bullmq', () => ({
   Worker: jest.fn().mockImplementation((name, processor, options) => {
+    const handlers: WorkerInstance['handlers'] = {};
     const instance: WorkerInstance = {
       close: jest.fn().mockResolvedValue(undefined),
-      handlers: {},
+      handlers,
       name,
+      on: jest.fn((event: string, handler) => {
+        handlers[event] = handler;
+        return instance;
+      }),
       options,
       processor,
     };
-    (instance as unknown as { on: jest.Mock }).on = jest.fn((event: string, handler) => {
-      instance.handlers[event] = handler;
-      return instance;
-    });
     mockWorkerInstances.push(instance);
     return instance;
   }),

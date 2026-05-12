@@ -12,8 +12,6 @@ const jestRules = {
   'jest/no-untyped-mock-factory': 'off',
   'jest/prefer-called-with': 'off',
   'jest/prefer-lowercase-title': 'off',
-  'jest/prefer-spy-on': 'off',
-  'jest/require-top-level-describe': 'off',
 };
 
 const jestOverrides = (jest.overrides ?? []).map((override) => ({

@@ -234,9 +234,7 @@ describe('OutboundWebhooksService', () => {
 
       // The deliveries query terminates at .limit(N) — we capture the arg.
       const limitSpy = jest.fn().mockResolvedValue([]);
-      (db as DbMock & { orderBy?: jest.Mock }).orderBy = jest
-        .fn()
-        .mockReturnValue({ limit: limitSpy });
+      db.orderBy.mockReturnValue({ limit: limitSpy });
 
       await service.listDeliveries('p1', 'w1', 'u-owner', { limit: 999 });
 
