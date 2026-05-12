@@ -69,8 +69,8 @@ export function useFormSubmitHandler(
       }
 
       setError(null);
-      void Promise.resolve(formOrCallback.handleSubmit()).catch((reason: unknown) => {
-        setError(reason instanceof Error ? reason.message : defaultErrorMessage);
+      void Promise.resolve(formOrCallback.handleSubmit()).catch((caughtError: unknown) => {
+        setError(caughtError instanceof Error ? caughtError.message : defaultErrorMessage);
       });
     },
     [formOrCallback, defaultErrorMessage],

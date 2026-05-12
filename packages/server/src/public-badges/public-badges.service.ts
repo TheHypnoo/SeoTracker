@@ -130,7 +130,7 @@ function badgeTone(state: BadgeState, score?: number): string {
 }
 
 function escapeXml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
+  return s.replaceAll(/[&<>"']/g, (c) => {
     switch (c) {
       case '&':
         return '&amp;';

@@ -1075,16 +1075,16 @@ function filterIssues(
     if (!query) return true;
 
     const info = getIssueCodeInfo(issue.issueCode);
-    return [
+    const searchableValues = [
       issue.issueCode,
       issue.message,
       issue.resourceUrl,
       issue.category,
       info.title,
       info.description,
-    ]
-      .filter((value): value is string => Boolean(value))
-      .some((value) => value.toLowerCase().includes(query));
+    ].filter(Boolean) as string[];
+
+    return searchableValues.some((value) => value.toLowerCase().includes(query));
   });
 }
 

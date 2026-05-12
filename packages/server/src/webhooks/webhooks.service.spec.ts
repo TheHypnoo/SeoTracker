@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { createHmac } from 'crypto';
+import { createHmac } from 'node:crypto';
 
 import { DRIZZLE } from '../database/database.constants';
 import { ProjectsService } from '../projects/projects.service';

@@ -96,11 +96,12 @@ export function SecretModal({ open, onOpenChange, webhook, basePath, onRotated }
       .then((res) => {
         if (!cancelled) dispatch({ type: 'loaded', secret: res.secret });
       })
-      .catch((err: unknown) => {
+      .catch((caughtError: unknown) => {
         if (!cancelled) {
           dispatch({
             type: 'failed',
-            message: err instanceof Error ? err.message : 'No se pudo cargar el secreto',
+            message:
+              caughtError instanceof Error ? caughtError.message : 'No se pudo cargar el secreto',
           });
         }
       });
@@ -127,10 +128,10 @@ export function SecretModal({ open, onOpenChange, webhook, basePath, onRotated }
       const res = await auth.api.get<{ secret: string }>(`${basePath}/${webhook.id}/secret`);
       dispatch({ type: 'rotate-success', secret: res.secret });
       onRotated();
-    } catch (err) {
+    } catch (caughtError) {
       dispatch({
         type: 'rotate-failed',
-        message: err instanceof Error ? err.message : 'No se pudo rotar el secreto',
+        message: caughtError instanceof Error ? caughtError.message : 'No se pudo rotar el secreto',
       });
     }
   };

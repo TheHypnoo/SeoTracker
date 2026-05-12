@@ -1,9 +1,14 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { AuditTrigger, IndexabilityStatus } from '@seotracker/shared-types';
-import { AuditStatus, type PaginatedResponse, Severity } from '@seotracker/shared-types';
+import {
+  AuditStatus,
+  type AuditTrigger,
+  type IndexabilityStatus,
+  type PaginatedResponse,
+  Severity,
+} from '@seotracker/shared-types';
 import { and, count, desc, eq, gte, inArray, lt, lte } from 'drizzle-orm';
 
-import type { PaginationInput } from '../common/dto/pagination.dto';
+import { DEFAULT_PAGINATION, type PaginationInput } from '../common/dto/pagination.dto';
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import {
@@ -350,7 +355,7 @@ export class AuditReadingService {
   async getAuditIssues(
     auditId: string,
     userId: string,
-    pagination: PaginationInput = { limit: 50, offset: 0 },
+    pagination: PaginationInput = DEFAULT_PAGINATION,
   ): Promise<
     PaginatedResponse<
       typeof auditIssues.$inferSelect & {

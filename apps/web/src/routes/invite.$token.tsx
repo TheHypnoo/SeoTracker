@@ -32,8 +32,12 @@ function InviteTokenPage() {
           void auth.api
             .post('/projects/invites/accept', { token })
             .then(() => setMessage('Invitación aceptada.'))
-            .catch((error) =>
-              setError(error instanceof Error ? error.message : 'No se pudo aceptar la invitación'),
+            .catch((caughtError) =>
+              setError(
+                caughtError instanceof Error
+                  ? caughtError.message
+                  : 'No se pudo aceptar la invitación',
+              ),
             )
             .finally(() => setSubmitting(false));
         }}

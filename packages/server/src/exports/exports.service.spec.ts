@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ExportFormat, ExportKind, ExportStatus, Permission } from '@seotracker/shared-types';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
-import os from 'os';
-import path from 'path';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 import { ExportsService } from './exports.service';
 

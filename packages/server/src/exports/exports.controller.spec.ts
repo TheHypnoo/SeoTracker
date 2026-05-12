@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
-import os from 'os';
-import path from 'path';
-import { Writable } from 'stream';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { Writable } from 'node:stream';
 
 import { ExportsController } from './exports.controller';
 import { ExportsService } from './exports.service';

@@ -71,7 +71,7 @@ describe('detectDuplicateContent', () => {
   });
 
   it('emits pair when similarity above threshold', () => {
-    const text = Array(60).fill('cat dog fish').join(' ');
+    const text = Array.from({ length: 60 }, () => 'cat dog fish').join(' ');
     const pairs = detectDuplicateContent(
       [
         { url: 'a', text },

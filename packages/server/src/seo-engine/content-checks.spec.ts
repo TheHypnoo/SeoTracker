@@ -58,7 +58,8 @@ describe('runBlogChecks', () => {
 
   it('emits POOR_READABILITY when Flesch < 30', () => {
     // Long sentence with rare/long words → low Flesch
-    const text = (Array(60).fill('antidisestablishmentarianism').join(' ') + '.').repeat(2);
+    const text =
+      `${Array.from({ length: 60 }, () => 'antidisestablishmentarianism').join(' ')}.`.repeat(2);
     const $ = load('<article>x</article>');
     const results = runBlogChecks('https://x.test/blog/y', $, text);
     expect(results.find((r) => r.issueCode === IssueCode.POOR_READABILITY)).toBeDefined();

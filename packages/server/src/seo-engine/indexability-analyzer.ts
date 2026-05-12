@@ -21,8 +21,8 @@ export function buildIndexabilityMatrix(input: BuildIndexabilityInput): SeoUrlIn
 
   for (const page of pages) {
     const key = normalizeForComparison(page.url);
-    if (byUrl.has(key)) {
-      const existing = byUrl.get(key)!;
+    const existing = byUrl.get(key);
+    if (existing) {
       byUrl.set(key, mergeInspection(existing, inspectPage(page, sitemapSet, robotsBlocksAll)));
       continue;
     }
@@ -31,8 +31,8 @@ export function buildIndexabilityMatrix(input: BuildIndexabilityInput): SeoUrlIn
 
   for (const sitemapUrl of sitemapUrls) {
     const key = normalizeForComparison(sitemapUrl);
-    if (byUrl.has(key)) {
-      const existing = byUrl.get(key)!;
+    const existing = byUrl.get(key);
+    if (existing) {
       byUrl.set(key, {
         ...existing,
         sitemapIncluded: true,

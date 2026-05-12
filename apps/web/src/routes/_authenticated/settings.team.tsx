@@ -225,9 +225,9 @@ function InvitePanel({
         onSubmit={createSubmitHandler(async () => {
           try {
             await inviteForm.handleSubmit();
-          } catch (reason) {
+          } catch (error) {
             setInviteError(
-              reason instanceof Error ? reason.message : 'No se pudo enviar la invitación',
+              error instanceof Error ? error.message : 'No se pudo enviar la invitación',
             );
           }
         })}

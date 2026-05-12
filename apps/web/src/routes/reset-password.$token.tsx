@@ -46,8 +46,10 @@ function ResetPasswordPage() {
   const handleResetPasswordSubmit = useFormSubmitHandler(async () => {
     try {
       await form.handleSubmit();
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'No se pudo restablecer la contraseña');
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'No se pudo restablecer la contraseña',
+      );
     }
   });
 
@@ -89,7 +91,6 @@ function ResetPasswordPage() {
                       if (!/\d/.test(value)) {
                         return 'Debe incluir al menos un número';
                       }
-                      return;
                     },
                   }}
                 >

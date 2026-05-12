@@ -87,8 +87,8 @@ function DashboardPage() {
     const trend = dashboard.data?.trend ?? [];
     if (trend.length === 0) return null;
     const scores = trend.map((p) => p.score);
-    const last = scores[scores.length - 1];
-    const first = scores[0];
+    const last = scores.at(-1) ?? 0;
+    const first = scores[0] ?? 0;
     const avg = Math.round(scores.reduce((acc, s) => acc + s, 0) / scores.length);
     const highest = Math.max(...scores);
     const lowest = Math.min(...scores);
@@ -251,8 +251,14 @@ function DashboardPage() {
               {
                 icon: <Gauge size={16} aria-hidden="true" />,
                 label: 'Score medio',
-                value: data.summary.averageScore != null ? `${data.summary.averageScore}` : '--',
-                suffix: data.summary.averageScore != null ? '/ 100' : undefined,
+                value:
+                  data.summary.averageScore !== null && data.summary.averageScore !== undefined
+                    ? `${data.summary.averageScore}`
+                    : '--',
+                suffix:
+                  data.summary.averageScore !== null && data.summary.averageScore !== undefined
+                    ? '/ 100'
+                    : undefined,
                 tone: 'emerald',
               },
               {

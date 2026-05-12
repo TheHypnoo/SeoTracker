@@ -158,7 +158,7 @@ describe(ApiClient, () => {
       status: 400,
       message: 'email must be valid. password too short',
     });
-    await expect(client.post('/x', {}).catch((e: unknown) => e)).resolves.toBeInstanceOf(
+    await expect(client.post('/x', {}).catch((error: unknown) => error)).resolves.toBeInstanceOf(
       ApiClientError,
     );
   });
@@ -169,7 +169,7 @@ describe(ApiClient, () => {
       jsonResponse(429, { message: 'slow down' }, { 'retry-after': '7' }),
     );
 
-    const caught: unknown = await client.post('/x', {}).catch((e: unknown) => e);
+    const caught: unknown = await client.post('/x', {}).catch((error: unknown) => error);
     expect(caught).toBeInstanceOf(ApiClientError);
     const err = caught as ApiClientError;
     expect(err.isRateLimited).toBeTruthy();
@@ -241,7 +241,9 @@ describe(ApiClient, () => {
     let refreshes = 0;
     const refreshSession = vi.fn<RefreshSessionMock>().mockImplementation(() => {
       refreshes += 1;
-      return new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 10));
+      return new Promise<boolean>((resolve) => {
+        setTimeout(() => resolve(true), 10);
+      });
     });
     const client = new ApiClient({
       baseUrl: 'http://api.test',

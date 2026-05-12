@@ -63,9 +63,9 @@ export function CreateWebhookForm({ onCreate }: Props) {
         onSubmit={createSubmitHandler(async () => {
           try {
             await form.handleSubmit();
-          } catch (reason) {
+          } catch (error) {
             setFormError(
-              reason instanceof Error ? reason.message : 'No se pudo crear la integración',
+              error instanceof Error ? error.message : 'No se pudo crear la integración',
             );
           }
         })}

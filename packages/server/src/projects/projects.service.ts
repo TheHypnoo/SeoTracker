@@ -132,7 +132,7 @@ export class ProjectsService {
       ownerUserId: project.ownerUserId,
       createdAt: project.createdAt,
       role: project.role,
-      effectivePermissions: Array.from(effectivePermissionSet),
+      effectivePermissions: [...effectivePermissionSet],
     };
   }
 
@@ -416,13 +416,13 @@ export class ProjectsService {
       ...row,
       extraPermissions: (row.extraPermissions ?? []) as Permission[],
       revokedPermissions: (row.revokedPermissions ?? []) as Permission[],
-      effectivePermissions: Array.from(
-        computeEffectivePermissions(
+      effectivePermissions: [
+        ...computeEffectivePermissions(
           row.role as Role,
           (row.extraPermissions ?? []) as Permission[],
           (row.revokedPermissions ?? []) as Permission[],
         ),
-      ),
+      ],
     }));
   }
 

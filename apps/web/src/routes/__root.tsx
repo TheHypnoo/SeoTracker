@@ -122,9 +122,7 @@ function RootDocument({ children }: { children: ReactNode }) {
       },
       queryCache: new QueryCache({
         onError: (error) => {
-          if (showRateLimitToast(error)) {
-            return;
-          }
+          showRateLimitToast(error);
         },
       }),
       // Surface every mutation error as a toast so the user always gets

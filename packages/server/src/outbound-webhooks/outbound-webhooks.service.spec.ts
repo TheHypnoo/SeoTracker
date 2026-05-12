@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { OutboundDeliveryStatus, OutboundEvent, Permission } from '@seotracker/shared-types';
-import { createHmac } from 'crypto';
+import { createHmac } from 'node:crypto';
 
 import { DRIZZLE } from '../database/database.constants';
 import { ProjectsService } from '../projects/projects.service';

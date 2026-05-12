@@ -66,7 +66,7 @@ export function humanizeMetric(key: string): string {
     crawl_success_ratio: 'Ratio de respuestas correctas',
   };
   if (labels[key]) return labels[key];
-  return key.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return key.replaceAll(/[_-]+/g, ' ').replaceAll(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export function isRatioMetric(key: string): boolean {
