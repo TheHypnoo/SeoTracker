@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { IssueGroup } from './audit-detail-types';
+import type { IssueGroup, IssueState } from './audit-detail-types';
 import { IssueDetailDrawer } from './issue-detail-drawer';
 
-describe('IssueDetailDrawer', () => {
+describe(IssueDetailDrawer, () => {
   it('wraps long occurrence URLs instead of truncating them', () => {
     const longUrl =
       'https://b2box.app/cdn-cgi/content?id=3tBWjGbLrxphL6U4c1PypPXMPNeEw1H9rPgCfRjO2N4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
@@ -37,9 +37,9 @@ describe('IssueDetailDrawer', () => {
       <IssueDetailDrawer
         group={group}
         isPending={false}
-        onBulkChangeState={vi.fn()}
-        onChangeState={vi.fn()}
-        onClose={vi.fn()}
+        onBulkChangeState={vi.fn<(projectIssueIds: string[], state: IssueState) => void>()}
+        onChangeState={vi.fn<(projectIssueId: string, state: IssueState) => void>()}
+        onClose={vi.fn<() => void>()}
         evidenceSummary="meta: noindex"
       />,
     );

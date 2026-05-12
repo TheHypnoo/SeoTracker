@@ -32,15 +32,13 @@ import {
 } from './crawler';
 import { discoverSiteMetadata } from './sitemap-discovery';
 
-const fetchRobotsMock = fetchRobots as jest.MockedFunction<typeof fetchRobots>;
-const checkSoft404Mock = checkSoft404 as jest.MockedFunction<typeof checkSoft404>;
-const probeSitemapMock = probeSitemap as jest.MockedFunction<typeof probeSitemap>;
-const analyzeSitemapMock = analyzeSitemap as jest.MockedFunction<typeof analyzeSitemap>;
-const extractSitemapUrlsMock = extractSitemapUrls as jest.MockedFunction<typeof extractSitemapUrls>;
-const extractHintsMock = extractSitemapHintsFromHtml as jest.MockedFunction<
-  typeof extractSitemapHintsFromHtml
->;
-const existsUrlMock = existsUrl as jest.MockedFunction<typeof existsUrl>;
+const fetchRobotsMock = jest.mocked(fetchRobots);
+const checkSoft404Mock = jest.mocked(checkSoft404);
+const probeSitemapMock = jest.mocked(probeSitemap);
+const analyzeSitemapMock = jest.mocked(analyzeSitemap);
+const extractSitemapUrlsMock = jest.mocked(extractSitemapUrls);
+const extractHintsMock = jest.mocked(extractSitemapHintsFromHtml);
+const existsUrlMock = jest.mocked(existsUrl);
 
 const fakePage = (url: string) => ({ url, statusCode: 200 }) as never;
 

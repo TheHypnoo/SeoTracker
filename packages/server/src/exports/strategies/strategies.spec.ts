@@ -77,7 +77,7 @@ describe('HistoryCsvStrategy', () => {
     } as never);
 
     expect(out.headers[0]).toBe('auditId');
-    expect(out.rows.length).toBe(1);
+    expect(out.rows).toHaveLength(1);
     expect(out.rows[0]?.[0]).toBe('r1');
   });
 
@@ -112,7 +112,7 @@ describe('HistoryCsvStrategy', () => {
       filters: { status: 'COMPLETED' },
     } as never);
 
-    expect(out.rows.length).toBe(1);
+    expect(out.rows).toHaveLength(1);
     expect(out.rows[0]?.[0]).toBe('r1');
   });
 
@@ -147,7 +147,7 @@ describe('HistoryCsvStrategy', () => {
       filters: { trigger: 'SCHEDULED' },
     } as never);
 
-    expect(out.rows.length).toBe(1);
+    expect(out.rows).toHaveLength(1);
     expect(out.rows[0]?.[0]).toBe('r2');
   });
 
@@ -253,7 +253,7 @@ describe('MetricsCsvStrategy', () => {
 
     const out = await strategy.build({ auditRunId: 'run-1' } as never);
 
-    expect(out.rows.length).toBe(2);
+    expect(out.rows).toHaveLength(2);
     expect(out.rows[0]?.[2]).toBe(1.2);
     expect(out.rows[1]?.[3]).toBe('ok');
   });
@@ -307,7 +307,7 @@ describe('ComparisonCsvStrategy', () => {
     const out = await strategy.build({ comparisonId: 'c1' } as never);
 
     expect(out.headers[0]).toBe('comparisonId');
-    expect(out.rows.length).toBe(1);
+    expect(out.rows).toHaveLength(1);
     expect(out.rows[0]?.[0]).toBe('c1');
     expect(out.rows[0]?.[1]).toBe('NEW_ISSUE');
   });
@@ -362,7 +362,7 @@ describe('AuditResultCsvStrategy', () => {
 
     expect(out.headers).toStrictEqual(['section', 'key', 'value']);
     // 5 summary + 1 metric + 1 page + 1 issue + 1 action + 1 indexability = 10
-    expect(out.rows.length).toBe(10);
+    expect(out.rows).toHaveLength(10);
     expect(out.rows[0]).toStrictEqual(['summary', 'auditId', 'r1']);
     expect(out.rows[5]).toStrictEqual(['metric', 'lcp', '1.2']);
     expect(out.rows[6]?.[0]).toBe('page');

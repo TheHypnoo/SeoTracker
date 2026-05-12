@@ -13,26 +13,9 @@ const jestRules = {
   'jest/padding-around-test-blocks': 'off',
   'jest/prefer-called-with': 'off',
   'jest/prefer-ending-with-an-expect': 'off',
-  'jest/prefer-expect-resolves': 'off',
-  'jest/prefer-jest-mocked': 'off',
   'jest/prefer-lowercase-title': 'off',
-  'jest/prefer-mock-return-shorthand': 'off',
   'jest/prefer-spy-on': 'off',
-  'jest/prefer-to-be': 'off',
-  'jest/prefer-to-have-length': 'off',
   'jest/require-top-level-describe': 'off',
-  'jest/valid-title': 'off',
-};
-
-const vitestRules = {
-  'vitest/consistent-test-filename': 'off',
-  'vitest/prefer-called-once': 'off',
-  'vitest/prefer-called-with': 'off',
-  'vitest/prefer-describe-function-title': 'off',
-  'vitest/prefer-import-in-mock': 'off',
-  'vitest/prefer-to-be-falsy': 'off',
-  'vitest/prefer-to-be-truthy': 'off',
-  'vitest/require-mock-type-parameters': 'off',
 };
 
 const jestOverrides = (jest.overrides ?? []).map((override) => ({
@@ -50,7 +33,6 @@ const vitestOverrides = (vitest.overrides ?? []).map((override) => ({
     'apps/web/**/*.{test,spec}.{ts,tsx,js,jsx}',
     'apps/web/**/__tests__/**/*.{ts,tsx,js,jsx}',
   ],
-  rules: { ...override.rules, ...vitestRules },
 }));
 
 export default defineConfig({

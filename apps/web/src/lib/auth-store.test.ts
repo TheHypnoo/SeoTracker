@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuthStore } from './auth-store';
 
-type FetchMock = ReturnType<typeof vi.fn>;
+type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
+type FetchCallWithInit = [RequestInfo | URL, RequestInit];
 
 function jsonResponse(status: number, body: unknown) {
   // 204 No Content responses cannot carry a body per the Fetch spec.
@@ -22,11 +23,11 @@ function setCsrfCookie(value: string | null) {
   }
 }
 
-describe('useAuthStore', () => {
+describe(useAuthStore, () => {
   let fetchMock: FetchMock;
 
   beforeEach(() => {
-    fetchMock = vi.fn();
+    fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal('fetch', fetchMock);
     useAuthStore.setState({ accessToken: null, user: null });
     setCsrfCookie(null);
@@ -66,7 +67,7 @@ describe('useAuthStore', () => {
 
   it('refresh returns false when no CSRF cookie is present (no network call)', async () => {
     const ok = await useAuthStore.getState().refresh();
-    expect(ok).toBe(false);
+    expect(ok).toBeFalsy();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -78,7 +79,7 @@ describe('useAuthStore', () => {
 
     const ok = await useAuthStore.getState().refresh();
 
-    expect(ok).toBe(true);
+    expect(ok).toBeTruthy();
     expect(useAuthStore.getState().accessToken).toBe('rotated');
     const calledUrl = fetchMock.mock.calls[0]?.[0] as string;
     expect(calledUrl).toContain('/auth/refresh');
@@ -91,7 +92,7 @@ describe('useAuthStore', () => {
 
     const ok = await useAuthStore.getState().refresh();
 
-    expect(ok).toBe(false);
+    expect(ok).toBeFalsy();
     const state = useAuthStore.getState();
     expect(state.accessToken).toBeNull();
     expect(state.user).toBeNull();
@@ -115,7 +116,7 @@ describe('useAuthStore', () => {
 
     const ok = await useAuthStore.getState().refresh();
 
-    expect(ok).toBe(false);
+    expect(ok).toBeFalsy();
     // Critical: the store MUST NOT log out on transient errors.
     expect(useAuthStore.getState().accessToken).toBe('keep');
     expect(useAuthStore.getState().user).not.toBeNull();
@@ -136,12 +137,12 @@ describe('useAuthStore', () => {
     useAuthStore.setState({ accessToken: 'tok', user: { id: 'u', email: 'e', name: 'n' } });
     fetchMock.mockResolvedValueOnce(jsonResponse(204, null));
 
-    const afterClear = vi.fn();
+    const afterClear = vi.fn<() => void>();
     await useAuthStore.getState().logout({ afterClear });
 
     expect(useAuthStore.getState().accessToken).toBeNull();
     expect(useAuthStore.getState().user).toBeNull();
-    expect(afterClear).toHaveBeenCalledTimes(1);
+    expect(afterClear).toHaveBeenCalledOnce();
 
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const headers = init.headers as Record<string, string>;
@@ -169,7 +170,7 @@ describe('useAuthStore', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(204, null));
     await useAuthStore.getState().resetPassword({ token: 't', password: 'newpw' });
 
-    const [, init] = fetchMock.mock.calls[0];
+    const [, init] = fetchMock.mock.calls[0] as FetchCallWithInit;
     expect(JSON.parse(init.body as string)).toStrictEqual({ token: 't', password: 'newpw' });
   });
 

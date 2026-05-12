@@ -58,19 +58,19 @@ describe('SeoEngineService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (analyzeHomepageHtml as jest.Mock).mockReturnValue({
+    jest.mocked(analyzeHomepageHtml).mockReturnValue({
       homepageText: 'Homepage text',
       issues: [],
       metrics: [{ key: 'title_length', valueNum: 12 }],
     });
-    (runBlogChecks as jest.Mock).mockReturnValue([]);
-    (discoverSiteMetadata as jest.Mock).mockResolvedValue({
+    jest.mocked(runBlogChecks).mockReturnValue([]);
+    jest.mocked(discoverSiteMetadata).mockResolvedValue({
       issues: [],
       metrics: [{ key: 'sitemap_urls', valueNum: 1 }],
       pages: [{ statusCode: 200, url: 'https://example.com/robots.txt' }],
       sitemapUrls: ['https://example.com/sitemap.xml'],
     });
-    (buildLinkGraph as jest.Mock).mockReturnValue({
+    jest.mocked(buildLinkGraph).mockReturnValue({
       crawlCandidateCount: 1,
       depth1Selected: ['https://example.com/about'],
       externalLinks: ['https://external.test'],
@@ -78,18 +78,18 @@ describe('SeoEngineService', () => {
       metrics: [{ key: 'internal_links', valueNum: 1 }],
       remainingInternal: [],
     });
-    (crawlPages as jest.Mock).mockResolvedValue({
+    jest.mocked(crawlPages).mockResolvedValue({
       issues: [],
       metrics: [{ key: 'crawled_pages', valueNum: 1 }],
       pageTexts: [{ text: 'About text', url: 'https://example.com/about' }],
       pages: [{ statusCode: 200, url: 'https://example.com/about' }],
       totalAnalyzed: 2,
     });
-    (runCrossPageChecks as jest.Mock).mockReturnValue({
+    jest.mocked(runCrossPageChecks).mockReturnValue({
       issues: [],
       metrics: [{ key: 'duplicate_groups', valueNum: 0 }],
     });
-    (scoreAudit as jest.Mock).mockReturnValue({
+    jest.mocked(scoreAudit).mockReturnValue({
       breakdown: { penalties: [] },
       categoryScores: { TECHNICAL: 100 },
       pageScores: new Map([
@@ -101,7 +101,7 @@ describe('SeoEngineService', () => {
   });
 
   it('coordinates homepage analysis, discovery, crawling and scoring', async () => {
-    (safeFetch as jest.Mock).mockResolvedValueOnce(
+    jest.mocked(safeFetch).mockResolvedValueOnce(
       new Response('<html><head><link rel="icon" href="/favicon.ico"></head><body></body></html>', {
         headers: { 'content-type': 'text/html' },
         status: 200,
@@ -143,7 +143,7 @@ describe('SeoEngineService', () => {
   });
 
   it('returns a critical unreachable issue when the homepage fetch is blocked', async () => {
-    (safeFetch as jest.Mock).mockRejectedValueOnce(new SsrfBlockedError('blocked'));
+    jest.mocked(safeFetch).mockRejectedValueOnce(new SsrfBlockedError('blocked'));
     const service = new SeoEngineService(configService as never);
 
     const result = await service.analyzeDomain('example.com');

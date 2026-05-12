@@ -10,8 +10,8 @@ import { IssueCode } from '@seotracker/shared-types';
 import { analyzeInternalPage, existsUrl } from './crawler';
 import { crawlPages } from './page-crawler';
 
-const analyzeMock = analyzeInternalPage as jest.MockedFunction<typeof analyzeInternalPage>;
-const existsMock = existsUrl as jest.MockedFunction<typeof existsUrl>;
+const analyzeMock = jest.mocked(analyzeInternalPage);
+const existsMock = jest.mocked(existsUrl);
 
 const okPage = (url: string, links: string[] = []) => ({
   page: { url, statusCode: 200 } as never,

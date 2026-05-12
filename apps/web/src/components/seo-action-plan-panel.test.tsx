@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AuditKeyFindingsPanel, type SeoActionPlanPayload } from './seo-action-plan-panel';
 
-describe('AuditKeyFindingsPanel', () => {
+describe(AuditKeyFindingsPanel, () => {
   it('shows structured evidence and regression counts for prioritized actions', () => {
     render(<AuditKeyFindingsPanel plan={makePlan()} />);
 
