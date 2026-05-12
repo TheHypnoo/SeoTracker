@@ -148,7 +148,11 @@ describe('outboundWebhooksService', () => {
 
       await service.rotateSecret('p1', 'w1', 'u-owner');
 
-      expect(projects.assertPermission).toHaveBeenCalled();
+      expect(projects.assertPermission).toHaveBeenCalledWith(
+        'p1',
+        'u-owner',
+        Permission.OUTBOUND_WRITE,
+      );
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({ secret: expect.any(String), updatedAt: expect.any(Date) }),
       );
@@ -213,7 +217,7 @@ describe('outboundWebhooksService', () => {
         'u-owner',
         Permission.OUTBOUND_WRITE,
       );
-      expect(db.delete).toHaveBeenCalled();
+      expect(db.delete).toHaveBeenCalledTimes(1);
     });
   });
 

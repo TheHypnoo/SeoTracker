@@ -35,7 +35,7 @@ describe('requestIdMiddleware', () => {
 
     expect((req as Request & { requestId: string }).requestId).toBe('pino-uuid-123');
     expect(res.setHeader).toHaveBeenCalledWith(REQUEST_ID_HEADER, 'pino-uuid-123');
-    expect(next).toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith();
   });
 
   it('uses the incoming x-request-id header when valid (≤128 chars, non-empty string)', () => {

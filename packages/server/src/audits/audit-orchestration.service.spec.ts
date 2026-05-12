@@ -142,14 +142,14 @@ describe('auditOrchestrationService', () => {
 
       await service.markRunFailed('run-x', 'analysis crashed', err);
 
-      expect(db.update).toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalledTimes(1);
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({
           status: AuditStatus.FAILED,
           finishedAt: expect.any(Date),
         }),
       );
-      expect(db.insert).toHaveBeenCalled();
+      expect(db.insert).toHaveBeenCalledTimes(1);
       expect(db.values).toHaveBeenCalledWith(
         expect.objectContaining({
           auditRunId: 'run-x',

@@ -40,7 +40,7 @@ describe('systemLogsService', () => {
         trace: 'stack-trace',
       });
 
-      expect(db.insert).toHaveBeenCalled();
+      expect(db.insert).toHaveBeenCalledTimes(1);
       expect(db.values).toHaveBeenCalledWith(
         expect.objectContaining({
           level: LogLevel.INFO,

@@ -170,9 +170,27 @@ describe('queueService', () => {
         'failed',
         'completed',
       );
-      expect(exportQueue.getJobCounts).toHaveBeenCalled();
-      expect(outboundQueue.getJobCounts).toHaveBeenCalled();
-      expect(emailQueue.getJobCounts).toHaveBeenCalled();
+      expect(exportQueue.getJobCounts).toHaveBeenCalledWith(
+        'waiting',
+        'active',
+        'delayed',
+        'failed',
+        'completed',
+      );
+      expect(outboundQueue.getJobCounts).toHaveBeenCalledWith(
+        'waiting',
+        'active',
+        'delayed',
+        'failed',
+        'completed',
+      );
+      expect(emailQueue.getJobCounts).toHaveBeenCalledWith(
+        'waiting',
+        'active',
+        'delayed',
+        'failed',
+        'completed',
+      );
     });
   });
 });

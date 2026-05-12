@@ -131,7 +131,10 @@ describe('jobFailuresService', () => {
     );
     await svc.record({ queueName: 'q', jobName: 'j', attempts: 1, payload: {}, reason: 'x' });
     await flushPromises();
-    expect(fetchMock).toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://hook.test',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 });
 

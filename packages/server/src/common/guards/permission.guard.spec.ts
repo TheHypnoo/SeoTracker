@@ -94,7 +94,7 @@ describe('permissionGuard', () => {
 
     await guard.canActivate(ctx);
 
-    expect(db.select).toHaveBeenCalled();
+    expect(db.select).toHaveBeenCalledTimes(1);
     expect(projectsService.assertPermission).toHaveBeenCalledWith(
       'p1-from-site',
       'u1',
