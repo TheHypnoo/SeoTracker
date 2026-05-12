@@ -125,17 +125,17 @@ describe('ActivityLogService', () => {
 
   describe('snapshotRole', () => {
     it('returns null when userId is null', async () => {
-      expect(await service.snapshotRole('p1', null)).toBeNull();
+      await expect(service.snapshotRole('p1', null)).resolves.toBeNull();
     });
 
     it('returns null when the user is not a member', async () => {
       db.where.mockReturnValueOnce(thenable([]));
-      expect(await service.snapshotRole('p1', 'u-stranger')).toBeNull();
+      await expect(service.snapshotRole('p1', 'u-stranger')).resolves.toBeNull();
     });
 
     it('returns the role when the membership exists', async () => {
       db.where.mockReturnValueOnce(thenable([{ role: Role.MEMBER }]));
-      expect(await service.snapshotRole('p1', 'u1')).toBe(Role.MEMBER);
+      await expect(service.snapshotRole('p1', 'u1')).resolves.toBe(Role.MEMBER);
     });
   });
 });

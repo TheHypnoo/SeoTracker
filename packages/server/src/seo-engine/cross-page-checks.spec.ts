@@ -19,13 +19,13 @@ describe('runCrossPageChecks', () => {
       ],
     });
     const thin = out.issues.filter((i) => i.issueCode === IssueCode.THIN_CONTENT);
-    expect(thin.length).toBe(1);
+    expect(thin).toHaveLength(1);
     expect(thin[0]?.resourceUrl).toBe('https://x.test/short');
   });
 
   it('does not flag THIN_CONTENT for pages with 0 words (probably not HTML)', () => {
     const out = runCrossPageChecks({ pageTexts: [{ url: 'https://x.test/empty', text: '' }] });
-    expect(out.issues.filter((i) => i.issueCode === IssueCode.THIN_CONTENT).length).toBe(0);
+    expect(out.issues.filter((i) => i.issueCode === IssueCode.THIN_CONTENT)).toHaveLength(0);
   });
 
   it('flags DUPLICATE_CONTENT when two pages exceed the similarity threshold', () => {
@@ -53,7 +53,7 @@ describe('runCrossPageChecks', () => {
     });
     // Now 'a' is < 10 words and SHOULD trigger; 'b' is 50, threshold is 10 → no flag.
     const thin = out.issues.filter((i) => i.issueCode === IssueCode.THIN_CONTENT);
-    expect(thin.length).toBe(1);
+    expect(thin).toHaveLength(1);
     expect(thin[0]?.resourceUrl).toBe('https://x.test/a');
   });
 });

@@ -78,7 +78,7 @@ describe('startTracing', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     onceSpy = jest.spyOn(process, 'once').mockReturnValue(process);
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    warnSpy = jest.spyOn(console, 'warn').mockReturnValue(undefined);
   });
 
   afterEach(() => {

@@ -16,7 +16,7 @@ describe('refetch intervals', () => {
     expect(pollWhileAuditActive({ state: { data: { status: 'RUNNING' } } })).toBe(
       REFETCH_INTERVALS.ACTIVE_AUDIT_MS,
     );
-    expect(pollWhileAuditActive({ state: { data: { status: 'COMPLETED' } } })).toBe(false);
+    expect(pollWhileAuditActive({ state: { data: { status: 'COMPLETED' } } })).toBeFalsy();
   });
 
   it('polls lists slowly unless an audit is active', () => {

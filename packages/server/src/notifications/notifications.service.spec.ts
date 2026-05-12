@@ -86,7 +86,7 @@ describe('NotificationsService', () => {
       rejected: [],
       response: '250 queued',
     });
-    (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
+    jest.mocked(nodemailer.createTransport).mockReturnValue({ sendMail });
 
     const moduleRef = await Test.createTestingModule({
       providers: [

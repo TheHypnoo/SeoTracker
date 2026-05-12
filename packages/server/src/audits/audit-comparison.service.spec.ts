@@ -117,7 +117,7 @@ describe('AuditComparisonService', () => {
       const snap = await service.buildComparisonSnapshot('s1', RUN_A, RUN_B);
 
       const newIssues = snap.changes.filter((c) => c.changeType === ComparisonChangeType.NEW_ISSUE);
-      expect(newIssues.length).toBe(1);
+      expect(newIssues).toHaveLength(1);
       expect(newIssues[0]?.severity).toBe(Severity.CRITICAL);
     });
 
@@ -142,7 +142,7 @@ describe('AuditComparisonService', () => {
       const resolved = snap.changes.filter(
         (c) => c.changeType === ComparisonChangeType.RESOLVED_ISSUE,
       );
-      expect(resolved.length).toBe(1);
+      expect(resolved).toHaveLength(1);
     });
 
     it('aggregates duplicates by signature (issueCode + resourceUrl + message)', async () => {
@@ -173,7 +173,7 @@ describe('AuditComparisonService', () => {
       const snap = await service.buildComparisonSnapshot('s1', RUN_A, RUN_B);
 
       const newIssues = snap.changes.filter((c) => c.changeType === ComparisonChangeType.NEW_ISSUE);
-      expect(newIssues.length).toBe(1);
+      expect(newIssues).toHaveLength(1);
       expect(newIssues[0]?.delta).toBe(2);
     });
   });
@@ -282,9 +282,9 @@ describe('AuditComparisonService', () => {
     it('returns null until there are two completed runs including the target', async () => {
       db.where.mockReturnValueOnce(thenable([{ ...RUN_B, status: AuditStatus.COMPLETED }]));
 
-      await expect(service.persistComparisonForRun({ site, targetRunId: 'r-new' })).resolves.toBe(
-        null,
-      );
+      await expect(
+        service.persistComparisonForRun({ site, targetRunId: 'r-new' }),
+      ).resolves.toBeNull();
       expect(db.insert).not.toHaveBeenCalled();
     });
 

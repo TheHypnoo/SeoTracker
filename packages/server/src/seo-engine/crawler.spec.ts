@@ -23,7 +23,7 @@ jest.mock('../common/utils/safe-fetch', () => ({
   SsrfBlockedError: class SsrfBlockedError extends Error {},
 }));
 
-const safeFetch = jest.requireMock('../common/utils/safe-fetch').safeFetch as jest.Mock;
+const safeFetch = jest.mocked(jest.requireMock('../common/utils/safe-fetch').safeFetch);
 
 function htmlResponse(status: number, body: string, headers: Record<string, string> = {}) {
   return new Response(body, {
@@ -264,7 +264,7 @@ describe('extractSitemapUrls', () => {
       ),
     );
     const urls = await extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 3);
-    expect(urls.length).toBe(3);
+    expect(urls).toHaveLength(3);
   });
 
   it('skips unreachable child sitemaps and keeps collecting from the remaining queue', async () => {

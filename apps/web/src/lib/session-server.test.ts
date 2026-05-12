@@ -1,14 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+type ReactStartModule = typeof import('@tanstack/react-start');
+type ReactStartServerModule = typeof import('@tanstack/react-start/server');
+type FetchCallWithInit = [RequestInfo | URL, RequestInit];
+
 // Mock TanStack Start before importing the module under test. The real
 // `createServerFn(...).handler(fn)` wraps `fn` in plumbing for HTTP
 // transport; here we just return `fn` so we can invoke it as a plain async
 // function and assert on its behavior.
-vi.mock('@tanstack/react-start', () => ({
-  createServerFn: () => ({
-    handler: <Args extends unknown[], R>(fn: (...args: Args) => R) => fn,
-  }),
-}));
+vi.mock(
+  import('@tanstack/react-start'),
+  () =>
+    ({
+      createServerFn: () => ({
+        handler: <Args extends unknown[], R>(fn: (...args: Args) => R) => fn,
+      }),
+    }) as unknown as Partial<ReactStartModule>,
+);
 
 // `getCookie` / `getRequestHeader` are server-only helpers from TanStack
 // Start that read from the per-request context. We replace them with plain
@@ -16,12 +24,16 @@ vi.mock('@tanstack/react-start', () => ({
 const getCookie = vi.fn<(name: string) => string | undefined>();
 const getRequestHeader = vi.fn<(name: string) => string | undefined>();
 
-vi.mock('@tanstack/react-start/server', () => ({
-  getCookie: (name: string) => getCookie(name),
-  getRequestHeader: (name: string) => getRequestHeader(name),
-}));
+vi.mock(
+  import('@tanstack/react-start/server'),
+  () =>
+    ({
+      getCookie: (name: string) => getCookie(name),
+      getRequestHeader: (name: string) => getRequestHeader(name),
+    }) as unknown as Partial<ReactStartServerModule>,
+);
 
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>;
 
 // Import AFTER the mocks are registered.
 import { getServerSession } from './session-server';
@@ -37,7 +49,7 @@ function jsonResponse(status: number, body: unknown) {
 
 describe('getServerSession (SSR)', () => {
   beforeEach(() => {
-    fetchMock = vi.fn();
+    fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal('fetch', fetchMock);
     getCookie.mockReset();
     getRequestHeader.mockReset();
@@ -64,7 +76,7 @@ describe('getServerSession (SSR)', () => {
 
     await getServerSession();
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = fetchMock.mock.calls[0] as FetchCallWithInit;
     expect(String(url)).toContain('/auth/session');
     const headers = (init as RequestInit).headers as Record<string, string>;
     expect(headers.cookie).toBe('refresh_token=rt-abc; csrf_token=csrf-xyz');

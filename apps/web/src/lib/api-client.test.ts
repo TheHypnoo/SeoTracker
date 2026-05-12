@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiClient, ApiClientError } from './api-client';
 
-type FetchMock = ReturnType<typeof vi.fn>;
+type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
+type RefreshSessionMock = () => Promise<boolean>;
+type FetchCallWithInit = [RequestInfo | URL, RequestInit];
 
 function jsonResponse(status: number, body: unknown, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -11,11 +13,11 @@ function jsonResponse(status: number, body: unknown, headers: Record<string, str
   });
 }
 
-describe('ApiClient', () => {
+describe(ApiClient, () => {
   let fetchMock: FetchMock;
 
   beforeEach(() => {
-    fetchMock = vi.fn();
+    fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal('fetch', fetchMock);
   });
 
@@ -33,8 +35,8 @@ describe('ApiClient', () => {
 
     await client.get('/me');
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0] as FetchCallWithInit;
     expect(url).toBe('http://api.test/me');
     expect(init.credentials).toBe('include');
     const headers = init.headers as Record<string, string>;
@@ -60,7 +62,7 @@ describe('ApiClient', () => {
   });
 
   it('refreshes session once on 401 and retries the original request', async () => {
-    const refreshSession = vi.fn().mockResolvedValue(true);
+    const refreshSession = vi.fn<RefreshSessionMock>().mockResolvedValue(true);
     const client = new ApiClient({
       baseUrl: 'http://api.test',
       refreshSession,
@@ -73,14 +75,14 @@ describe('ApiClient', () => {
 
     const result = await client.get<{ ok: boolean }>('/me');
 
-    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(refreshSession).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result).toStrictEqual({ ok: true });
   });
 
   it('refreshes before protected requests when no access token is in memory', async () => {
     let token: string | null = null;
-    const refreshSession = vi.fn().mockImplementation(() => {
+    const refreshSession = vi.fn<RefreshSessionMock>().mockImplementation(() => {
       token = 'token-after-refresh';
       return Promise.resolve(true);
     });
@@ -95,9 +97,9 @@ describe('ApiClient', () => {
 
     const result = await client.get<{ ok: boolean }>('/projects');
 
-    expect(refreshSession).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [, init] = fetchMock.mock.calls[0];
+    expect(refreshSession).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, init] = fetchMock.mock.calls[0] as FetchCallWithInit;
     expect((init.headers as Record<string, string>).Authorization).toBe(
       'Bearer token-after-refresh',
     );
@@ -105,7 +107,7 @@ describe('ApiClient', () => {
   });
 
   it('does not pre-refresh credential bootstrap requests', async () => {
-    const refreshSession = vi.fn().mockResolvedValue(true);
+    const refreshSession = vi.fn<RefreshSessionMock>().mockResolvedValue(true);
     const client = new ApiClient({
       baseUrl: 'http://api.test',
       getAccessToken: () => null,
@@ -117,11 +119,11 @@ describe('ApiClient', () => {
     await client.post('/auth/login', { email: 'a@b.c', password: 'pw' });
 
     expect(refreshSession).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it('does not refresh when the failing request is /auth/refresh itself', async () => {
-    const refreshSession = vi.fn().mockResolvedValue(true);
+    const refreshSession = vi.fn<RefreshSessionMock>().mockResolvedValue(true);
     const client = new ApiClient({
       baseUrl: 'http://api.test',
       refreshSession,
@@ -170,7 +172,7 @@ describe('ApiClient', () => {
     const caught: unknown = await client.post('/x', {}).catch((e: unknown) => e);
     expect(caught).toBeInstanceOf(ApiClientError);
     const err = caught as ApiClientError;
-    expect(err.isRateLimited).toBe(true);
+    expect(err.isRateLimited).toBeTruthy();
     expect(err.retryAfterMs).toBe(7000);
   });
 
@@ -185,7 +187,7 @@ describe('ApiClient', () => {
       message: 'slow',
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it('retries transient 5xx on GET but not on POST', async () => {
@@ -214,14 +216,14 @@ describe('ApiClient', () => {
     const a = client.get('/x');
     const b = client.get('/x');
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledOnce();
     resolveFn(jsonResponse(200, { ok: true }));
     await Promise.all([a, b]);
   });
 
   it('invokes onUnauthorized when the final response is 401', async () => {
-    const onUnauthorized = vi.fn();
-    const refreshSession = vi.fn().mockResolvedValue(false);
+    const onUnauthorized = vi.fn<() => void>();
+    const refreshSession = vi.fn<RefreshSessionMock>().mockResolvedValue(false);
     const client = new ApiClient({
       baseUrl: 'http://api.test',
       refreshSession,
@@ -232,12 +234,12 @@ describe('ApiClient', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(401, { message: 'no' }));
 
     await expect(client.get('/me')).rejects.toMatchObject({ status: 401 });
-    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).toHaveBeenCalledOnce();
   });
 
   it('coalesces concurrent 401s into one refresh call', async () => {
     let refreshes = 0;
-    const refreshSession = vi.fn().mockImplementation(() => {
+    const refreshSession = vi.fn<RefreshSessionMock>().mockImplementation(() => {
       refreshes += 1;
       return new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 10));
     });
