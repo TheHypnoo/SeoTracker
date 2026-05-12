@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { JwtStrategy } from './jwt.strategy';
 
-describe('JwtStrategy', () => {
+describe('jwtStrategy', () => {
   it('extracts sub + email from the verified JWT payload', () => {
     const config = {
       get: jest.fn().mockReturnValue('test-secret'),

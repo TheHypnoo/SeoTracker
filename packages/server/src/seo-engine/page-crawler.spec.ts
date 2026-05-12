@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-jest.mock('./crawler', () => {
+jest.mock<typeof import('./crawler')>('./crawler', () => {
   const analyzeInternalPage = jest.fn();
   const existsUrl = jest.fn();
-  return { analyzeInternalPage, existsUrl };
+  return { analyzeInternalPage, existsUrl } as unknown as typeof import('./crawler');
 });
 
 import { IssueCode } from '@seotracker/shared-types';

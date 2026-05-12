@@ -16,7 +16,7 @@ function makeRedis(): RedisMock {
   };
 }
 
-describe('DistributedLockService', () => {
+describe('distributedLockService', () => {
   let service: DistributedLockService;
   let redis: RedisMock;
 

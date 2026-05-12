@@ -50,7 +50,7 @@ function makeDb(): DbMock {
   };
 }
 
-describe('OutboundWebhooksService', () => {
+describe('outboundWebhooksService', () => {
   let service: OutboundWebhooksService;
   let db: DbMock;
   let projects: { assertOwner: jest.Mock; assertPermission: jest.Mock };

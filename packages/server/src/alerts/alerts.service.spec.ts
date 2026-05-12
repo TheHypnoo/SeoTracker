@@ -7,13 +7,16 @@ import {
   formatAuditRegressionNotificationBody,
 } from './alerts.service';
 
-jest.mock('../notifications/email-templates', () => ({
-  renderAuditRegressionEmail: jest.fn().mockResolvedValue({
-    html: '<p>regression</p>',
-    subject: 'Regression',
-    text: 'regression',
+jest.mock<typeof import('../notifications/email-templates')>(
+  '../notifications/email-templates',
+  () => ({
+    renderAuditRegressionEmail: jest.fn().mockResolvedValue({
+      html: '<p>regression</p>',
+      subject: 'Regression',
+      text: 'regression',
+    }),
   }),
-}));
+);
 
 function selectRows(rows: unknown[]) {
   return {
@@ -78,7 +81,7 @@ describe('alerts regression helpers', () => {
   });
 });
 
-describe('AlertsService', () => {
+describe('alertsService', () => {
   const sitesService = { getByIdWithPermission: jest.fn() };
   const notificationsService = {
     createForProjectMembers: jest.fn(),

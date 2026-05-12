@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 
 import { MetricsService } from './metrics.service';
 
-describe('MetricsService', () => {
+describe('metricsService', () => {
   let service: MetricsService;
 
   beforeEach(async () => {

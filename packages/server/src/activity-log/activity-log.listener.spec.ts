@@ -4,7 +4,7 @@ import { ActivityAction, Role } from '@seotracker/shared-types';
 import { ActivityLogService } from './activity-log.service';
 import { ActivityLogListener } from './activity-log.listener';
 
-describe('ActivityLogListener', () => {
+describe('activityLogListener', () => {
   let service: { record: jest.Mock; snapshotRole: jest.Mock };
   let listener: ActivityLogListener;
 

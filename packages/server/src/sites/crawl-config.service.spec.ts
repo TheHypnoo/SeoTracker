@@ -17,7 +17,7 @@ function thenable<T>(rows: T) {
   };
 }
 
-describe('CrawlConfigService', () => {
+describe('crawlConfigService', () => {
   let service: CrawlConfigService;
   let db: {
     select: jest.Mock;

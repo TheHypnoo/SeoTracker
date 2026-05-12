@@ -8,7 +8,7 @@ import { ActivityLogService } from './activity-log.service';
 
 const USER = { sub: 'u-1' };
 
-describe('ActivityLogController', () => {
+describe('activityLogController', () => {
   let controller: ActivityLogController;
   let activity: { listForProject: jest.Mock };
   let projects: { assertPermission: jest.Mock };

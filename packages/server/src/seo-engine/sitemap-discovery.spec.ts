@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-jest.mock('./crawler', () => {
+jest.mock<typeof import('./crawler')>('./crawler', () => {
   const fetchRobots = jest.fn();
   const checkSoft404 = jest.fn();
   const probeSitemap = jest.fn();
@@ -15,7 +15,7 @@ jest.mock('./crawler', () => {
     extractSitemapUrls,
     extractSitemapHintsFromHtml,
     existsUrl,
-  };
+  } as unknown as typeof import('./crawler');
 });
 
 import { IssueCode } from '@seotracker/shared-types';

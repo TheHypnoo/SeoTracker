@@ -22,7 +22,7 @@ function codes(out: { issues: { issueCode: string }[] }): string[] {
 }
 
 describe('analyzeHomepageHtml', () => {
-  describe('HTTP-level checks', () => {
+  describe('hTTP-level checks', () => {
     it('flags HTTP 5xx as DOMAIN_UNREACHABLE', () => {
       const out = analyzeHomepageHtml({
         $: load('<html><head><title>x</title></head><body></body></html>'),
@@ -98,7 +98,7 @@ describe('analyzeHomepageHtml', () => {
     });
   });
 
-  describe('Title and meta description', () => {
+  describe('title and meta description', () => {
     it('flags MISSING_TITLE when there is no <title>', () => {
       const out = analyzeHomepageHtml({
         $: load('<html><head></head><body></body></html>'),
@@ -141,7 +141,7 @@ describe('analyzeHomepageHtml', () => {
     });
   });
 
-  describe('Headings', () => {
+  describe('headings', () => {
     it('flags MISSING_H1 when no <h1>', () => {
       const out = analyzeHomepageHtml({
         $: load('<html><body><h2>x</h2></body></html>'),
@@ -163,7 +163,7 @@ describe('analyzeHomepageHtml', () => {
     });
   });
 
-  describe('Canonical', () => {
+  describe('canonical', () => {
     it('flags MISSING_CANONICAL when no canonical link', () => {
       const out = analyzeHomepageHtml({
         $: load('<html><head><title>plenty long enough title here for OK</title></head></html>'),
@@ -187,7 +187,7 @@ describe('analyzeHomepageHtml', () => {
     });
   });
 
-  describe('Robots meta', () => {
+  describe('robots meta', () => {
     it('flags META_NOINDEX as CRITICAL', () => {
       const out = analyzeHomepageHtml({
         $: load('<html><head><meta name="robots" content="noindex"></head></html>'),
@@ -211,7 +211,7 @@ describe('analyzeHomepageHtml', () => {
     });
   });
 
-  describe('Open Graph + Twitter + JSON-LD + Mixed content', () => {
+  describe('open Graph + Twitter + JSON-LD + Mixed content', () => {
     it('flags MISSING_OPEN_GRAPH when og tags are absent', () => {
       const out = analyzeHomepageHtml({
         $: load('<html><head></head></html>'),
@@ -265,7 +265,7 @@ describe('analyzeHomepageHtml', () => {
     });
   });
 
-  describe('Lazy images', () => {
+  describe('lazy images', () => {
     it('flags NO_LAZY_IMAGES when <30% of >=10 images use loading=lazy', () => {
       const imgs = Array.from({ length: 12 }, (_, i) => `<img src="/${i}.png" alt="${i}">`).join(
         '',
@@ -280,7 +280,7 @@ describe('analyzeHomepageHtml', () => {
     });
   });
 
-  describe('Aggregated metrics', () => {
+  describe('aggregated metrics', () => {
     it('emits the expected metric keys', () => {
       const out = analyzeHomepageHtml({
         $: load(

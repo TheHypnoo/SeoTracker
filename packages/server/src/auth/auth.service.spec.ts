@@ -13,7 +13,7 @@ import { AuthService } from './auth.service';
 
 // Argon2 verify is exercised in login. We mock the module so tests don't
 // depend on native bindings or salt timing.
-jest.mock('@node-rs/argon2', () => ({
+jest.mock<typeof import('@node-rs/argon2')>('@node-rs/argon2', () => ({
   hash: jest.fn().mockResolvedValue('hashed-pw'),
   verify: jest.fn().mockResolvedValue(true),
 }));
@@ -63,7 +63,7 @@ function makeResponse() {
   };
 }
 
-describe('AuthService', () => {
+describe('authService', () => {
   let service: AuthService;
   let db: ChainableDb;
   let eventEmitter: { emitAsync: jest.Mock };

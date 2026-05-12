@@ -43,7 +43,7 @@ function makeDb(): DbMock {
   };
 }
 
-describe('AuditOrchestrationService', () => {
+describe('auditOrchestrationService', () => {
   let service: AuditOrchestrationService;
   let db: DbMock;
   let queue: { enqueueAuditRun: jest.Mock };

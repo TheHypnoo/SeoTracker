@@ -26,7 +26,7 @@ function makeHost(opts: { url?: string; requestId?: string; method?: string }) {
   };
 }
 
-describe('AllExceptionsFilter', () => {
+describe('allExceptionsFilter', () => {
   let filter: AllExceptionsFilter;
   beforeEach(() => {
     filter = new AllExceptionsFilter();

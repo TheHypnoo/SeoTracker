@@ -17,23 +17,23 @@ import {
  *    the `extras` array.
  *  - Diff math: extras add, revoked subtracts.
  */
-describe('Permission catalog invariants', () => {
-  it('OWNER role grants every permission in the enum', () => {
+describe('permission catalog invariants', () => {
+  it('oWNER role grants every permission in the enum', () => {
     const ownerSet = ROLE_PERMISSIONS[Role.OWNER];
     expect(ownerSet).toStrictEqual(new Set(Object.values(Permission)));
   });
 
-  it('VIEWER role only grants .read permissions', () => {
+  it('vIEWER role only grants .read permissions', () => {
     const viewerSet = ROLE_PERMISSIONS[Role.VIEWER];
     expect([...viewerSet].every((p) => /\.(view|read)$/.test(p))).toBe(true);
   });
 
-  it('MEMBER role does NOT include any owner-exclusive permission by default', () => {
+  it('mEMBER role does NOT include any owner-exclusive permission by default', () => {
     const memberSet = ROLE_PERMISSIONS[Role.MEMBER];
     expect([...OWNER_EXCLUSIVE_PERMISSIONS].some((p) => memberSet.has(p))).toBe(false);
   });
 
-  it('GRANTABLE_PERMISSIONS exactly equals all perms minus owner-exclusive', () => {
+  it('gRANTABLE_PERMISSIONS exactly equals all perms minus owner-exclusive', () => {
     const all = new Set(Object.values(Permission));
     for (const p of OWNER_EXCLUSIVE_PERMISSIONS) all.delete(p);
     expect(GRANTABLE_PERMISSIONS).toStrictEqual(all);
@@ -41,7 +41,7 @@ describe('Permission catalog invariants', () => {
 });
 
 describe('computeEffectivePermissions', () => {
-  it('OWNER ignores both extras and revoked — always returns the full set', () => {
+  it('oWNER ignores both extras and revoked — always returns the full set', () => {
     const out = computeEffectivePermissions(
       Role.OWNER,
       [Permission.AUDIT_RUN], // ignored
@@ -50,7 +50,7 @@ describe('computeEffectivePermissions', () => {
     expect(out.size).toBe(Object.values(Permission).length);
   });
 
-  it('MEMBER picks up extras that are NOT owner-exclusive', () => {
+  it('mEMBER picks up extras that are NOT owner-exclusive', () => {
     // MEMBER does not include WEBHOOK_WRITE by default — adding it via extras
     // should land it in the effective set.
     const before = ROLE_PERMISSIONS[Role.MEMBER].has(Permission.WEBHOOK_WRITE);
@@ -60,7 +60,7 @@ describe('computeEffectivePermissions', () => {
     expect(out.has(Permission.WEBHOOK_WRITE)).toBe(true);
   });
 
-  it('MEMBER cannot acquire owner-exclusive permissions through extras', () => {
+  it('mEMBER cannot acquire owner-exclusive permissions through extras', () => {
     const out = computeEffectivePermissions(Role.MEMBER, [Permission.PROJECT_DELETE], []);
     expect(out.has(Permission.PROJECT_DELETE)).toBe(false);
   });
@@ -72,7 +72,7 @@ describe('computeEffectivePermissions', () => {
     expect(out.has(Permission.AUDIT_RUN)).toBe(true);
   });
 
-  it('VIEWER + extras => MEMBER-like read+write capabilities (without owner-exclusive)', () => {
+  it('vIEWER + extras => MEMBER-like read+write capabilities (without owner-exclusive)', () => {
     const out = computeEffectivePermissions(
       Role.VIEWER,
       [Permission.AUDIT_RUN, Permission.SITE_WRITE],

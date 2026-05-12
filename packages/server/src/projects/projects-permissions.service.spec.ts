@@ -55,7 +55,7 @@ function makeDb(): DbMock {
  * updateMemberPermissions). Existing role-shape tests are in
  * projects.service.spec.ts.
  */
-describe('ProjectsService permissions', () => {
+describe('projectsService permissions', () => {
   let service: ProjectsService;
   let db: DbMock;
 
@@ -116,7 +116,7 @@ describe('ProjectsService permissions', () => {
       expect(result?.has(Permission.SITE_READ)).toBe(false); // revoked
     });
 
-    it('OWNER always has every permission regardless of stored overrides', async () => {
+    it('oWNER always has every permission regardless of stored overrides', async () => {
       db.where.mockReturnValueOnce(
         thenable([
           {

@@ -82,7 +82,7 @@ function mockStatusQueries(
     .mockReturnValueOnce(latestRows(options.latestFailures ?? []));
 }
 
-describe('OperationalStatusService', () => {
+describe('operationalStatusService', () => {
   it('returns ok status with zero-filled counts when dependencies are healthy', async () => {
     const { db, queueService, redis, service } = makeService();
     mockStatusQueries(db, {

@@ -48,7 +48,7 @@ function makeService(config = makeConfig()) {
   return { auditQueue, config, emailQueue, exportQueue, outboundQueue, service };
 }
 
-describe('QueueService', () => {
+describe('queueService', () => {
   describe('enqueueAuditRun', () => {
     it('enqueues audit jobs with configured attempts and auditRunId as the default jobId', async () => {
       const { auditQueue, config, service } = makeService(makeConfig({ AUDIT_QUEUE_ATTEMPTS: 7 }));

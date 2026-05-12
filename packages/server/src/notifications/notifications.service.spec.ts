@@ -10,8 +10,8 @@ import { ProjectsService } from '../projects/projects.service';
 import { QueueService } from '../queue/queue.service';
 import { NotificationsService } from './notifications.service';
 
-jest.mock('nodemailer', () => ({
-  createTransport: jest.fn(),
+jest.mock<typeof import('nodemailer')>('nodemailer', () => ({
+  createTransport: jest.fn() as unknown as typeof import('nodemailer').createTransport,
 }));
 
 function thenable<T>(rows: T) {
@@ -69,7 +69,7 @@ function makeDb(): DbMock {
   };
 }
 
-describe('NotificationsService', () => {
+describe('notificationsService', () => {
   let service: NotificationsService;
   let db: DbMock;
   let queue: { enqueueEmailDelivery: jest.Mock };

@@ -8,7 +8,7 @@ import { PublicBadgesService } from '../public-badges/public-badges.service';
 import { PublicBadgeAdminService } from './public-badge-admin.service';
 import { SitesService } from './sites.service';
 
-describe('PublicBadgeAdminService', () => {
+describe('publicBadgeAdminService', () => {
   let service: PublicBadgeAdminService;
   let db: { update: jest.Mock; set: jest.Mock; where: jest.Mock };
   let sites: { getByIdWithPermission: jest.Mock };

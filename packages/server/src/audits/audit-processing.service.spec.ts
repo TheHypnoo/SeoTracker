@@ -83,7 +83,7 @@ const SAMPLE_ANALYSIS = {
   urlInspections: [],
 };
 
-describe('AuditProcessingService', () => {
+describe('auditProcessingService', () => {
   let service: AuditProcessingService;
   let db: DbMock;
   let queue: { enqueueAuditRun: jest.Mock };

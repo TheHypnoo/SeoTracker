@@ -16,7 +16,7 @@ function thenable<T>(rows: T) {
   return node;
 }
 
-describe('ActivityLogService', () => {
+describe('activityLogService', () => {
   let service: ActivityLogService;
   let db: {
     insert: jest.Mock;
