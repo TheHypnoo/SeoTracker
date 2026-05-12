@@ -33,12 +33,12 @@ describe('strongPassword (decorator)', () => {
   });
 
   it('rejects passwords longer than max', async () => {
-    const errs = await check('a1' + 'x'.repeat(PASSWORD_MAX_LENGTH));
+    const errs = await check(`a1${'x'.repeat(PASSWORD_MAX_LENGTH)}`);
     expect(errs.some((m) => m.includes('most'))).toBe(true);
   });
 
   it('accepts a password with min-length, ≥1 letter, ≥1 digit', async () => {
-    const errs = await check('a'.repeat(PASSWORD_MIN_LENGTH - 1) + '1');
+    const errs = await check(`${'a'.repeat(PASSWORD_MIN_LENGTH - 1)}1`);
     expect(errs).toStrictEqual([]);
   });
 });

@@ -21,6 +21,9 @@ import {
 import { ProjectsService } from '../projects/projects.service';
 import { QueueService } from '../queue/queue.service';
 
+const DEFAULT_NOTIFICATION_PAGINATION: PaginationInput = { limit: 50, offset: 0 };
+const DEFAULT_EMAIL_DELIVERY_PAGINATION: PaginationInput = { limit: 25, offset: 0 };
+
 export type EmailNotificationType =
   | 'AUDIT_COMPLETED'
   | 'AUDIT_REGRESSION'
@@ -92,7 +95,7 @@ export class NotificationsService {
 
   async listForUser(
     userId: string,
-    pagination: PaginationInput = { limit: 50, offset: 0 },
+    pagination: PaginationInput = DEFAULT_NOTIFICATION_PAGINATION,
   ): Promise<PaginatedResponse<typeof notifications.$inferSelect>> {
     const { limit, offset } = pagination;
 
@@ -266,7 +269,7 @@ export class NotificationsService {
   async listEmailDeliveriesForProject(
     projectId: string,
     userId: string,
-    pagination: PaginationInput = { limit: 25, offset: 0 },
+    pagination: PaginationInput = DEFAULT_EMAIL_DELIVERY_PAGINATION,
     filters: { status?: EmailDeliveryStatus } = {},
   ): Promise<PaginatedResponse<typeof emailDeliveries.$inferSelect>> {
     await this.projectsService.assertOwner(projectId, userId);

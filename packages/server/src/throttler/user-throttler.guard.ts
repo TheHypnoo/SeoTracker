@@ -92,7 +92,7 @@ function requestPathCandidates(req: Request): string[] {
     req.path,
     (req as Request & { originalUrl?: string }).originalUrl,
     req.url,
-  ].filter((value): value is string => Boolean(value));
+  ].filter(Boolean);
 
   return rawValues.map((value) => {
     const [path = ''] = value.split('?');

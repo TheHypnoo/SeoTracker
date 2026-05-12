@@ -209,6 +209,7 @@ function OccurrencesSection({
       <ul className="mt-2 max-h-72 space-y-2 overflow-y-auto">
         {group.items.map((issue) => {
           const isIgnored = issue.state === 'IGNORED';
+          const projectIssueId = issue.projectIssueId;
           return (
             <li
               key={issue.id}
@@ -222,13 +223,11 @@ function OccurrencesSection({
                 <p className="min-w-0 flex-1 break-words text-sm leading-6 text-slate-800">
                   {issue.message}
                 </p>
-                {issue.projectIssueId ? (
+                {projectIssueId ? (
                   <button
                     type="button"
                     disabled={isPending}
-                    onClick={() =>
-                      onChangeState(issue.projectIssueId!, isIgnored ? 'OPEN' : 'IGNORED')
-                    }
+                    onClick={() => onChangeState(projectIssueId, isIgnored ? 'OPEN' : 'IGNORED')}
                     className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800 disabled:opacity-60"
                   >
                     {isIgnored ? (

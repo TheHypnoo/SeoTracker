@@ -70,7 +70,7 @@ export function roleLabel(role: string | null | undefined): string {
 
 export function toneClass(action: string): string {
   const tone = TONE_BY_ACTION[action] ?? 'neutral';
-  return TONE_CLASS[tone] ?? TONE_CLASS.neutral!;
+  return TONE_CLASS[tone] ?? 'bg-slate-100 text-slate-700 ring-slate-200';
 }
 
 /**

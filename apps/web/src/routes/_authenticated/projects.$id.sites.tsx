@@ -217,9 +217,9 @@ function ProjectProjectsPage() {
           onSubmit={createSubmitHandler(async () => {
             try {
               await projectForm.handleSubmit();
-            } catch (reason) {
+            } catch (error) {
               setCreateError(
-                reason instanceof Error ? reason.message : 'No se pudo crear el dominio',
+                error instanceof Error ? error.message : 'No se pudo crear el dominio',
               );
             }
           })}

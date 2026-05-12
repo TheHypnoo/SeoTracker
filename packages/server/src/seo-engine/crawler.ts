@@ -129,7 +129,7 @@ export async function fetchRobots(
     }
 
     return {
-      blockedAiBots: Array.from(blockedAiBots),
+      blockedAiBots: [...blockedAiBots],
       disallowsAll,
       exists: true,
       page,
@@ -222,7 +222,8 @@ export async function probeSitemap(
     if (response.status >= 400) {
       return { isSitemap: false, page };
     }
-    const snippet = (await response.text()).slice(0, 4096).toLowerCase();
+    const responseText = await response.text();
+    const snippet = responseText.slice(0, 4096).toLowerCase();
     const looksXml =
       snippet.includes('<urlset') ||
       snippet.includes('<sitemapindex') ||
@@ -708,7 +709,7 @@ export async function analyzeInternalPage(
       try {
         return new URL(finalUrl).host;
       } catch {
-        return;
+        return undefined;
       }
     })();
     const discovered: string[] = [];

@@ -60,7 +60,9 @@ describe('bullmqMetricsCollector', () => {
     );
 
     collector.onModuleInit();
-    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
 
     expect(auditQueue.getJobCounts).toHaveBeenCalledWith(
       'waiting',

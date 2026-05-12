@@ -22,10 +22,10 @@ describe('envSchema', () => {
 
   it('rejects placeholder JWT secrets from .env.example', () => {
     expect(() =>
-      envSchema.parse({ ...BASE_ENV, JWT_ACCESS_SECRET: '__replace_me__' + 'x'.repeat(40) }),
+      envSchema.parse({ ...BASE_ENV, JWT_ACCESS_SECRET: `__replace_me__${'x'.repeat(40)}` }),
     ).toThrow(/JWT_ACCESS_SECRET still uses the placeholder value/);
     expect(() =>
-      envSchema.parse({ ...BASE_ENV, JWT_REFRESH_SECRET: 'change-this-secret' + 'x'.repeat(40) }),
+      envSchema.parse({ ...BASE_ENV, JWT_REFRESH_SECRET: `change-this-secret${'x'.repeat(40)}` }),
     ).toThrow(/JWT_REFRESH_SECRET still uses the placeholder value/);
   });
 

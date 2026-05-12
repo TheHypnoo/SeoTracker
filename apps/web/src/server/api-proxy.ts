@@ -17,7 +17,7 @@ const HOP_BY_HOP_HEADERS = [
 ];
 
 function cleanEnvUrl(value: string | undefined, fallback: string): string {
-  const cleaned = (value ?? fallback).trim().replace(/^['"]|['"]$/g, '');
+  const cleaned = (value ?? fallback).trim().replaceAll(/^['"]|['"]$/g, '');
   return cleaned.endsWith('/') ? cleaned.slice(0, -1) : cleaned;
 }
 

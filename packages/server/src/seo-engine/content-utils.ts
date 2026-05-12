@@ -9,7 +9,7 @@ export function extractTextForComparison($: Cheerio): string {
   $clone('script, style, noscript, nav, header, footer, aside, svg, form, iframe').remove();
   const bodySelection = $clone('body');
   const text = bodySelection.length ? bodySelection.text() : $clone.text();
-  return text.replace(/\s+/g, ' ').trim().toLowerCase();
+  return text.replaceAll(/\s+/g, ' ').trim().toLowerCase();
 }
 
 export function countWords(text: string): number {
@@ -206,7 +206,7 @@ export function computeFleschScore(text: string): number | undefined {
   const sentences = text.split(/[.!?¿¡]+/).filter((s) => s.trim().length > 0).length || 1;
   let syllables = 0;
   for (const word of text.split(/\s+/)) {
-    const clean = word.replace(/[^a-záéíóúüñ]/gi, '');
+    const clean = word.replaceAll(/[^a-záéíóúüñ]/gi, '');
     if (!clean) continue;
     const groups = clean.toLowerCase().match(/[aeiouáéíóúü]+/g);
     syllables += groups ? groups.length : 1;

@@ -1,8 +1,8 @@
 import { Logger } from '@nestjs/common';
 import type { INestApplicationContext } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import { createServer } from 'http';
-import type { IncomingMessage, Server, ServerResponse } from 'http';
+import { createServer } from 'node:http';
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type IORedis from 'ioredis';
 
 import { DRIZZLE } from '../database/database.constants';
@@ -14,7 +14,7 @@ const READINESS_TIMEOUT_MS = 3000;
 
 async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<never>((_, reject) => {
+  const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(
       () => reject(new Error(`${label} timed out after ${READINESS_TIMEOUT_MS}ms`)),
       READINESS_TIMEOUT_MS,

@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { OutboundDeliveryStatus, type OutboundEvent, Permission } from '@seotracker/shared-types';
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { and, desc, eq, lt, sql } from 'drizzle-orm';
 
 import { assertPresent } from '../common/utils/assert';

@@ -2,7 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditStatus, ComparisonChangeType } from '@seotracker/shared-types';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
-import type { PaginationInput } from '../common/dto/pagination.dto';
+import { DEFAULT_PAGINATION, type PaginationInput } from '../common/dto/pagination.dto';
 import { assertPresent } from '../common/utils/assert';
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
@@ -44,7 +44,7 @@ export class AuditComparisonService {
   async listProjectComparisons(
     siteId: string,
     userId: string,
-    pagination: PaginationInput = { limit: 50, offset: 0 },
+    pagination: PaginationInput = DEFAULT_PAGINATION,
   ) {
     await this.sitesService.getById(siteId, userId);
 

@@ -12,7 +12,9 @@ import { SeoEngineService } from './seo-engine.service';
 import { discoverSiteMetadata } from './sitemap-discovery';
 
 jest.mock<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch', () => {
-  class MockSsrfBlockedError extends Error {}
+  class MockSsrfBlockedError extends Error {
+    override name = 'MockSsrfBlockedError';
+  }
   return {
     SsrfBlockedError: MockSsrfBlockedError,
     safeFetch: jest.fn(),

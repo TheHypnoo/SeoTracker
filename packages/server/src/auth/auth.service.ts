@@ -9,7 +9,7 @@ import { hash, verify } from '@node-rs/argon2';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Response } from 'express';
 

@@ -26,9 +26,11 @@ export interface PaginationInput {
   offset: number;
 }
 
+export const DEFAULT_PAGINATION: PaginationInput = { limit: 50, offset: 0 };
+
 export function resolvePagination(
   query: PaginationQueryDto | undefined,
-  defaults: PaginationInput = { limit: 50, offset: 0 },
+  defaults: PaginationInput = DEFAULT_PAGINATION,
 ): PaginationInput {
   return {
     limit: query?.limit ?? defaults.limit,

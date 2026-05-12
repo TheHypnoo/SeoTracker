@@ -1207,7 +1207,7 @@ async function downloadExport(
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = fileName ?? `export-${exportId}.csv`;
-  document.body.appendChild(anchor);
+  document.body.append(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);

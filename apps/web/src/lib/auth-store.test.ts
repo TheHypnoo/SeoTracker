@@ -16,11 +16,10 @@ function jsonResponse(status: number, body: unknown) {
 
 function setCsrfCookie(value: string | null) {
   // jsdom honors document.cookie. Setting "name=" with past expiry deletes it.
-  if (value === null) {
-    document.cookie = 'csrf_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-  } else {
-    document.cookie = `csrf_token=${value}; path=/`;
-  }
+  document.cookie =
+    value === null
+      ? 'csrf_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+      : `csrf_token=${value}; path=/`;
 }
 
 describe(useAuthStore, () => {

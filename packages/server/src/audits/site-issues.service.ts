@@ -1,6 +1,6 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import {
   ActivityAction,
   type IssueCategory,

@@ -20,7 +20,9 @@ import {
 // Mock safeFetch — every helper in crawler.ts hits the network through it.
 jest.mock<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch', () => ({
   safeFetch: jest.fn(),
-  SsrfBlockedError: class SsrfBlockedError extends Error {},
+  SsrfBlockedError: class SsrfBlockedError extends Error {
+    override name = 'SsrfBlockedError';
+  },
 }));
 
 const safeFetch = jest.mocked(jest.requireMock('../common/utils/safe-fetch').safeFetch);
@@ -266,9 +268,9 @@ describe('extractSitemapUrls', () => {
     safeFetch.mockResolvedValueOnce(
       xmlResponse(
         200,
-        Array.from({ length: 10 }, (_, i) => `<url><loc>https://x.test/p${i}</loc></url>`).join(
+        `${Array.from({ length: 10 }, (_, i) => `<url><loc>https://x.test/p${i}</loc></url>`).join(
           '',
-        ) + '</urlset>',
+        )}</urlset>`,
       ),
     );
     const urls = await extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 3);
