@@ -27,17 +27,6 @@ export function formatCompactDateTime(value: string, locale = 'es-ES') {
       });
 }
 
-export function formatNumericDate(value: string, locale = 'es-ES') {
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf())
-    ? ''
-    : date.toLocaleDateString(locale, {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      });
-}
-
 export function toTimestamp(value: string) {
   const timestamp = new Date(value).getTime();
   return Number.isNaN(timestamp) ? 0 : timestamp;

@@ -1,0 +1,20 @@
+{
+  "ignore": {
+    "rules": [
+      "react-doctor/no-giant-component",
+      "no-giant-component",
+      "react-doctor/design-no-default-tailwind-palette",
+      "react-doctor/design-no-bold-heading",
+      "react-doctor/design-no-redundant-size-axes",
+      "react-doctor/design-no-redundant-padding-axes",
+      "react-doctor/design-no-three-period-ellipsis",
+      "react-doctor/design-no-em-dash-in-jsx-text"
+    ],
+    "overrides": [
+      {
+        "files": ["src/server/api-proxy.ts", "src/server/health.ts"],
+        "rules": ["knip/files"]
+      }
+    ]
+  }
+}

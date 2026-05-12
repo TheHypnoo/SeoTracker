@@ -25,7 +25,6 @@ dist
 .codex/
 .playwright-mcp/
 skills-lock.json
-react-doctor.config.json
 
 # runtime storage (kept as empty dirs via .gitkeep)
 apps/api/storage/**

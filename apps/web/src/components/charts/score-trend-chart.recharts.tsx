@@ -1,13 +1,4 @@
-import { useState } from 'react';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ReferenceLine,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { lazy, useState } from 'react';
 import { formatCompactDateTime, formatShortDate } from '#/lib/date-format';
 
 export interface TrendChartPoint {
@@ -34,108 +25,132 @@ type ChartMouseState = {
   activeTooltipIndex?: null | number | string;
 };
 
-export default function ScoreTrendChartRecharts({
-  points,
-  height,
-}: {
+type ScoreTrendChartProps = {
   points: TrendChartPoint[];
   height: number;
-}) {
-  const [activePoint, setActivePoint] = useState<ActivePoint | null>(null);
+};
 
-  const data: ChartDatum[] = points.map((p, index) => {
-    const previous = points[index - 1];
-    return {
-      date: p.date,
-      delta: previous ? p.score - previous.score : null,
-      label: formatShortDate(p.date),
-      score: p.score,
-      timestamp: new Date(p.date).getTime(),
-    };
-  });
-  const activeDatum = activePoint ? data[activePoint.index] : undefined;
+type RechartsModule = Pick<
+  Awaited<ReturnType<typeof importRecharts>>,
+  | 'Area'
+  | 'AreaChart'
+  | 'CartesianGrid'
+  | 'ReferenceLine'
+  | 'ResponsiveContainer'
+  | 'XAxis'
+  | 'YAxis'
+>;
 
-  return (
-    <div className="relative h-full">
-      <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 300, height }}>
-        <AreaChart
-          accessibilityLayer={false}
-          data={data}
-          margin={{ top: 16, right: 12, left: -12, bottom: 4 }}
-          onMouseDown={(_, event) => {
-            event.currentTarget.blur();
-          }}
-          onMouseLeave={() => setActivePoint(null)}
-          onMouseMove={(state: ChartMouseState) => {
-            const index =
-              state.activeTooltipIndex === undefined
-                ? Number.NaN
-                : Number(state.activeTooltipIndex);
-            const coordinate = state.activeCoordinate;
-            if (!Number.isInteger(index) || !coordinate || !data[index]) {
-              setActivePoint(null);
-              return;
-            }
-            setActivePoint({ index, x: coordinate.x, y: coordinate.y });
-          }}
-          role="img"
-          tabIndex={-1}
-        >
-          <defs>
-            <linearGradient id="dashboard-trend-area" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgb(99, 102, 241)" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="rgb(99, 102, 241)" stopOpacity="0" />
-            </linearGradient>
-            <linearGradient id="dashboard-trend-line" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="rgb(14, 165, 233)" />
-              <stop offset="100%" stopColor="rgb(99, 102, 241)" />
-            </linearGradient>
-          </defs>
-          <CartesianGrid stroke="rgb(226, 232, 240)" strokeDasharray="3 4" vertical={false} />
-          <XAxis
-            dataKey="timestamp"
-            type="number"
-            domain={['dataMin', 'dataMax']}
-            tick={{ fontSize: 11, fill: 'rgb(100, 116, 139)', fontWeight: 600 }}
-            tickFormatter={(value) => formatShortDate(new Date(Number(value)).toISOString())}
-            axisLine={{ stroke: 'rgb(226, 232, 240)' }}
-            tickLine={false}
-            interval="preserveStartEnd"
-            minTickGap={24}
-          />
-          <YAxis
-            domain={[0, 100]}
-            ticks={[0, 25, 50, 75, 100]}
-            tick={{ fontSize: 11, fill: 'rgb(100, 116, 139)', fontWeight: 600 }}
-            axisLine={false}
-            tickLine={false}
-            width={36}
-          />
-          {activeDatum ? (
-            <ReferenceLine
-              x={activeDatum.timestamp}
-              stroke="rgb(99, 102, 241)"
-              strokeDasharray="2 3"
-              strokeWidth={1.5}
+function createScoreTrendChartRecharts({
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ReferenceLine,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+}: RechartsModule) {
+  return function ScoreTrendChartRecharts({ points, height }: ScoreTrendChartProps) {
+    const [activePoint, setActivePoint] = useState<ActivePoint | null>(null);
+
+    const data: ChartDatum[] = points.map((p, index) => {
+      const previous = points[index - 1];
+      return {
+        date: p.date,
+        delta: previous ? p.score - previous.score : null,
+        label: formatShortDate(p.date),
+        score: p.score,
+        timestamp: new Date(p.date).getTime(),
+      };
+    });
+    const activeDatum = activePoint ? data[activePoint.index] : undefined;
+
+    return (
+      <div className="relative h-full">
+        <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 300, height }}>
+          <AreaChart
+            accessibilityLayer={false}
+            data={data}
+            margin={{ top: 16, right: 12, left: -12, bottom: 4 }}
+            onMouseDown={(_, event) => {
+              event.currentTarget.blur();
+            }}
+            onMouseLeave={() => setActivePoint(null)}
+            onMouseMove={(state: ChartMouseState) => {
+              const index =
+                state.activeTooltipIndex === undefined
+                  ? Number.NaN
+                  : Number(state.activeTooltipIndex);
+              const coordinate = state.activeCoordinate;
+              if (!Number.isInteger(index) || !coordinate || !data[index]) {
+                setActivePoint(null);
+                return;
+              }
+              setActivePoint({ index, x: coordinate.x, y: coordinate.y });
+            }}
+            role="img"
+            tabIndex={-1}
+          >
+            <defs>
+              <linearGradient id="dashboard-trend-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgb(99, 102, 241)" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="rgb(99, 102, 241)" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="dashboard-trend-line" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="rgb(14, 165, 233)" />
+                <stop offset="100%" stopColor="rgb(99, 102, 241)" />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="rgb(226, 232, 240)" strokeDasharray="3 4" vertical={false} />
+            <XAxis
+              dataKey="timestamp"
+              type="number"
+              domain={['dataMin', 'dataMax']}
+              tick={{ fontSize: 11, fill: 'rgb(100, 116, 139)', fontWeight: 600 }}
+              tickFormatter={formatTimestampTick}
+              axisLine={{ stroke: 'rgb(226, 232, 240)' }}
+              tickLine={false}
+              interval="preserveStartEnd"
+              minTickGap={24}
             />
-          ) : null}
-          <Area
-            type="monotone"
-            dataKey="score"
-            stroke="url(#dashboard-trend-line)"
-            strokeWidth={2.5}
-            fill="url(#dashboard-trend-area)"
-            dot={{ r: 2.5, fill: 'white', stroke: 'rgb(79, 70, 229)', strokeWidth: 2 }}
-            activeDot={{ r: 5, fill: 'white', stroke: 'rgb(79, 70, 229)', strokeWidth: 3 }}
-            isAnimationActive={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-      {activeDatum && activePoint ? (
-        <ScoreTooltip point={activeDatum} x={activePoint.x} y={activePoint.y} />
-      ) : null}
-    </div>
-  );
+            <YAxis
+              domain={[0, 100]}
+              ticks={[0, 25, 50, 75, 100]}
+              tick={{ fontSize: 11, fill: 'rgb(100, 116, 139)', fontWeight: 600 }}
+              axisLine={false}
+              tickLine={false}
+              width={36}
+            />
+            {activeDatum ? (
+              <ReferenceLine
+                x={activeDatum.timestamp}
+                stroke="rgb(99, 102, 241)"
+                strokeDasharray="2 3"
+                strokeWidth={1.5}
+              />
+            ) : null}
+            <Area
+              type="monotone"
+              dataKey="score"
+              stroke="url(#dashboard-trend-line)"
+              strokeWidth={2.5}
+              fill="url(#dashboard-trend-area)"
+              dot={{ r: 2.5, fill: 'white', stroke: 'rgb(79, 70, 229)', strokeWidth: 2 }}
+              activeDot={{ r: 5, fill: 'white', stroke: 'rgb(79, 70, 229)', strokeWidth: 3 }}
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+        {activeDatum && activePoint ? (
+          <ScoreTooltip point={activeDatum} x={activePoint.x} y={activePoint.y} />
+        ) : null}
+      </div>
+    );
+  };
+}
+
+function formatTimestampTick(value: unknown) {
+  return formatShortDate(new Date(Number(value)).toISOString());
 }
 
 function ScoreTooltip({ point, x, y }: { point: ChartDatum; x: number; y: number }) {
@@ -172,3 +187,12 @@ function ScoreTooltip({ point, x, y }: { point: ChartDatum; x: number; y: number
     </div>
   );
 }
+
+function importRecharts() {
+  return import('recharts');
+}
+
+export default lazy(async () => {
+  const recharts = await importRecharts();
+  return { default: createScoreTrendChartRecharts(recharts) };
+});

@@ -54,40 +54,31 @@ export function useFormSubmitHandler(
   formOrCallback: FormLike | (() => void | Promise<void>),
   options: { defaultErrorMessage?: string } = {},
 ): SubmitHandler | SubmitHandlerWithError {
-  // Object form: TanStack Form-like input. Always called with a stable form
-  // object whose identity changes across renders, so the hook order is
-  // deterministic — but we still need React to allow the conditional path.
-  // The caller picks one signature and stays with it for the lifetime of
-  // the component.
-  if (typeof formOrCallback === 'function') {
-    return (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      void formOrCallback();
-    };
-  }
-
-  return useFormSubmitHandlerWithError(formOrCallback, options);
-}
-
-function useFormSubmitHandlerWithError(
-  form: FormLike,
-  options: { defaultErrorMessage?: string },
-): SubmitHandlerWithError {
   const [error, setError] = useState<string | null>(null);
   const { defaultErrorMessage = 'No se pudo completar la acción' } = options;
+  const isCallback = typeof formOrCallback === 'function';
 
   const onSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       event.stopPropagation();
+
+      if (typeof formOrCallback === 'function') {
+        void formOrCallback();
+        return;
+      }
+
       setError(null);
-      void Promise.resolve(form.handleSubmit()).catch((reason: unknown) => {
+      void Promise.resolve(formOrCallback.handleSubmit()).catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : defaultErrorMessage);
       });
     },
-    [form, defaultErrorMessage],
+    [formOrCallback, defaultErrorMessage],
   );
+
+  if (isCallback) {
+    return onSubmit;
+  }
 
   return { error, setError, onSubmit };
 }

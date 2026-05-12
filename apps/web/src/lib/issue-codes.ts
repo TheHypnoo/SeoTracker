@@ -302,7 +302,7 @@ export function getIssueCodeInfo(code: string): IssueCodeInfo {
   return ISSUE_CODE_DICTIONARY[code] ?? { ...DEFAULT_INFO, title: humanizeCode(code) };
 }
 
-export function humanizeCode(code: string) {
+function humanizeCode(code: string) {
   return code
     .toLowerCase()
     .replaceAll(/_+/g, ' ')

@@ -34,7 +34,7 @@ type RateLimitLike = {
   status?: number;
 };
 
-export function isActiveAuditStatus(status: string | null | undefined): boolean {
+function isActiveAuditStatus(status: string | null | undefined): boolean {
   return status === 'QUEUED' || status === 'RUNNING';
 }
 

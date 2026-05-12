@@ -1,25 +1,5 @@
 import type { ApiClient } from '../../lib/api-client';
-import type { AuditRun, Schedule } from './types';
-
-export const DAY_LABELS = [
-  'Domingo',
-  'Lunes',
-  'Martes',
-  'Miércoles',
-  'Jueves',
-  'Viernes',
-  'Sábado',
-];
-
-export function describeSchedule(schedule: Schedule): string {
-  const time = schedule.timeOfDay;
-  const tz = schedule.timezone;
-  if (schedule.frequency === 'DAILY') {
-    return `Diaria a las ${time} · ${tz}`;
-  }
-  const day = DAY_LABELS[(schedule.dayOfWeek ?? 1) % 7] ?? 'Lunes';
-  return `Los ${day.toLowerCase()} a las ${time} · ${tz}`;
-}
+import type { AuditRun } from './types';
 
 export function statusLabel(status: string | null) {
   if (status === 'COMPLETED') {

@@ -105,29 +105,27 @@ export class ApiClient {
     };
 
     const isGet = method === 'GET';
-    let lastError: unknown;
-
-    for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
+    const requestAttempt = async (attempt: number): Promise<Response> => {
       try {
         const response = await attemptFetch();
 
         // Transient 5xx / 408: only safe to retry on GET.
         if (isGet && TRANSIENT_GET_STATUS.has(response.status) && attempt < this.maxRetries) {
           await sleep(backoffMs(attempt));
-          continue;
+          return requestAttempt(attempt + 1);
         }
 
         return response;
       } catch (error) {
-        lastError = error;
         if (!isGet || attempt === this.maxRetries) {
           throw error;
         }
         await sleep(backoffMs(attempt));
+        return requestAttempt(attempt + 1);
       }
-    }
+    };
 
-    throw lastError ?? new Error('API request failed');
+    return requestAttempt(0);
   }
 
   private async requestJson<T>(
@@ -290,9 +288,10 @@ function normalizeErrorMessage(payload: unknown): string | undefined {
     return raw;
   }
   if (Array.isArray(raw)) {
-    const parts = raw
-      .map((item) => (typeof item === 'string' ? item : JSON.stringify(item)))
-      .filter(Boolean);
+    const parts = raw.flatMap((item) => {
+      const message = typeof item === 'string' ? item : JSON.stringify(item);
+      return message ? [message] : [];
+    });
     return parts.length ? parts.join('. ') : undefined;
   }
   if (raw && typeof raw === 'object') {

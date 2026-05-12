@@ -1,10 +1,8 @@
 import {
-  GRANTABLE_PERMISSIONS,
   OWNER_EXCLUSIVE_PERMISSIONS,
   Permission,
   ROLE_PERMISSIONS,
   Role,
-  computeEffectivePermissions,
 } from '@seotracker/shared-types';
 
 /** Human-readable label per permission. Re-exported in Spanish for the UI. */
@@ -88,10 +86,6 @@ export function isOwnerExclusive(permission: Permission): boolean {
   return OWNER_EXCLUSIVE_PERMISSIONS.has(permission);
 }
 
-export function isGrantable(permission: Permission): boolean {
-  return GRANTABLE_PERMISSIONS.has(permission);
-}
-
 export function getRoleDefaults(role: Role): ReadonlySet<Permission> {
   return ROLE_PERMISSIONS[role];
 }
@@ -116,4 +110,4 @@ export function diffAgainstRoleDefaults(
   return { extra, revoked };
 }
 
-export { Permission, Role, computeEffectivePermissions };
+export { Permission, Role };

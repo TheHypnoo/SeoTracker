@@ -6,7 +6,6 @@ import {
   PERMISSION_GROUPS,
   PERMISSION_LABELS,
   ROLE_LABELS,
-  computeEffectivePermissions,
   getRoleDefaults,
   isOwnerExclusive,
 } from './permission-catalog';
@@ -173,5 +172,3 @@ export function RolePermissionsEditor({
     </div>
   );
 }
-
-export { computeEffectivePermissions };
