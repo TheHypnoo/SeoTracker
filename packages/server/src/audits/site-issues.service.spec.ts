@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -189,7 +190,7 @@ describe('ProjectIssuesService', () => {
       'user-1',
       Permission.AUDIT_READ,
     );
-    expect(out).toEqual({
+    expect(out).toStrictEqual({
       items: [
         expect.objectContaining({
           id: 'issue-1',
@@ -211,7 +212,7 @@ describe('ProjectIssuesService', () => {
       ]),
     );
 
-    await expect(service.getIgnoredFingerprints('site-1')).resolves.toEqual(
+    await expect(service.getIgnoredFingerprints('site-1')).resolves.toStrictEqual(
       new Set([`${IssueCode.MISSING_TITLE}::`, `${IssueCode.BROKEN_LINK}::https://example.com/b`]),
     );
   });

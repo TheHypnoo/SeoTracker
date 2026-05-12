@@ -47,7 +47,7 @@ describe('ApiClient', () => {
 
     const result = await client.get<{ id: string }>('/x');
 
-    expect(result).toEqual({ id: 'x' });
+    expect(result).toStrictEqual({ id: 'x' });
   });
 
   it('returns undefined on 204', async () => {
@@ -75,7 +75,7 @@ describe('ApiClient', () => {
 
     expect(refreshSession).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({ ok: true });
+    expect(result).toStrictEqual({ ok: true });
   });
 
   it('refreshes before protected requests when no access token is in memory', async () => {
@@ -101,7 +101,7 @@ describe('ApiClient', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe(
       'Bearer token-after-refresh',
     );
-    expect(result).toEqual({ ok: true });
+    expect(result).toStrictEqual({ ok: true });
   });
 
   it('does not pre-refresh credential bootstrap requests', async () => {
@@ -195,7 +195,7 @@ describe('ApiClient', () => {
       .mockResolvedValueOnce(jsonResponse(503, { message: 'busy' }))
       .mockResolvedValueOnce(jsonResponse(200, { ok: true }));
 
-    await expect(client.get('/x')).resolves.toEqual({ ok: true });
+    await expect(client.get('/x')).resolves.toStrictEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     fetchMock.mockResolvedValueOnce(jsonResponse(503, { message: 'busy' }));
@@ -256,7 +256,7 @@ describe('ApiClient', () => {
     const [a, b] = await Promise.all([client.post('/a', {}), client.post('/b', {})]);
 
     expect(refreshes).toBe(1);
-    expect(a).toEqual({ ok: 1 });
-    expect(b).toEqual({ ok: 2 });
+    expect(a).toStrictEqual({ ok: 1 });
+    expect(b).toStrictEqual({ ok: 2 });
   });
 });

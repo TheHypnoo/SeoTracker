@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { IssueCode } from '@seotracker/shared-types';
 import { load } from 'cheerio';
 
@@ -57,7 +58,10 @@ describe('fetchRobots', () => {
     );
     const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
     expect(result.exists).toBe(true);
-    expect(result.sitemaps).toEqual(['https://x.test/sitemap.xml', 'https://x.test/news.xml']);
+    expect(result.sitemaps).toStrictEqual([
+      'https://x.test/sitemap.xml',
+      'https://x.test/news.xml',
+    ]);
   });
 
   it('detects Disallow: / for User-agent: *', async () => {
@@ -74,14 +78,14 @@ describe('fetchRobots', () => {
       ),
     );
     const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
-    expect(result.blockedAiBots.sort()).toEqual(['claudebot', 'gptbot']);
+    expect(result.blockedAiBots.sort()).toStrictEqual(['claudebot', 'gptbot']);
   });
 
   it('returns exists=false on 4xx (no body parse)', async () => {
     safeFetch.mockResolvedValueOnce(textResponse(404, 'not found'));
     const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
     expect(result.exists).toBe(false);
-    expect(result.sitemaps).toEqual([]);
+    expect(result.sitemaps).toStrictEqual([]);
     expect(result.page.statusCode).toBe(404);
   });
 
@@ -225,7 +229,7 @@ describe('extractSitemapUrls', () => {
       ),
     );
     const urls = await extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 100);
-    expect(urls.sort()).toEqual(['https://x.test/a', 'https://x.test/b']);
+    expect(urls.sort()).toStrictEqual(['https://x.test/a', 'https://x.test/b']);
   });
 
   it('walks a sitemap index and collects child sitemap urls', async () => {
@@ -247,7 +251,7 @@ describe('extractSitemapUrls', () => {
         ),
       );
     const urls = await extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 50);
-    expect(urls).toEqual(['https://x.test/page-1']);
+    expect(urls).toStrictEqual(['https://x.test/page-1']);
   });
 
   it('respects the limit', async () => {
@@ -279,9 +283,9 @@ describe('extractSitemapUrls', () => {
         xmlResponse(200, '<urlset><url><loc>https://x.test/page-ok</loc></url></urlset>'),
       );
 
-    await expect(extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 10)).resolves.toEqual(
-      ['https://x.test/page-ok'],
-    );
+    await expect(
+      extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 10),
+    ).resolves.toStrictEqual(['https://x.test/page-ok']);
   });
 });
 
@@ -326,7 +330,7 @@ describe('analyzeInternalPage', () => {
     safeFetch.mockResolvedValueOnce(htmlResponse(404, 'not found'));
     const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
     expect(result.page.statusCode).toBe(404);
-    expect(result.issues).toEqual([]);
+    expect(result.issues).toStrictEqual([]);
     expect(result.text).toBeUndefined();
   });
 
@@ -335,7 +339,7 @@ describe('analyzeInternalPage', () => {
       new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
     );
     const result = await analyzeInternalPage('https://x.test/api', 1000, 'UA');
-    expect(result.issues).toEqual([]);
+    expect(result.issues).toStrictEqual([]);
     expect(result.text).toBeUndefined();
   });
 
@@ -381,7 +385,7 @@ describe('analyzeInternalPage', () => {
     const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
     const codes = result.issues.map((issue) => issue.issueCode);
 
-    expect(codes).toEqual(
+    expect(codes).toStrictEqual(
       expect.arrayContaining([
         IssueCode.TITLE_TOO_LONG,
         IssueCode.META_DESCRIPTION_TOO_LONG,
@@ -394,8 +398,8 @@ describe('analyzeInternalPage', () => {
         IssueCode.INVALID_HREFLANG,
       ]),
     );
-    expect(result.links).toEqual(['https://x.test/inside']);
-    expect(result.text).toEqual(expect.any(String));
+    expect(result.links).toStrictEqual(['https://x.test/inside']);
+    expect(result.text).toStrictEqual(expect.any(String));
   });
 
   it('does not report noindex on expected private pages', async () => {
@@ -429,7 +433,7 @@ describe('analyzeInternalPage', () => {
 
     const result = await analyzeInternalPage('https://x.test/page', 1000, 'UA');
 
-    expect(result.links).toEqual(['https://x.test/public']);
+    expect(result.links).toStrictEqual(['https://x.test/public']);
   });
 
   it('returns the partial page metadata when fetching HTML throws', async () => {
@@ -437,7 +441,7 @@ describe('analyzeInternalPage', () => {
 
     const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
 
-    expect(result.issues).toEqual([]);
+    expect(result.issues).toStrictEqual([]);
     expect(result.page.statusCode).toBeUndefined();
   });
 });
@@ -452,7 +456,7 @@ describe('low-level HTML checks', () => {
     const issues = checkCanonicalTags($, 'https://x.test/p', 'https://x.test/p');
     const codes = issues.map((issue) => issue.issueCode);
 
-    expect(codes).toEqual(
+    expect(codes).toStrictEqual(
       expect.arrayContaining([
         IssueCode.MULTIPLE_CANONICALS,
         IssueCode.CANONICAL_NOT_ABSOLUTE,
@@ -474,7 +478,7 @@ describe('low-level HTML checks', () => {
       <link rel="alternate" hreflang="bad_lang" href="::::">
     `);
 
-    expect(findInvalidHreflangLinks($, 'https://x.test/p')).toEqual(
+    expect(findInvalidHreflangLinks($, 'https://x.test/p')).toStrictEqual(
       expect.arrayContaining([
         expect.objectContaining({ reason: 'duplicate-lang' }),
         expect.objectContaining({ reason: 'invalid-lang' }),
@@ -491,7 +495,7 @@ describe('low-level HTML checks', () => {
       <script type="application/ld+json"></script>
     `);
 
-    expect(analyzeJsonLdBlocks($)).toEqual({
+    expect(analyzeJsonLdBlocks($)).toStrictEqual({
       invalidBlocks: [2],
       missingTypeBlocks: [3, 4],
       total: 5,

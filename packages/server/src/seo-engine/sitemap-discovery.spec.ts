@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 jest.mock('./crawler', () => {
   const fetchRobots = jest.fn();
   const checkSoft404 = jest.fn();
@@ -213,7 +214,7 @@ describe('discoverSiteMetadata', () => {
     });
 
     expect(result.metrics).toContainEqual({ key: 'sitemap_urls', valueNum: 42 });
-    expect(result.sitemapUrls).toEqual(['https://x.test/a', 'https://x.test/b']);
+    expect(result.sitemapUrls).toStrictEqual(['https://x.test/a', 'https://x.test/b']);
   });
 
   it('emits MISSING_SITEMAP when no candidate is a sitemap', async () => {
@@ -231,7 +232,7 @@ describe('discoverSiteMetadata', () => {
     });
 
     expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_SITEMAP)).toBeDefined();
-    expect(result.sitemapUrls).toEqual([]);
+    expect(result.sitemapUrls).toStrictEqual([]);
   });
 
   it('emits SITEMAP_INVALID when sitemap analysis says invalid', async () => {

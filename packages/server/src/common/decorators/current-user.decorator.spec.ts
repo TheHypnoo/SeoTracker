@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import type { ExecutionContext } from '@nestjs/common';
 
 import { CurrentUser } from './current-user.decorator';
@@ -24,7 +25,7 @@ describe('CurrentUser decorator', () => {
   it('contract: returns request.user when present', () => {
     const ctx = makeCtx({ sub: 'u-1', email: 'a@b.c' });
     const userFromCtx = ctx.switchToHttp().getRequest<{ user: unknown }>().user;
-    expect(userFromCtx).toEqual({ sub: 'u-1', email: 'a@b.c' });
+    expect(userFromCtx).toStrictEqual({ sub: 'u-1', email: 'a@b.c' });
   });
 
   it('contract: returns undefined when no user is attached to the request', () => {

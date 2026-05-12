@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -147,7 +148,7 @@ describe('SitesService', () => {
 
       expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u1', expect.any(String));
       expect(db.selectDistinctOn).not.toHaveBeenCalled();
-      expect(out).toEqual({ items: [], limit: 25, offset: 0, total: 0 });
+      expect(out).toStrictEqual({ items: [], limit: 25, offset: 0, total: 0 });
     });
 
     it('enriches project sites with schedule, latest audit and critical issue counts', async () => {
@@ -208,7 +209,7 @@ describe('SitesService', () => {
       });
 
       expect(out.total).toBe(2);
-      expect(out.items).toEqual([
+      expect(out.items).toStrictEqual([
         expect.objectContaining({
           automationEnabled: false,
           criticalIssuesCount: 3,
@@ -245,7 +246,7 @@ describe('SitesService', () => {
         automation: 'active',
       });
 
-      expect(out.items).toEqual([
+      expect(out.items).toStrictEqual([
         expect.objectContaining({
           automationEnabled: true,
           criticalIssuesCount: 0,
@@ -281,7 +282,7 @@ describe('SitesService', () => {
       const out = await service.delete('s1', 'u1');
 
       expect(db.delete).toHaveBeenCalled();
-      expect(out).toEqual({ success: true });
+      expect(out).toStrictEqual({ success: true });
     });
   });
 

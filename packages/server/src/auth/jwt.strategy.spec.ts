@@ -1,3 +1,4 @@
+import { describe, expect, it, jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 
 import { JwtStrategy } from './jwt.strategy';
@@ -11,6 +12,6 @@ describe('JwtStrategy', () => {
 
     const out = strategy.validate({ sub: 'u-1', email: 'a@b.c' });
 
-    expect(out).toEqual({ sub: 'u-1', email: 'a@b.c' });
+    expect(out).toStrictEqual({ sub: 'u-1', email: 'a@b.c' });
   });
 });

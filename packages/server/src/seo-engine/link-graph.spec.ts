@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { load } from 'cheerio';
 
 import { buildLinkGraph } from './link-graph';
@@ -19,11 +20,11 @@ describe('buildLinkGraph', () => {
       maxDepth: 1,
     });
 
-    expect(out.internalLinks.sort()).toEqual([
+    expect(out.internalLinks.sort()).toStrictEqual([
       'https://example.test/internal-1',
       'https://example.test/internal-2',
     ]);
-    expect(out.externalLinks).toEqual(['https://other.test/external']);
+    expect(out.externalLinks).toStrictEqual(['https://other.test/external']);
   });
 
   it('skips fragment / mailto: / tel: / javascript: hrefs', () => {
@@ -43,8 +44,8 @@ describe('buildLinkGraph', () => {
       maxPages: 5,
       maxDepth: 1,
     });
-    expect(out.internalLinks).toEqual(['https://example.test/ok']);
-    expect(out.externalLinks).toEqual([]);
+    expect(out.internalLinks).toStrictEqual(['https://example.test/ok']);
+    expect(out.externalLinks).toStrictEqual([]);
   });
 
   it('skips self-references that resolve to the homepage', () => {
@@ -62,7 +63,7 @@ describe('buildLinkGraph', () => {
       maxPages: 5,
       maxDepth: 1,
     });
-    expect(out.internalLinks).toEqual(['https://example.test/different']);
+    expect(out.internalLinks).toStrictEqual(['https://example.test/different']);
   });
 
   it('caps total <a> processing at maxLinks', () => {
@@ -115,11 +116,11 @@ describe('buildLinkGraph', () => {
       maxDepth: 1,
     });
 
-    expect(out.internalLinks).toEqual(['https://example.test/pricing']);
-    expect(out.depth1Selected).toEqual(
+    expect(out.internalLinks).toStrictEqual(['https://example.test/pricing']);
+    expect(out.depth1Selected).toStrictEqual(
       expect.arrayContaining(['https://example.test/blog/how-to-rank']),
     );
-    expect(out.depth1Selected).not.toEqual(
+    expect(out.depth1Selected).not.toStrictEqual(
       expect.arrayContaining(['https://example.test/dashboard']),
     );
     expect(out.metrics).toContainEqual({ key: 'internal_links_excluded', valueNum: 3 });
@@ -150,7 +151,7 @@ describe('buildLinkGraph', () => {
       maxPages: 5,
       maxDepth: 1,
     });
-    expect(out.metrics.map((m) => m.key).sort()).toEqual([
+    expect(out.metrics.map((m) => m.key).sort()).toStrictEqual([
       'external_links_found',
       'internal_links_excluded',
       'internal_links_found',

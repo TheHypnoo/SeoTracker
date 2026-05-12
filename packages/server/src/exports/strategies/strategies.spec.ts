@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditStatus, AuditTrigger, ExportKind } from '@seotracker/shared-types';
@@ -211,7 +212,7 @@ describe('IssuesCsvStrategy', () => {
 
     const out = await strategy.build({ auditRunId: 'run-1' } as never);
 
-    expect(out.headers).toEqual([
+    expect(out.headers).toStrictEqual([
       'issueId',
       'issueCode',
       'category',
@@ -359,11 +360,11 @@ describe('AuditResultCsvStrategy', () => {
 
     const out = await strategy.build({ auditRunId: 'r1' } as never);
 
-    expect(out.headers).toEqual(['section', 'key', 'value']);
+    expect(out.headers).toStrictEqual(['section', 'key', 'value']);
     // 5 summary + 1 metric + 1 page + 1 issue + 1 action + 1 indexability = 10
     expect(out.rows.length).toBe(10);
-    expect(out.rows[0]).toEqual(['summary', 'auditId', 'r1']);
-    expect(out.rows[5]).toEqual(['metric', 'lcp', '1.2']);
+    expect(out.rows[0]).toStrictEqual(['summary', 'auditId', 'r1']);
+    expect(out.rows[5]).toStrictEqual(['metric', 'lcp', '1.2']);
     expect(out.rows[6]?.[0]).toBe('page');
     expect(out.rows[7]?.[0]).toBe('issue');
     expect(out.rows[8]?.[0]).toBe('action');

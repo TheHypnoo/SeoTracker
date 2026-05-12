@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { OutboundDeliveryStatus, OutboundEvent, Permission } from '@seotracker/shared-types';
@@ -87,7 +88,7 @@ describe('OutboundWebhooksService', () => {
       const rows = [{ id: 'w1' }, { id: 'w2' }];
       db.where.mockReturnValueOnce(thenable(rows));
 
-      await expect(service.list('p1', 'u-reader')).resolves.toEqual(rows);
+      await expect(service.list('p1', 'u-reader')).resolves.toStrictEqual(rows);
 
       expect(projects.assertPermission).toHaveBeenCalledWith(
         'p1',
@@ -175,7 +176,7 @@ describe('OutboundWebhooksService', () => {
           headerValue: '  token  ',
           enabled: false,
         }),
-      ).resolves.toEqual({ id: 'w1', name: 'Fresh' });
+      ).resolves.toStrictEqual({ id: 'w1', name: 'Fresh' });
 
       expect(projects.assertPermission).toHaveBeenCalledWith(
         'p1',
@@ -205,7 +206,7 @@ describe('OutboundWebhooksService', () => {
         .mockReturnValueOnce(thenable([{ id: 'w1', projectId: 'p1' }]))
         .mockResolvedValueOnce([]);
 
-      await expect(service.remove('p1', 'w1', 'u-owner')).resolves.toEqual({ ok: true });
+      await expect(service.remove('p1', 'w1', 'u-owner')).resolves.toStrictEqual({ ok: true });
 
       expect(projects.assertPermission).toHaveBeenCalledWith(
         'p1',
@@ -221,7 +222,7 @@ describe('OutboundWebhooksService', () => {
       db.where.mockReturnValueOnce(thenable([{ id: 'w1', secret: 's1' }]));
 
       const out = await service.revealSecret('p1', 'w1', 'u-owner');
-      expect(out).toEqual({ secret: 's1' });
+      expect(out).toStrictEqual({ secret: 's1' });
     });
   });
 
@@ -272,7 +273,7 @@ describe('OutboundWebhooksService', () => {
         payload: {},
       });
 
-      expect(out).toEqual({ dispatched: 0 });
+      expect(out).toStrictEqual({ dispatched: 0 });
       expect(queue.enqueueOutboundDelivery).not.toHaveBeenCalled();
     });
 
@@ -458,7 +459,7 @@ describe('OutboundWebhooksService', () => {
       expect(init.method).toBe('POST');
       const headers = init.headers as Record<string, string>;
       const body = init.body as string;
-      expect(JSON.parse(body)).toEqual({
+      expect(JSON.parse(body)).toStrictEqual({
         event: OutboundEvent.AUDIT_COMPLETED,
         deliveryId: 'd1',
         createdAt: createdAt.toISOString(),
@@ -551,7 +552,7 @@ describe('OutboundWebhooksService', () => {
 
       await expect(
         service.reconcilePendingDeliveries({ limit: 2, staleAfterMs: 1_000 }),
-      ).resolves.toEqual({
+      ).resolves.toStrictEqual({
         checked: 2,
         requeued: 1,
       });

@@ -21,7 +21,6 @@ pnpm start            # production build
 pnpm test             # jest unit tests
 pnpm test:e2e
 pnpm typecheck
-pnpm lint
 pnpm db:generate      # drizzle-kit generate (schema → SQL migration)
 pnpm db:migrate       # drizzle-kit migrate (apply migrations)
 pnpm db:studio        # drizzle-kit studio (web UI to inspect data)

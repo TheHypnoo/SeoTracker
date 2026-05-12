@@ -53,7 +53,7 @@ describe('getServerSession (SSR)', () => {
 
     const result = await getServerSession();
 
-    expect(result).toEqual({ user: null });
+    expect(result).toStrictEqual({ user: null });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -79,7 +79,7 @@ describe('getServerSession (SSR)', () => {
 
     const result = await getServerSession();
 
-    expect(result).toEqual({ user: null });
+    expect(result).toStrictEqual({ user: null });
   });
 
   it('returns EMPTY on non-2xx (e.g. 401 expired refresh token)', async () => {
@@ -89,7 +89,7 @@ describe('getServerSession (SSR)', () => {
 
     const result = await getServerSession();
 
-    expect(result).toEqual({ user: null });
+    expect(result).toStrictEqual({ user: null });
   });
 
   it('returns EMPTY when the response body cannot be parsed as JSON', async () => {
@@ -101,7 +101,7 @@ describe('getServerSession (SSR)', () => {
 
     const result = await getServerSession();
 
-    expect(result).toEqual({ user: null });
+    expect(result).toStrictEqual({ user: null });
   });
 
   it('returns EMPTY when the parsed user has no id (defensive)', async () => {
@@ -111,7 +111,7 @@ describe('getServerSession (SSR)', () => {
 
     const result = await getServerSession();
 
-    expect(result).toEqual({ user: null });
+    expect(result).toStrictEqual({ user: null });
   });
 
   it('returns the user on a valid 200 response', async () => {
@@ -121,6 +121,6 @@ describe('getServerSession (SSR)', () => {
 
     const result = await getServerSession();
 
-    expect(result).toEqual({ user: { id: 'u1', email: 'a@b.c', name: 'Alice' } });
+    expect(result).toStrictEqual({ user: { id: 'u1', email: 'a@b.c', name: 'Alice' } });
   });
 });

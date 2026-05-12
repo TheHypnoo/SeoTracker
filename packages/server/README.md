@@ -44,6 +44,5 @@ This package is library-style; it doesn't run on its own. The deployable service
 ```bash
 pnpm build
 pnpm typecheck
-pnpm lint
 pnpm test
 ```

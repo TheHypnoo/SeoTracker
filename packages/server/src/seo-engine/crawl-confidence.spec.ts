@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { computeCrawlConfidence } from './crawl-confidence';
 
 describe('computeCrawlConfidence', () => {

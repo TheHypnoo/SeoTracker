@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -111,7 +112,7 @@ describe('AuthController', () => {
   describe('me', () => {
     it('returns the authenticated user as { id, email }', () => {
       const out = controller.me({ sub: 'u-1', email: 'a@b.c' });
-      expect(out).toEqual({ id: 'u-1', email: 'a@b.c' });
+      expect(out).toStrictEqual({ id: 'u-1', email: 'a@b.c' });
     });
 
     it('throws UnauthorizedException when CurrentUser is missing', () => {

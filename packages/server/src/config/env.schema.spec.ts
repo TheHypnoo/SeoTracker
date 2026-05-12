@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { envSchema } from './env.schema';
 
 const VALID_SECRET = 'a'.repeat(48);

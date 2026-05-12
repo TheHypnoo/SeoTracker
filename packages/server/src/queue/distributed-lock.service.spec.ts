@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 
 import { DistributedLockService } from './distributed-lock.service';
@@ -44,7 +45,7 @@ describe('DistributedLockService', () => {
         60_000,
         'NX',
       );
-      expect(handle).toEqual({
+      expect(handle).toStrictEqual({
         key: 'seotracker:lock:scheduler',
         token: expect.any(String),
         ttlMs: 60_000,

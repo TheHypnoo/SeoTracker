@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ComparisonChangeType, Permission, Severity } from '@seotracker/shared-types';
 
 import {
@@ -52,7 +53,7 @@ describe('alerts regression helpers', () => {
       scoreDropThreshold: 5,
     });
 
-    expect(signals.map((signal) => signal.title)).toEqual([
+    expect(signals.map((signal) => signal.title)).toStrictEqual([
       'Score SEO en descenso',
       'Nuevas incidencias críticas',
       'Aumento del volumen de incidencias',
@@ -73,7 +74,7 @@ describe('alerts regression helpers', () => {
         scoreDelta: -2,
         scoreDropThreshold: 5,
       }),
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });
 
@@ -99,7 +100,7 @@ describe('AlertsService', () => {
       notificationsService as never,
     );
 
-    await expect(service.getForProject('site-1', 'user-1')).resolves.toEqual({
+    await expect(service.getForProject('site-1', 'user-1')).resolves.toStrictEqual({
       id: 'rule-1',
       siteId: 'site-1',
     });

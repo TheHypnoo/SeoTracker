@@ -1,3 +1,4 @@
+import { describe, expect, it, jest } from '@jest/globals';
 import { OperationalStatusController } from './operational-status.controller';
 
 describe('OperationalStatusController', () => {
@@ -7,7 +8,7 @@ describe('OperationalStatusController', () => {
     };
     const controller = new OperationalStatusController(service as never);
 
-    expect(controller.status()).toEqual({ status: 'ok' });
+    expect(controller.status()).toStrictEqual({ status: 'ok' });
     expect(service.getStatus).toHaveBeenCalledTimes(1);
   });
 });

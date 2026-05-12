@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
@@ -195,7 +196,7 @@ describe('InvitationsService', () => {
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({ acceptedAt: expect.any(Date) }),
       );
-      expect(out).toEqual({ success: true });
+      expect(out).toStrictEqual({ success: true });
     });
   });
 });

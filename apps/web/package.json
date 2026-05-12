@@ -11,11 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run --passWithNoTests --config vitest.config.ts",
     "test:cov": "vitest run --coverage --config vitest.config.ts",
-    "lint": "NODE_NO_WARNINGS=1 NODE_OPTIONS=--experimental-strip-types oxlint -c ../../oxlint.config.ts src vite.config.ts vitest.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "format": "oxfmt -c .oxfmtrc.mjs --ignore-path ../../.gitignore --ignore-path .oxfmtignore --write src vite.config.ts vitest.config.ts",
-    "format:check": "oxfmt -c .oxfmtrc.mjs --ignore-path ../../.gitignore --ignore-path .oxfmtignore --check src vite.config.ts vitest.config.ts",
-    "check": "pnpm format && NODE_NO_WARNINGS=1 NODE_OPTIONS=--experimental-strip-types oxlint -c ../../oxlint.config.ts --fix src vite.config.ts vitest.config.ts",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {

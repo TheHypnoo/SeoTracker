@@ -25,10 +25,6 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "pnpm clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "NODE_OPTIONS=--experimental-strip-types oxlint --ignore-path ../../.gitignore src",
-    "format": "NODE_OPTIONS=--experimental-strip-types oxfmt --ignore-path ../../.gitignore --write src",
-    "format:check": "NODE_OPTIONS=--experimental-strip-types oxfmt --ignore-path ../../.gitignore --check src",
-    "check": "pnpm format && NODE_OPTIONS=--experimental-strip-types oxlint --ignore-path ../../.gitignore --fix src",
     "email:test": "pnpm build && node scripts/send-test-emails.mjs",
     "test": "jest --passWithNoTests",
     "test:cov": "jest --coverage"

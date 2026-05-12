@@ -24,7 +24,7 @@ seotracker/
 ├── scripts/           # Repo-level helper scripts (e.g. git hooks bootstrap)
 ├── .github/workflows/ # CI + dependency review
 ├── package.json, pnpm-workspace.yaml, turbo.json
-├── .oxlintrc.jsonc, .oxfmtrc.mjs
+├── oxlint.config.ts, oxfmt.config.ts
 └── README.md
 ```
 
@@ -102,13 +102,14 @@ pnpm db:studio      # drizzle-kit studio
 
 The monorepo uses `oxlint` + `oxfmt` with Ultracite presets.
 
-- Root shared base: `.oxlintrc.jsonc`, `.oxfmtrc.mjs`.
-- Each app may add framework-specific overrides (e.g. `apps/web/.oxlintrc.jsonc` for React rules).
+- Root config: `oxlint.config.ts`, `oxfmt.config.ts`.
+- Package-level scripts are reserved for build, dev, test and typecheck. Linting and formatting run from the root.
 
 ```bash
 pnpm format        # rewrite files with oxfmt
 pnpm lint          # oxlint across the monorepo
-pnpm check         # format + oxlint --fix per workspace
+pnpm check         # Ultracite aggregate check
+pnpm fix           # apply Ultracite autofixes
 pnpm verify        # full pre-push check
 ```
 
@@ -156,4 +157,4 @@ pnpm db:studio
 - **`docker compose up` fails** — make sure Docker Desktop is running and that ports 5432/6379/1025/8025 are free.
 - **API refuses to boot with "JWT secret looks like a placeholder"** — generate real secrets with `openssl rand -base64 48` and update `apps/api/.env`. The validator rejects values starting with `change-this`, `__replace_me__` or `replace-me`.
 - **Frontend hits 401 in a redirect loop** — the dev proxy must be reachable; make sure the API is up at `http://localhost:4000` and that `apps/web/.env` matches the API's `CSRF_COOKIE_NAME`.
-- **Pre-commit hook says nothing changed but lint still fails** — run `pnpm check` once to apply autofixes, then re-stage the changes.
+- **Pre-commit hook says nothing changed but lint still fails** — run `pnpm fix` once to apply autofixes, then re-stage the changes.

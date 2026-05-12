@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import 'reflect-metadata';
 import { validate } from 'class-validator';
 
@@ -38,6 +39,6 @@ describe('StrongPassword (decorator)', () => {
 
   it('accepts a password with min-length, ≥1 letter, ≥1 digit', async () => {
     const errs = await check('a'.repeat(PASSWORD_MIN_LENGTH - 1) + '1');
-    expect(errs).toEqual([]);
+    expect(errs).toStrictEqual([]);
   });
 });

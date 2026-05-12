@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -153,7 +154,7 @@ describe('ProjectsService', () => {
       const out = await service.deleteProject('p1', 'u1');
 
       expect(db.delete).toHaveBeenCalled();
-      expect(out).toEqual({ success: true });
+      expect(out).toStrictEqual({ success: true });
     });
   });
 
@@ -173,7 +174,7 @@ describe('ProjectsService', () => {
 
       const out = await service.getDashboard('p1', 'u1');
 
-      expect(out.summary).toEqual({
+      expect(out.summary).toStrictEqual({
         activeProjects: 0,
         totalAudits: 0,
         averageScore: null,
@@ -181,10 +182,10 @@ describe('ProjectsService', () => {
         regressions: 0,
         activeAutomations: 0,
       });
-      expect(out.trend).toEqual([]);
-      expect(out.recentProjects).toEqual([]);
-      expect(out.recentAudits).toEqual([]);
-      expect(out.activity).toEqual([]);
+      expect(out.trend).toStrictEqual([]);
+      expect(out.recentProjects).toStrictEqual([]);
+      expect(out.recentAudits).toStrictEqual([]);
+      expect(out.activity).toStrictEqual([]);
     });
 
     it('builds project dashboard metrics, recent activity and trend data', async () => {
@@ -271,7 +272,7 @@ describe('ProjectsService', () => {
 
       const out = await service.getDashboard('p1', 'u1');
 
-      expect(out.summary).toEqual({
+      expect(out.summary).toStrictEqual({
         activeProjects: 1,
         totalAudits: 4,
         averageScore: 90,
@@ -279,7 +280,7 @@ describe('ProjectsService', () => {
         regressions: 1,
         activeAutomations: 1,
       });
-      expect(out.trend).toEqual([
+      expect(out.trend).toStrictEqual([
         {
           date: '2026-05-08T10:02:00.000Z',
           score: 90,
@@ -295,11 +296,11 @@ describe('ProjectsService', () => {
           siteName: 'Two',
         },
       ]);
-      expect(out.recentProjects).toEqual([
+      expect(out.recentProjects).toStrictEqual([
         expect.objectContaining({ id: 'site-1', latestScore: 90 }),
         expect.objectContaining({ id: 'site-2', latestScore: null }),
       ]);
-      expect(out.recentAudits).toEqual([
+      expect(out.recentAudits).toStrictEqual([
         expect.objectContaining({
           id: 'run-2',
           issuesCount: 1,
@@ -311,7 +312,7 @@ describe('ProjectsService', () => {
           projectName: 'One',
         }),
       ]);
-      expect(out.activity).toEqual([
+      expect(out.activity).toStrictEqual([
         expect.objectContaining({ kind: 'REGRESSION', title: 'Regresión detectada' }),
         expect.objectContaining({ kind: 'AUDIT_FAILED', title: 'Auditoría fallida' }),
         expect.objectContaining({ kind: 'AUDIT', title: 'Auditoría actualizada' }),
@@ -340,7 +341,7 @@ describe('ProjectsService', () => {
 
       const out = await service.listMembers('p1', 'u-owner');
 
-      expect(out).toEqual([
+      expect(out).toStrictEqual([
         expect.objectContaining({
           email: 'member@example.com',
           effectivePermissions: expect.arrayContaining([Permission.EXPORT_CREATE]),
@@ -438,7 +439,7 @@ describe('ProjectsService', () => {
       const out = await service.removeMember('p1', 'u-other', 'u1');
 
       expect(db.delete).toHaveBeenCalled();
-      expect(out).toEqual({ success: true });
+      expect(out).toStrictEqual({ success: true });
     });
   });
 

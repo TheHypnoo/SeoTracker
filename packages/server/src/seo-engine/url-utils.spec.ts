@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import {
   classifyUrlBucket,
   normalizeForComparison,
@@ -66,7 +67,7 @@ describe('url-utils', () => {
         'https://example.test/contact',
       ];
 
-      expect(stratifiedSample(urls, 4)).toEqual([
+      expect(stratifiedSample(urls, 4)).toStrictEqual([
         'https://example.test/blog/a',
         'https://example.test/product/a',
         'https://example.test/category/a',
@@ -75,9 +76,11 @@ describe('url-utils', () => {
     });
 
     it('handles empty inputs, zero budget and budgets larger than the URL list', () => {
-      expect(stratifiedSample([], 10)).toEqual([]);
-      expect(stratifiedSample(['https://example.test/'], 0)).toEqual([]);
-      expect(stratifiedSample(['https://example.test/a'], 5)).toEqual(['https://example.test/a']);
+      expect(stratifiedSample([], 10)).toStrictEqual([]);
+      expect(stratifiedSample(['https://example.test/'], 0)).toStrictEqual([]);
+      expect(stratifiedSample(['https://example.test/a'], 5)).toStrictEqual([
+        'https://example.test/a',
+      ]);
     });
   });
 });

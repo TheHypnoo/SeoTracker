@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
@@ -37,7 +38,7 @@ describe('HealthController', () => {
     const out = await controller.readiness();
 
     expect(out.status).toBe('ready');
-    expect(out.checks).toEqual({ database: 'ok', redis: 'ok' });
+    expect(out.checks).toStrictEqual({ database: 'ok', redis: 'ok' });
   });
 
   it('readiness throws ServiceUnavailableException when DB is down', async () => {

@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { load } from 'cheerio';
 
 import {
@@ -26,7 +27,7 @@ describe('countWords', () => {
 
 describe('buildShingles', () => {
   it('returns single shingle when fewer words than size', () => {
-    expect(buildShingles('a b', 4)).toEqual(new Set(['a b']));
+    expect(buildShingles('a b', 4)).toStrictEqual(new Set(['a b']));
   });
   it('returns empty set on empty text', () => {
     expect(buildShingles('', 4).size).toBe(0);
@@ -61,7 +62,7 @@ describe('detectDuplicateContent', () => {
       ],
       0.7,
     );
-    expect(pairs).toEqual([]);
+    expect(pairs).toStrictEqual([]);
   });
 
   it('emits pair when similarity above threshold', () => {
@@ -93,11 +94,11 @@ describe('extractTextForComparison', () => {
 describe('detectHeadingSkips', () => {
   it('detects skip from h1 to h3', () => {
     const $ = load('<h1>a</h1><h3>b</h3>');
-    expect(detectHeadingSkips($)).toEqual([{ from: 1, to: 3 }]);
+    expect(detectHeadingSkips($)).toStrictEqual([{ from: 1, to: 3 }]);
   });
   it('returns empty when sequential', () => {
     const $ = load('<h1>a</h1><h2>b</h2><h3>c</h3>');
-    expect(detectHeadingSkips($)).toEqual([]);
+    expect(detectHeadingSkips($)).toStrictEqual([]);
   });
 });
 
@@ -107,7 +108,7 @@ describe('findMixedContent', () => {
       '<img src="http://insecure/img.png"><script src="https://safe/x.js"></script><iframe src="http://x"></iframe>',
     );
     const result = findMixedContent($);
-    expect(result).toEqual(expect.arrayContaining(['http://insecure/img.png', 'http://x']));
+    expect(result).toStrictEqual(expect.arrayContaining(['http://insecure/img.png', 'http://x']));
     expect(result).not.toContain('https://safe/x.js');
   });
 });
@@ -115,18 +116,18 @@ describe('findMixedContent', () => {
 describe('extractJsonLdTypes', () => {
   it('extracts @type from single object', () => {
     const $ = load('<script type="application/ld+json">{"@type":"Article"}</script>');
-    expect(extractJsonLdTypes($)).toEqual(['Article']);
+    expect(extractJsonLdTypes($)).toStrictEqual(['Article']);
   });
   it('extracts from arrays and @graph', () => {
     const $ = load(
       '<script type="application/ld+json">{"@graph":[{"@type":"Person"},{"@type":["BlogPosting","Article"]}]}</script>',
     );
     const types = extractJsonLdTypes($);
-    expect(types).toEqual(expect.arrayContaining(['Person', 'BlogPosting', 'Article']));
+    expect(types).toStrictEqual(expect.arrayContaining(['Person', 'BlogPosting', 'Article']));
   });
   it('ignores invalid JSON', () => {
     const $ = load('<script type="application/ld+json">{ invalid }</script>');
-    expect(extractJsonLdTypes($)).toEqual([]);
+    expect(extractJsonLdTypes($)).toStrictEqual([]);
   });
 });
 
