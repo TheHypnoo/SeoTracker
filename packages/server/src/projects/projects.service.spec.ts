@@ -131,7 +131,7 @@ describe('projectsService', () => {
 
       const out = await service.updateProject('p1', 'u1', { name: '  Nuevo  ' });
 
-      expect(db.update).toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalledTimes(1);
       expect(db.set).toHaveBeenCalledWith({ name: 'Nuevo' });
       expect(out.name).toBe('Nuevo');
     });
@@ -153,7 +153,7 @@ describe('projectsService', () => {
 
       const out = await service.deleteProject('p1', 'u1');
 
-      expect(db.delete).toHaveBeenCalled();
+      expect(db.delete).toHaveBeenCalledTimes(1);
       expect(out).toStrictEqual({ success: true });
     });
   });
@@ -438,7 +438,7 @@ describe('projectsService', () => {
 
       const out = await service.removeMember('p1', 'u-other', 'u1');
 
-      expect(db.delete).toHaveBeenCalled();
+      expect(db.delete).toHaveBeenCalledTimes(1);
       expect(out).toStrictEqual({ success: true });
     });
   });
@@ -453,8 +453,8 @@ describe('projectsService', () => {
 
       const out = await service.addMember('p1', 'u1', Role.MEMBER);
 
-      expect(db.insert).toHaveBeenCalled();
-      expect(db.onConflictDoNothing).toHaveBeenCalled();
+      expect(db.insert).toHaveBeenCalledTimes(1);
+      expect(db.onConflictDoNothing).toHaveBeenCalledTimes(1);
       expect(out?.role).toBe(Role.MEMBER);
     });
 

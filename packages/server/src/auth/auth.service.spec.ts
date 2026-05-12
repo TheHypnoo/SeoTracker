@@ -144,7 +144,7 @@ describe('authService', () => {
       // by inspecting the where(...) call argument is an SQL expression. Since
       // drizzle SQL builders aren't trivially serializable, we just check the
       // call happened (the normalization is asserted via the happy path below).
-      expect(db.select).toHaveBeenCalled();
+      expect(db.select).toHaveBeenCalledTimes(1);
     });
 
     it('happy path: hashes password, creates user, emits user.registered, issues session', async () => {
@@ -233,7 +233,7 @@ describe('authService', () => {
       await expect(service.refresh(undefined, 'csrf', 'csrf', res as never)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
-      expect(res.clearCookie).toHaveBeenCalled();
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
     });
 
     it('throws when CSRF header and cookie do not match (timing-safe)', async () => {
@@ -242,7 +242,7 @@ describe('authService', () => {
       await expect(
         service.refresh('refresh-jwt', 'csrf-A', 'csrf-B', res as never),
       ).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(res.clearCookie).toHaveBeenCalled();
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
     });
 
     it('throws when the refresh JWT cannot be verified', async () => {
@@ -252,7 +252,7 @@ describe('authService', () => {
       await expect(
         service.refresh('refresh-jwt', 'csrf', 'csrf', res as never),
       ).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(res.clearCookie).toHaveBeenCalled();
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
     });
 
     it('throws when the stored token row cannot be located (revoked/expired)', async () => {
@@ -274,8 +274,8 @@ describe('authService', () => {
       await expect(service.refresh('refresh-jwt', 'csrf', 'csrf', res as never)).rejects.toThrow(
         'User not found',
       );
-      expect(db.update).toHaveBeenCalled();
-      expect(res.clearCookie).toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalledTimes(1);
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
     });
 
     it('rotates a valid refresh token and issues a fresh session', async () => {
@@ -295,7 +295,7 @@ describe('authService', () => {
         }),
       );
 
-      expect(db.update).toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalledTimes(1);
       expect(jwt.signAsync).toHaveBeenCalledTimes(2);
       expect(res.cookie).toHaveBeenCalledTimes(2);
     });
@@ -339,7 +339,7 @@ describe('authService', () => {
       const result = await service.logout('refresh-jwt', 'csrf-A', 'csrf-B', res as never);
 
       expect(result).toStrictEqual({ success: true });
-      expect(res.clearCookie).toHaveBeenCalled();
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
       // No DB mutation when CSRF is invalid.
       expect(db.update).not.toHaveBeenCalled();
     });
@@ -349,8 +349,8 @@ describe('authService', () => {
 
       await service.logout('refresh-jwt', 'csrf', 'csrf', res as never);
 
-      expect(db.update).toHaveBeenCalled();
-      expect(res.clearCookie).toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalledTimes(1);
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
     });
 
     it('clears cookies even with no refresh token cookie at all', async () => {
@@ -358,7 +358,7 @@ describe('authService', () => {
 
       await service.logout(undefined, undefined, undefined, res as never);
 
-      expect(res.clearCookie).toHaveBeenCalled();
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
       expect(db.update).not.toHaveBeenCalled();
     });
 
@@ -424,7 +424,14 @@ describe('authService', () => {
       await expect(service.requestPasswordReset('a@b.c')).resolves.toStrictEqual({ success: true });
       await Promise.resolve();
 
-      expect(notifications.enqueueEmailDelivery).toHaveBeenCalled();
+      expect(notifications.enqueueEmailDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notificationType: 'PASSWORD_RESET',
+          subject: 'SEOTracker - Recuperación de contraseña',
+          to: 'a@b.c',
+          userId: 'u1',
+        }),
+      );
     });
   });
 

@@ -128,7 +128,7 @@ describe('schedulingService', () => {
       expect.any(Function),
     );
     expect(auditsService.runScheduled).toHaveBeenCalledWith('site-1');
-    expect(db.update).toHaveBeenCalled();
+    expect(db.update).toHaveBeenCalledTimes(1);
   });
 
   it('logs schedule execution errors and keeps the scheduler tick alive', async () => {

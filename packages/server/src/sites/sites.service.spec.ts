@@ -281,7 +281,7 @@ describe('sitesService', () => {
 
       const out = await service.delete('s1', 'u1');
 
-      expect(db.delete).toHaveBeenCalled();
+      expect(db.delete).toHaveBeenCalledTimes(1);
       expect(out).toStrictEqual({ success: true });
     });
   });
@@ -312,7 +312,16 @@ describe('sitesService', () => {
       expect(db.values).toHaveBeenCalledWith(
         expect.objectContaining({ frequency: 'DAILY', enabled: true, dayOfWeek: null }),
       );
-      expect(db.onConflictDoUpdate).toHaveBeenCalled();
+      expect(db.onConflictDoUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: expect.anything(),
+          set: expect.objectContaining({
+            frequency: 'DAILY',
+            enabled: true,
+            dayOfWeek: null,
+          }),
+        }),
+      );
       expect(out.frequency).toBe('DAILY');
     });
   });

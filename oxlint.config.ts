@@ -9,7 +9,6 @@ import vitest from 'ultracite/oxlint/vitest';
 const jestRules = {
   'jest/max-expects': 'off',
   'jest/no-confusing-set-timeout': 'off',
-  'jest/prefer-called-with': 'off',
 };
 
 const jestOverrides = (jest.overrides ?? []).map((override) => ({

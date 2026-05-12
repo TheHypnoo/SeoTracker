@@ -163,8 +163,8 @@ describe('webhooksService', () => {
 
       const out = await service.rotateEndpointSecret('p1', 'e1', 'u-owner');
 
-      expect(db.update).toHaveBeenCalled(); // disable old
-      expect(db.insert).toHaveBeenCalled(); // insert new
+      expect(db.update).toHaveBeenCalledTimes(1); // disable old
+      expect(db.insert).toHaveBeenCalledTimes(1); // insert new
       expect(out.secret).toBeTruthy();
     });
   });
