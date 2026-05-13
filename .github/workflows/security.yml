@@ -24,5 +24,9 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup-node-pnpm
 
-      - name: Audit dependencies
+      - name: Audit critical dependencies
         run: pnpm ci:audit
+
+      - name: Report dependency vulnerabilities
+        run: pnpm ci:audit:report
+        continue-on-error: true
