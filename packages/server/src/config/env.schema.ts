@@ -7,9 +7,12 @@ function isPlaceholderSecret(value: string): boolean {
   return PLACEHOLDER_SECRET_PREFIXES.some((prefix) => lowered.startsWith(prefix));
 }
 
-export const envSchema = z.object({
+// Fields shared between the API and the worker. Keep this list tight — anything
+// only one service needs belongs in apiEnvSchema or workerEnvSchema so the
+// other service does not validate it (and so ConfigModule does not reinject
+// the schema default into process.env in a process that should never see it).
+const commonShape = {
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().default(4000),
   DATABASE_URL: z.url(),
   PG_POOL_MAX: z.coerce.number().int().positive().default(20),
   PG_POOL_IDLE_TIMEOUT_MS: z.coerce.number().int().nonnegative().default(30_000),
@@ -38,10 +41,6 @@ export const envSchema = z.object({
       return value;
     }, z.boolean())
     .default(false),
-  CSRF_COOKIE_NAME: z.string().default('csrf_token'),
-  REFRESH_COOKIE_NAME: z.string().default('refresh_token'),
-  WEBHOOK_MAX_SKEW_SECONDS: z.coerce.number().int().positive().default(300),
-  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().positive().default(60),
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
   SMTP_SECURE: z
@@ -69,9 +68,6 @@ export const envSchema = z.object({
   AUDIT_MAX_PAGES: z.coerce.number().int().positive().default(12),
   AUDIT_MAX_DEPTH: z.coerce.number().int().min(1).max(3).default(2),
   AUDIT_SITEMAP_SAMPLE_MAX: z.coerce.number().int().positive().default(50),
-  SCHEDULER_LOCK_KEY: z.string().default('scheduler:run-due-schedules'),
-  SCHEDULER_LOCK_TTL_MS: z.coerce.number().int().positive().default(90_000),
-  SCHEDULER_DUE_WINDOW_MINUTES: z.coerce.number().int().positive().default(5),
   EXPORT_STORAGE_DIR: z.string().default('./storage/exports'),
   EXPORT_TTL_HOURS: z.coerce.number().int().positive().default(48),
   // process.env always serialises to a string, so an unset variable in the
@@ -88,9 +84,27 @@ export const envSchema = z.object({
   ),
   ALERT_WEBHOOK_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
   ALERT_WEBHOOK_MIN_INTERVAL_MS: z.coerce.number().int().nonnegative().default(60_000),
-  JOBS_HTTP_PORT: z.coerce.number().int().positive().default(4101),
-  SCHEDULER_HTTP_PORT: z.coerce.number().int().positive().default(4102),
   BULLMQ_METRICS_INTERVAL_MS: z.coerce.number().int().nonnegative().default(15_000),
+  OTEL_ENABLED: z
+    .preprocess((value) => (typeof value === 'string' ? value === 'true' : value), z.boolean())
+    .default(false),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.url().optional(),
+  OTEL_SERVICE_NAME: z.string().optional(),
+} as const;
+
+export const commonEnvSchema = z.object(commonShape);
+export type CommonEnv = z.infer<typeof commonEnvSchema>;
+
+// API-only fields. The worker must NOT validate these — @nestjs/config writes
+// validate() output back into process.env, so listing PORT here would inject
+// PORT=4000 into the worker process and break its JOBS_HTTP_PORT fallback.
+export const apiEnvSchema = z.object({
+  ...commonShape,
+  PORT: z.coerce.number().int().positive().default(4000),
+  CSRF_COOKIE_NAME: z.string().default('csrf_token'),
+  REFRESH_COOKIE_NAME: z.string().default('refresh_token'),
+  WEBHOOK_MAX_SKEW_SECONDS: z.coerce.number().int().positive().default(300),
+  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().positive().default(60),
   // Number of trusted proxy hops in front of the API. Express uses this to
   // resolve req.ip / req.protocol from X-Forwarded-* headers. Set to the
   // exact number — never `true`, since a spoofed X-Forwarded-For would let
@@ -99,11 +113,21 @@ export const envSchema = z.object({
   //  - Railway only:         1
   //  - Railway + Cloudflare: 2
   TRUST_PROXY: z.coerce.number().int().nonnegative().default(0),
-  OTEL_ENABLED: z
-    .preprocess((value) => (typeof value === 'string' ? value === 'true' : value), z.boolean())
-    .default(false),
-  OTEL_EXPORTER_OTLP_ENDPOINT: z.url().optional(),
-  OTEL_SERVICE_NAME: z.string().optional(),
 });
+export type ApiEnv = z.infer<typeof apiEnvSchema>;
 
-export type Env = z.infer<typeof envSchema>;
+// Worker-only fields. Likewise, the API must not validate these.
+export const workerEnvSchema = z.object({
+  ...commonShape,
+  JOBS_HTTP_PORT: z.coerce.number().int().positive().default(4101),
+  SCHEDULER_HTTP_PORT: z.coerce.number().int().positive().default(4102),
+  SCHEDULER_LOCK_KEY: z.string().default('scheduler:run-due-schedules'),
+  SCHEDULER_LOCK_TTL_MS: z.coerce.number().int().positive().default(90_000),
+  SCHEDULER_DUE_WINDOW_MINUTES: z.coerce.number().int().positive().default(5),
+});
+export type WorkerEnv = z.infer<typeof workerEnvSchema>;
+
+// Convenience union used by `packages/server` modules that are reused by both
+// services: any key from either schema is accessible in TypeScript. At runtime
+// each process only ever exposes the keys validated by its own schema.
+export type Env = ApiEnv & WorkerEnv;

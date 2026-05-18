@@ -9,8 +9,8 @@ import {
   AlertsModule,
   AuditsModule,
   AuthModule,
+  apiEnvSchema,
   DatabaseModule,
-  envSchema,
   ExportsModule,
   HealthModule,
   HttpMetricsInterceptor,
@@ -35,7 +35,7 @@ import {
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      validate: (raw) => envSchema.parse(raw),
+      validate: (raw) => apiEnvSchema.parse(raw),
     }),
     EventEmitterModule.forRoot({ wildcard: false, ignoreErrors: false }),
     LoggerHttpModule,
