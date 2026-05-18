@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { ProjectsController } from './projects.controller';
@@ -32,6 +33,13 @@ describe('projectsController', () => {
   it('create passes only the name (and current user)', () => {
     void controller.create(USER, { name: 'Acme' } as never);
     expect(service.createProject).toHaveBeenCalledWith('u-1', 'Acme');
+  });
+
+  it('create rejects invalid project payloads', () => {
+    expect(() => controller.create(USER, { name: 'A', extra: true } as never)).toThrow(
+      BadRequestException,
+    );
+    expect(service.createProject).not.toHaveBeenCalled();
   });
 
   it('list / getById / dashboard / members delegate', () => {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { CrawlConfigService } from './crawl-config.service';
@@ -7,6 +8,7 @@ import { SitesController } from './sites.controller';
 import { SitesService } from './sites.service';
 
 const USER = { sub: 'u-1' };
+const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('sitesController', () => {
   let controller: SitesController;
@@ -47,11 +49,29 @@ describe('sitesController', () => {
   });
 
   it('create delegates to sitesService.create', () => {
-    void controller.create(USER, { projectId: 'p1', name: 'n', domain: 'x.test' } as never);
+    void controller.create(USER, {
+      projectId: PROJECT_ID,
+      name: 'Main site',
+      domain: 'x.test',
+      timezone: 'Europe/Madrid',
+    } as never);
     expect(service.create).toHaveBeenCalledWith(
       'u-1',
-      expect.objectContaining({ projectId: 'p1' }),
+      expect.objectContaining({ projectId: PROJECT_ID }),
     );
+  });
+
+  it('create rejects invalid site payloads', () => {
+    expect(() =>
+      controller.create(USER, {
+        active: 'yes',
+        domain: 'x.test',
+        name: 'M',
+        projectId: 'p1',
+        timezone: 'Europe/Madrid',
+      } as never),
+    ).toThrow(BadRequestException);
+    expect(service.create).not.toHaveBeenCalled();
   });
 
   it('list with projectId filter delegates to listForProject', () => {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Inject,
@@ -12,6 +13,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { resolvePagination } from '../common/dto/pagination.dto';
@@ -48,7 +51,7 @@ export class SitesController {
   @Post()
   @ApiOperation({ summary: 'Crear proyecto' })
   create(@CurrentUser() user: { sub: string }, @Body() body: unknown) {
-    return this.sitesService.create(user.sub, body as CreateSiteDto);
+    return this.sitesService.create(user.sub, parseBodyDto(CreateSiteDto, body));
   }
 
   @Get()
@@ -136,4 +139,15 @@ export class SitesController {
   ) {
     return this.publicBadgeAdminService.update(siteId, user.sub, body as UpdatePublicBadgeDto);
   }
+}
+
+function parseBodyDto<T extends object>(dto: new () => T, body: unknown): T {
+  const parsed = plainToInstance(dto, body);
+  const errors = validateSync(parsed, { forbidNonWhitelisted: true, whitelist: true });
+  if (errors.length > 0) {
+    throw new BadRequestException(
+      errors.flatMap((error) => Object.values(error.constraints as Record<string, string>)),
+    );
+  }
+  return parsed;
 }

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Inject,
@@ -10,6 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -32,7 +35,8 @@ export class ProjectsController {
   @Post()
   @ApiOperation({ summary: 'Crear project' })
   create(@CurrentUser() user: { sub: string }, @Body() body: unknown) {
-    return this.projectsService.createProject(user.sub, (body as CreateProjectDto).name);
+    const dto = parseBodyDto(CreateProjectDto, body);
+    return this.projectsService.createProject(user.sub, dto.name);
   }
 
   @Get()
@@ -100,4 +104,15 @@ export class ProjectsController {
       body as UpdateMemberPermissionsDto,
     );
   }
+}
+
+function parseBodyDto<T extends object>(dto: new () => T, body: unknown): T {
+  const parsed = plainToInstance(dto, body);
+  const errors = validateSync(parsed, { forbidNonWhitelisted: true, whitelist: true });
+  if (errors.length > 0) {
+    throw new BadRequestException(
+      errors.flatMap((error) => Object.values(error.constraints as Record<string, string>)),
+    );
+  }
+  return parsed;
 }
