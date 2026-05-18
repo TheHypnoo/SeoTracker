@@ -7,7 +7,6 @@ import {
   AuditsProcessor,
   DatabaseModule,
   EmailDeliveriesProcessor,
-  envSchema,
   ExportsModule,
   ExportsProcessor,
   LoggerWorkerModule,
@@ -18,6 +17,7 @@ import {
   QueueModule,
   SchedulingModule,
   SystemLogsModule,
+  workerEnvSchema,
 } from '@seotracker/server';
 
 @Module({
@@ -25,7 +25,7 @@ import {
     ConfigModule.forRoot({
       envFilePath: ['.env'],
       isGlobal: true,
-      validate: (raw) => envSchema.parse(raw),
+      validate: (raw) => workerEnvSchema.parse(raw),
     }),
     EventEmitterModule.forRoot({ wildcard: false, ignoreErrors: false }),
     LoggerWorkerModule,

@@ -57,7 +57,8 @@ cp apps/api/.env.example apps/api/.env
 cp apps/worker/.env.example apps/worker/.env
 cp apps/web/.env.example apps/web/.env
 
-# Generar los secretos JWT y pegarlos en apps/api/.env
+# Generar los secretos JWT y pegarlos en AMBOS apps/api/.env Y apps/worker/.env
+# (el worker firma/verifica los mismos tokens que la API, así que los secretos deben coincidir)
 openssl rand -base64 48  # → JWT_ACCESS_SECRET
 openssl rand -base64 48  # → JWT_REFRESH_SECRET
 
@@ -155,7 +156,8 @@ pnpm db:studio
 ## Solución de problemas
 
 - **Puerto ocupado** — cambia el puerto en el `.env` correspondiente (`PORT=` para la API, `vite dev --port` para web) o detén el proceso que lo está usando.
-- **`docker compose up` falla** — asegúrate de que Docker Desktop está arrancado y de que los puertos 5432/6379/1025/8025 están libres.
+- **`docker compose up` falla con "port is already allocated"** — un Postgres/Redis local está ocupando el 5432/6379. Páralos (`brew services stop postgresql redis`) o remapea los puertos del host en `infra/docker/docker-compose.yml` y actualiza `DATABASE_URL` / `REDIS_URL` en los `.env`.
+- **`docker compose up` falla por otra razón** — asegúrate de que Docker Desktop está arrancado y de que los puertos 5432/6379/1025/8025 están libres.
 - **La API no arranca y dice "JWT secret looks like a placeholder"** — genera secretos reales con `openssl rand -base64 48` y actualiza `apps/api/.env`. El validador rechaza valores que empiezan por `change-this`, `__replace_me__` o `replace-me`.
 - **El frontend entra en bucle de 401** — el proxy de desarrollo debe poder llegar a la API; comprueba que la API está levantada en `http://localhost:4000` y que `apps/web/.env` coincide con el `CSRF_COOKIE_NAME` de la API.
 - **El hook de pre-commit dice que no hay cambios pero el lint sigue fallando** — ejecuta `pnpm fix` para aplicar autofixes y vuelve a stagear los cambios.
