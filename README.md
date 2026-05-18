@@ -56,7 +56,8 @@ cp apps/api/.env.example apps/api/.env
 cp apps/worker/.env.example apps/worker/.env
 cp apps/web/.env.example apps/web/.env
 
-# Generate JWT secrets and paste them into apps/api/.env
+# Generate JWT secrets and paste them into BOTH apps/api/.env AND apps/worker/.env
+# (the worker signs/verifies the same tokens as the API, so the secrets must match)
 openssl rand -base64 48  # → JWT_ACCESS_SECRET
 openssl rand -base64 48  # → JWT_REFRESH_SECRET
 
@@ -154,7 +155,8 @@ pnpm db:studio
 ## Troubleshooting
 
 - **Port already in use** — change the port in the relevant `.env` (`PORT=` for API, `vite dev --port` for web) or stop the conflicting process.
-- **`docker compose up` fails** — make sure Docker Desktop is running and that ports 5432/6379/1025/8025 are free.
+- **`docker compose up` fails with "port is already allocated"** — a local Postgres/Redis is binding 5432/6379. Stop it (e.g. `brew services stop postgresql redis`) or remap the host ports in `infra/docker/docker-compose.yml` and update `DATABASE_URL` / `REDIS_URL` in the `.env` files accordingly.
+- **`docker compose up` fails for other reasons** — make sure Docker Desktop is running and that ports 5432/6379/1025/8025 are free.
 - **API refuses to boot with "JWT secret looks like a placeholder"** — generate real secrets with `openssl rand -base64 48` and update `apps/api/.env`. The validator rejects values starting with `change-this`, `__replace_me__` or `replace-me`.
 - **Frontend hits 401 in a redirect loop** — the dev proxy must be reachable; make sure the API is up at `http://localhost:4000` and that `apps/web/.env` matches the API's `CSRF_COOKIE_NAME`.
 - **Pre-commit hook says nothing changed but lint still fails** — run `pnpm fix` once to apply autofixes, then re-stage the changes.
