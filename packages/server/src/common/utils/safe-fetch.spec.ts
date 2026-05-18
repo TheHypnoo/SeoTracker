@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 
 import { lookup } from 'node:dns/promises';
 
-import { safeFetch, SsrfBlockedError } from './safe-fetch';
+import { assertSafeFetchUrl, safeFetch, SsrfBlockedError } from './safe-fetch';
 
 jest.mock<typeof import('node:dns/promises')>('node:dns/promises', () => ({
   lookup: jest.fn(),
@@ -38,6 +38,13 @@ describe('safeFetch', () => {
 
     expect(response.status).toBe(200);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts public IP URLs without DNS lookup', async () => {
+    await expect(assertSafeFetchUrl(new URL('https://93.184.216.34/'))).resolves.toBeInstanceOf(
+      URL,
+    );
+    expect(lookupMock).not.toHaveBeenCalled();
   });
 
   it('rejects URLs that are not http/https', async () => {
@@ -88,6 +95,44 @@ describe('safeFetch', () => {
 
     expect(response.status).toBe(200);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns 3xx responses that omit a location header', async () => {
+    fetchSpy.mockResolvedValueOnce(makeResponse(304));
+
+    const response = await safeFetch('https://example.com/freshness');
+
+    expect(response.status).toBe(304);
+    expect(response.url).toBe('https://example.com/freshness');
+  });
+
+  it('normalizes bracketed hosts and rewrites unsafe redirect methods to GET', async () => {
+    lookupMock
+      .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
+      .mockResolvedValueOnce([{ address: '93.184.216.35', family: 4 }]);
+    fetchSpy
+      .mockResolvedValueOnce(makeResponse(303, { location: 'https://second.example.com/' }))
+      .mockResolvedValueOnce(makeResponse(200));
+
+    const response = await safeFetch('https://[2001:4860:4860::8888]/', {
+      body: 'payload',
+      method: 'POST',
+    });
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({ body: 'payload', method: 'POST' });
+    expect(fetchSpy.mock.calls[1]?.[1]).toMatchObject({ method: 'GET' });
+    expect(fetchSpy.mock.calls[1]?.[1]).not.toHaveProperty('body');
+  });
+
+  it('preserves HEAD/GET methods across 301/302 redirects', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(makeResponse(302, { location: 'https://second.example.com/' }))
+      .mockResolvedValueOnce(makeResponse(200));
+
+    await safeFetch('https://example.com/', { method: 'HEAD' });
+
+    expect(fetchSpy.mock.calls[1]?.[1]).toMatchObject({ method: 'HEAD' });
   });
 
   it('throws when redirect chain exceeds maxRedirects', async () => {

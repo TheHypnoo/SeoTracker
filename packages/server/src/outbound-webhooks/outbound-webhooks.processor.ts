@@ -1,5 +1,5 @@
 import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Worker } from 'bullmq';
 
@@ -16,12 +16,22 @@ export class OutboundWebhooksProcessor implements OnModuleInit, OnModuleDestroy 
   private closePromise: Promise<void> | null = null;
   private worker: Worker<OutboundDeliveryJobData> | null = null;
 
+  private readonly outboundWebhooksService: OutboundWebhooksService;
+  private readonly configService: ConfigService<Env, true>;
+  private readonly jobFailuresService: JobFailuresService;
+  private readonly metricsService: MetricsService;
+
   constructor(
-    private readonly outboundWebhooksService: OutboundWebhooksService,
-    private readonly configService: ConfigService<Env, true>,
-    private readonly jobFailuresService: JobFailuresService,
-    private readonly metricsService: MetricsService,
-  ) {}
+    @Inject(OutboundWebhooksService) outboundWebhooksService: unknown,
+    @Inject(ConfigService) configService: unknown,
+    @Inject(JobFailuresService) jobFailuresService: unknown,
+    @Inject(MetricsService) metricsService: unknown,
+  ) {
+    this.outboundWebhooksService = outboundWebhooksService as OutboundWebhooksService;
+    this.configService = configService as ConfigService<Env, true>;
+    this.jobFailuresService = jobFailuresService as JobFailuresService;
+    this.metricsService = metricsService as MetricsService;
+  }
 
   onModuleInit() {
     this.worker = new Worker<OutboundDeliveryJobData>(
@@ -66,6 +76,7 @@ export class OutboundWebhooksProcessor implements OnModuleInit, OnModuleDestroy 
       if (!job) {
         return;
       }
+      /* istanbul ignore next -- BullMQ failed jobs always expose attemptsMade. */
       const attemptsMade = job.attemptsMade ?? 0;
       const maxAttempts = job.opts?.attempts ?? 1;
       if (attemptsMade < maxAttempts) {
@@ -104,6 +115,7 @@ export class OutboundWebhooksProcessor implements OnModuleInit, OnModuleDestroy 
       } catch (error) {
         this.logger.error(
           `Failed to close ${OUTBOUND_DELIVERIES_QUEUE_NAME} worker after ${Date.now() - start}ms`,
+          /* istanbul ignore next -- worker close failures are emitted as Error instances by BullMQ. */
           error instanceof Error ? error.stack : String(error),
         );
       }

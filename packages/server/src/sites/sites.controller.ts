@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Inject,
   Delete,
   Get,
   Param,
@@ -30,22 +31,30 @@ import { SitesService } from './sites.service';
 @UseGuards(JwtAuthGuard)
 @Controller('sites')
 export class SitesController {
+  private readonly sitesService: SitesService;
+  private readonly crawlConfigService: CrawlConfigService;
+  private readonly publicBadgeAdminService: PublicBadgeAdminService;
+
   constructor(
-    private readonly sitesService: SitesService,
-    private readonly crawlConfigService: CrawlConfigService,
-    private readonly publicBadgeAdminService: PublicBadgeAdminService,
-  ) {}
+    @Inject(SitesService) sitesService: unknown,
+    @Inject(CrawlConfigService) crawlConfigService: unknown,
+    @Inject(PublicBadgeAdminService) publicBadgeAdminService: unknown,
+  ) {
+    this.sitesService = sitesService as SitesService;
+    this.crawlConfigService = crawlConfigService as CrawlConfigService;
+    this.publicBadgeAdminService = publicBadgeAdminService as PublicBadgeAdminService;
+  }
 
   @Post()
   @ApiOperation({ summary: 'Crear proyecto' })
-  create(@CurrentUser() user: { sub: string }, @Body() body: CreateSiteDto) {
-    return this.sitesService.create(user.sub, body);
+  create(@CurrentUser() user: { sub: string }, @Body() body: unknown) {
+    return this.sitesService.create(user.sub, body as CreateSiteDto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar proyectos (filtrable por projectId)' })
-  list(@CurrentUser() user: { sub: string }, @Query() query: ListSitesQueryDto) {
-    const { projectId, search, status, automation, limit, offset } = query;
+  list(@CurrentUser() user: { sub: string }, @Query() query: unknown) {
+    const { projectId, search, status, automation, limit, offset } = query as ListSitesQueryDto;
     if (projectId) {
       return this.sitesService.listForProject(projectId, user.sub, {
         search,
@@ -69,9 +78,9 @@ export class SitesController {
   update(
     @CurrentUser() user: { sub: string },
     @Param('siteId') siteId: string,
-    @Body() body: UpdateSiteDto,
+    @Body() body: unknown,
   ) {
-    return this.sitesService.update(siteId, user.sub, body);
+    return this.sitesService.update(siteId, user.sub, body as UpdateSiteDto);
   }
 
   @Delete(':siteId')
@@ -85,9 +94,9 @@ export class SitesController {
   upsertSchedule(
     @CurrentUser() user: { sub: string },
     @Param('siteId') siteId: string,
-    @Body() body: UpsertScheduleDto,
+    @Body() body: unknown,
   ) {
-    return this.sitesService.upsertSchedule(siteId, user.sub, body);
+    return this.sitesService.upsertSchedule(siteId, user.sub, body as UpsertScheduleDto);
   }
 
   @Get(':siteId/schedule')
@@ -107,9 +116,9 @@ export class SitesController {
   updateCrawlConfig(
     @CurrentUser() user: { sub: string },
     @Param('siteId') siteId: string,
-    @Body() body: UpdateCrawlConfigDto,
+    @Body() body: unknown,
   ) {
-    return this.crawlConfigService.update(siteId, user.sub, body);
+    return this.crawlConfigService.update(siteId, user.sub, body as UpdateCrawlConfigDto);
   }
 
   @Get(':siteId/public-badge')
@@ -123,8 +132,8 @@ export class SitesController {
   updatePublicBadge(
     @CurrentUser() user: { sub: string },
     @Param('siteId') siteId: string,
-    @Body() body: UpdatePublicBadgeDto,
+    @Body() body: unknown,
   ) {
-    return this.publicBadgeAdminService.update(siteId, user.sub, body);
+    return this.publicBadgeAdminService.update(siteId, user.sub, body as UpdatePublicBadgeDto);
   }
 }

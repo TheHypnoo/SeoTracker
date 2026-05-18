@@ -22,10 +22,13 @@ export class JobFailuresService {
   /** Per-queue throttle so we don't flood the alert channel during incidents. */
   private readonly lastAlertAtByQueue = new Map<string, number>();
 
-  constructor(
-    @Inject(DRIZZLE) private readonly db: Db,
-    private readonly configService: ConfigService<Env, true>,
-  ) {}
+  private readonly db: Db;
+  private readonly configService: ConfigService<Env, true>;
+
+  constructor(@Inject(DRIZZLE) db: Db, @Inject(ConfigService) configService: unknown) {
+    this.db = db;
+    this.configService = configService as ConfigService<Env, true>;
+  }
 
   async record(input: RecordFailureInput) {
     try {

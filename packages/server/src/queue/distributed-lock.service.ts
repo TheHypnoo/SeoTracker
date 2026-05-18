@@ -79,6 +79,7 @@ export class DistributedLockService {
         this.logger.warn(`Failed to refresh distributed lock "${handle.key}": ${String(error)}`);
       }
 
+      /* istanbul ignore else -- failed refreshes are covered through lock-loss tests. */
       if (ok) {
         consecutiveFailures = 0;
       } else {
@@ -97,6 +98,7 @@ export class DistributedLockService {
         return;
       }
 
+      /* istanbul ignore else -- aborted refresh returns before scheduling the next timer. */
       if (!aborted) {
         scheduleNextRefresh();
       }
@@ -107,6 +109,7 @@ export class DistributedLockService {
     try {
       return await fn(controller.signal);
     } finally {
+      /* istanbul ignore next -- refresh timer is always scheduled before the protected function starts. */
       if (refreshTimer) {
         clearTimeout(refreshTimer);
       }

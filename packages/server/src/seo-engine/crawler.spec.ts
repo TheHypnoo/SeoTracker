@@ -72,6 +72,42 @@ describe('fetchRobots', () => {
     expect(result.disallowsAll).toBe(true);
   });
 
+  it('handles grouped agents, duplicate agents and non-disallow directives', async () => {
+    safeFetch.mockResolvedValueOnce(
+      textResponse(
+        200,
+        [
+          'User-agent: *',
+          'User-agent: *',
+          'Allow: /public',
+          'Disallow: /',
+          '',
+          'User-agent: GPTBot',
+          'Disallow: /',
+          'User-agent: OtherBot',
+          'Disallow: /',
+        ].join('\n'),
+      ),
+    );
+
+    const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
+
+    expect(result.disallowsAll).toBe(true);
+    expect(result.blockedAiBots).toStrictEqual(['gptbot']);
+  });
+
+  it('handles robots responses without content type and directives outside an agent group', async () => {
+    safeFetch.mockResolvedValueOnce(
+      new Response(new TextEncoder().encode('Disallow: /\nHost: x.test'), { status: 200 }),
+    );
+
+    const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
+
+    expect(result.exists).toBe(true);
+    expect(result.disallowsAll).toBe(false);
+    expect(result.page.contentType).toBeUndefined();
+  });
+
   it('detects AI bots blocked by Disallow: /', async () => {
     safeFetch.mockResolvedValueOnce(
       textResponse(
@@ -121,6 +157,14 @@ describe('checkSoft404', () => {
     const out = await checkSoft404('https://x.test', 1000, 'UA');
     expect(out.isSoft404).toBe(false);
   });
+
+  it('records undefined content type for soft 404 probes without headers', async () => {
+    safeFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const out = await checkSoft404('https://x.test', 1000, 'UA');
+
+    expect(out.page?.contentType).toBeUndefined();
+  });
 });
 
 describe('extractSitemapHintsFromHtml', () => {
@@ -135,6 +179,19 @@ describe('extractSitemapHintsFromHtml', () => {
     const hints = extractSitemapHintsFromHtml($, 'https://x.test/');
     expect(hints).toContain('https://x.test/news-sitemap.xml');
     expect(hints).not.toContain('https://x.test/about');
+  });
+
+  it('ignores sitemap-looking nodes without resolvable hrefs', () => {
+    const $ = load(
+      '<link rel="sitemap"><a href="">empty sitemap.xml</a><a href="http://[::1/sitemap.xml">bad sitemap.xml</a>',
+    );
+    expect(extractSitemapHintsFromHtml($, 'https://x.test/')).toStrictEqual([]);
+  });
+
+  it('ignores link sitemap hints that cannot be resolved', () => {
+    const $ = load('<link rel="sitemap" href="http://[::1/sitemap.xml">');
+
+    expect(extractSitemapHintsFromHtml($, 'https://x.test/')).toStrictEqual([]);
   });
 });
 
@@ -155,6 +212,17 @@ describe('probeSitemap', () => {
     );
     const result = await probeSitemap('https://x.test/sitemap_index.xml', 1000, 'UA');
     expect(result.isSitemap).toBe(true);
+  });
+
+  it('detects XML sitemap snippets without content type headers', async () => {
+    safeFetch.mockResolvedValueOnce(
+      new Response(new TextEncoder().encode('<?xml version="1.0"?><root>sitemap</root>')),
+    );
+
+    const result = await probeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
+
+    expect(result.isSitemap).toBe(true);
+    expect(result.page.contentType).toBeUndefined();
   });
 
   it('returns isSitemap=false on 4xx', async () => {
@@ -222,6 +290,14 @@ describe('analyzeSitemap', () => {
     const result = await analyzeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
     expect(result.urlCount).toBeNull();
   });
+
+  it('returns a neutral result on fetch errors', async () => {
+    safeFetch.mockRejectedValueOnce(new Error('network down'));
+    await expect(analyzeSitemap('https://x.test/sitemap.xml', 1000, 'UA')).resolves.toStrictEqual({
+      invalid: false,
+      urlCount: null,
+    });
+  });
 });
 
 describe('extractSitemapUrls', () => {
@@ -277,6 +353,29 @@ describe('extractSitemapUrls', () => {
     expect(urls).toHaveLength(3);
   });
 
+  it('skips empty root sitemap URLs before fetching', async () => {
+    await expect(extractSitemapUrls('', 1000, 'UA', 10)).resolves.toStrictEqual([]);
+    expect(safeFetch).not.toHaveBeenCalled();
+  });
+
+  it('skips 4xx roots and empty sitemap loc entries', async () => {
+    safeFetch
+      .mockResolvedValueOnce(xmlResponse(404, 'missing'))
+      .mockResolvedValueOnce(
+        xmlResponse(
+          200,
+          '<urlset><url><loc>   </loc></url><url><loc>https://x.test/ok</loc></url></urlset>',
+        ),
+      );
+
+    await expect(
+      extractSitemapUrls('https://x.test/missing.xml', 1000, 'UA', 10),
+    ).resolves.toStrictEqual([]);
+    await expect(
+      extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 10),
+    ).resolves.toStrictEqual(['https://x.test/ok']);
+  });
+
   it('skips unreachable child sitemaps and keeps collecting from the remaining queue', async () => {
     safeFetch
       .mockResolvedValueOnce(
@@ -296,6 +395,26 @@ describe('extractSitemapUrls', () => {
     await expect(
       extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 10),
     ).resolves.toStrictEqual(['https://x.test/page-ok']);
+  });
+
+  it('skips empty sitemap-index locs and stops enqueueing after the sitemap cap', async () => {
+    safeFetch.mockResolvedValueOnce(
+      xmlResponse(
+        200,
+        `<sitemapindex>
+          <sitemap><loc>   </loc></sitemap>
+          ${Array.from(
+            { length: 10 },
+            (_, index) => `<sitemap><loc>https://x.test/child-${index}.xml</loc></sitemap>`,
+          ).join('')}
+        </sitemapindex>`,
+      ),
+    );
+
+    await expect(
+      extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 10),
+    ).resolves.toStrictEqual([]);
+    expect(safeFetch).toHaveBeenCalledTimes(8);
   });
 });
 
@@ -327,6 +446,16 @@ describe('existsUrl', () => {
     const result = await existsUrl('https://x.test/page', 1000, 'UA');
     expect(result.exists).toBe(true);
     expect(safeFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns exists=false for GET fallback failures', async () => {
+    safeFetch
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response('still down', { status: 500 }));
+    await expect(existsUrl('https://x.test/page', 1000, 'UA')).resolves.toMatchObject({
+      exists: false,
+      statusCode: 500,
+    });
   });
 
   it('returns exists=false (with all undefined) on fetch error', async () => {
@@ -362,6 +491,20 @@ describe('analyzeInternalPage', () => {
     const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
     const codes = result.issues.map((i) => i.issueCode);
     expect(codes).toContain(IssueCode.MISSING_TITLE);
+  });
+
+  it('flags missing h1 and short meta descriptions', async () => {
+    safeFetch.mockResolvedValueOnce(
+      htmlResponse(
+        200,
+        '<html><head><title>Useful public page title text</title><meta name="description" content="short"><link rel="canonical" href="https://x.test/p"></head><body></body></html>',
+      ),
+    );
+    const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
+    const codes = result.issues.map((issue) => issue.issueCode);
+    expect(codes).toStrictEqual(
+      expect.arrayContaining([IssueCode.MISSING_H1, IssueCode.META_DESCRIPTION_TOO_SHORT]),
+    );
   });
 
   it('flags TITLE_TOO_SHORT for a < 30-char title', async () => {
@@ -416,6 +559,27 @@ describe('analyzeInternalPage', () => {
     expect(result.text).toStrictEqual(expect.any(String));
   });
 
+  it('reports x-robots-tag noindex on public pages', async () => {
+    safeFetch.mockResolvedValueOnce(
+      htmlResponse(
+        200,
+        '<html><head><title>Useful public page title text</title><meta name="description" content="This is a long enough description to avoid short description warnings in this focused case. It has enough words for the limit."><link rel="canonical" href="https://x.test/p"></head><body><h1>Heading</h1></body></html>',
+        { 'x-robots-tag': 'noindex' },
+      ),
+    );
+
+    const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
+
+    expect(result.issues).toStrictEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          issueCode: IssueCode.META_NOINDEX,
+          meta: expect.objectContaining({ source: 'x-robots-tag' }),
+        }),
+      ]),
+    );
+  });
+
   it('does not report noindex on expected private pages', async () => {
     safeFetch.mockResolvedValueOnce(
       htmlResponse(
@@ -427,6 +591,54 @@ describe('analyzeInternalPage', () => {
     const result = await analyzeInternalPage('https://x.test/settings', 1000, 'UA');
 
     expect(result.issues.some((issue) => issue.issueCode === IssueCode.META_NOINDEX)).toBe(false);
+  });
+
+  it('collects blog-check issues and skips empty, invalid, non-http and duplicate links', async () => {
+    safeFetch.mockResolvedValueOnce(
+      htmlResponse(
+        200,
+        `<html>
+          <head>
+            <title>Useful public blog page title</title>
+            <meta name="description" content="This is a long enough description to avoid unrelated description warnings in this branch-focused crawler test case.">
+            <link rel="canonical" href="https://x.test/blog/post">
+          </head>
+          <body>
+            <article><h1>Blog post</h1><p>Short article body.</p></article>
+            <a href="">Empty</a>
+            <a href="http://[::1">Invalid</a>
+            <a href="ftp://x.test/file">FTP</a>
+            <a href="/inside?utm_source=a">Inside A</a>
+            <a href="/inside">Inside duplicate</a>
+          </body>
+        </html>`,
+      ),
+    );
+
+    const result = await analyzeInternalPage('https://x.test/blog/post', 1000, 'UA');
+
+    expect(result.issues).toStrictEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ issueCode: IssueCode.MISSING_ARTICLE_SCHEMA }),
+        expect.objectContaining({ issueCode: IssueCode.MISSING_AUTHOR }),
+        expect.objectContaining({ issueCode: IssueCode.SHORT_BLOG_POST }),
+      ]),
+    );
+    expect(result.links).toStrictEqual(['https://x.test/inside']);
+  });
+
+  it('caps discovered same-host links per page', async () => {
+    const links = Array.from({ length: 45 }, (_, index) => `<a href="/p${index}">p</a>`).join('');
+    safeFetch.mockResolvedValueOnce(
+      htmlResponse(
+        200,
+        `<html><head><title>Useful public page title</title><meta name="description" content="This is a long enough description to avoid unrelated description warnings in this branch-focused crawler test case."><link rel="canonical" href="https://x.test/page"></head><body><h1>Title</h1>${links}</body></html>`,
+      ),
+    );
+
+    const result = await analyzeInternalPage('https://x.test/page', 1000, 'UA');
+
+    expect(result.links).toHaveLength(40);
   });
 
   it('does not discover infrastructure or expected private URLs for deeper crawling', async () => {
@@ -458,9 +670,55 @@ describe('analyzeInternalPage', () => {
     expect(result.issues).toStrictEqual([]);
     expect(result.page.statusCode).toBeUndefined();
   });
+
+  it('returns no discovered links when the final response URL is malformed', async () => {
+    const response = htmlResponse(
+      200,
+      `<html>
+        <head>
+          <title>Useful public page title</title>
+          <meta name="description" content="This is a long enough description to avoid unrelated warnings for this branch coverage test.">
+        </head>
+        <body><h1>Useful page</h1><a href="/inside">Inside</a></body>
+      </html>`,
+    );
+    Object.defineProperty(response, 'url', { value: '::::' });
+    safeFetch.mockResolvedValueOnce(response);
+
+    const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
+
+    expect(result.links).toStrictEqual([]);
+  });
+
+  it('parses HTML responses even when content type is missing', async () => {
+    safeFetch.mockResolvedValueOnce(
+      new Response(
+        new TextEncoder().encode(
+          '<html><head><title>Useful public page title</title></head><body><h1>Heading</h1></body></html>',
+        ),
+        { status: 200 },
+      ),
+    );
+
+    const result = await analyzeInternalPage('https://x.test/p', 1000, 'UA');
+
+    expect(result.page.contentType).toBeUndefined();
+    expect(result.text).toStrictEqual(expect.any(String));
+  });
 });
 
 describe('low-level HTML checks', () => {
+  it('detects missing canonical tags', () => {
+    const issues = checkCanonicalTags(
+      load('<title>No canonical</title>'),
+      'https://x.test/p',
+      'https://x.test/p',
+    );
+    expect(issues).toStrictEqual([
+      expect.objectContaining({ issueCode: IssueCode.MISSING_CANONICAL }),
+    ]);
+  });
+
   it('detects missing, duplicate, relative and mismatched canonical tags', () => {
     const $ = load(`
       <link rel="canonical" href="/relative">
@@ -485,34 +743,47 @@ describe('low-level HTML checks', () => {
     expect(countImagesMissingDimensions($)).toBe(2);
   });
 
+  it('returns no image dimension issues when every image has positive dimensions', () => {
+    expect(countImagesMissingDimensions(load('<img width="1" height="1">'))).toBe(0);
+  });
+
   it('reports invalid hreflang language, href and duplicates', () => {
     const $ = load(`
       <link rel="alternate" hreflang="en" href="/en">
       <link rel="alternate" hreflang="en" href="/en-duplicate">
-      <link rel="alternate" hreflang="bad_lang" href="::::">
+      <link rel="alternate" hreflang="bad_lang" href="http://[::1">
+      <link rel="alternate" hreflang="" href="/empty">
     `);
 
     expect(findInvalidHreflangLinks($, 'https://x.test/p')).toStrictEqual(
       expect.arrayContaining([
         expect.objectContaining({ reason: 'duplicate-lang' }),
         expect.objectContaining({ reason: 'invalid-lang' }),
+        expect.objectContaining({ reason: 'invalid-href' }),
       ]),
     );
   });
 
-  it('handles JSON-LD arrays, @graph blocks, invalid JSON and missing @type', () => {
+  it('handles alternate hreflang links without href attributes', () => {
+    const $ = load('<link rel="alternate" hreflang="en">');
+
+    expect(findInvalidHreflangLinks($, 'https://x.test/p')).toStrictEqual([]);
+  });
+
+  it('handles JSON-LD arrays, @graph blocks, primitives, invalid JSON and missing @type', () => {
     const $ = load(`
       <script type="application/ld+json">[{"@type":"Article"}]</script>
       <script type="application/ld+json">{"@graph":[{"@type":"BreadcrumbList"}]}</script>
       <script type="application/ld+json">{bad-json}</script>
       <script type="application/ld+json">{"name":"No type"}</script>
       <script type="application/ld+json"></script>
+      <script type="application/ld+json">42</script>
     `);
 
     expect(analyzeJsonLdBlocks($)).toStrictEqual({
       invalidBlocks: [2],
-      missingTypeBlocks: [3, 4],
-      total: 5,
+      missingTypeBlocks: [3, 4, 5],
+      total: 6,
     });
   });
 });

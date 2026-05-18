@@ -78,6 +78,25 @@ describe('discoverSiteMetadata', () => {
     expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_FAVICON)).toBeDefined();
   });
 
+  it('does not emit a favicon issue when the fallback favicon exists', async () => {
+    existsUrlMock.mockResolvedValueOnce({ page: fakePage('fav'), exists: true, statusCode: 200 });
+    fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
+    checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
+    probeSitemapMock.mockResolvedValue({ page: fakePage('s'), isSitemap: false });
+
+    const result = await discoverSiteMetadata({
+      homepageUrl: 'https://x.test',
+      $: cheerio.load('<html></html>'),
+      hasFaviconLink: false,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+      sitemapSampleMax: 100,
+    });
+
+    expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_FAVICON)).toBeUndefined();
+    expect(result.pages).toContainEqual(fakePage('fav'));
+  });
+
   it('does NOT probe favicon when HTML has <link rel=icon>', async () => {
     fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
     checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
@@ -213,6 +232,28 @@ describe('discoverSiteMetadata', () => {
 
     expect(result.metrics).toContainEqual({ key: 'sitemap_urls', valueNum: 42 });
     expect(result.sitemapUrls).toStrictEqual(['https://x.test/a', 'https://x.test/b']);
+  });
+
+  it('skips duplicate sitemap candidates after normalizing tracking parameters', async () => {
+    fetchRobotsMock.mockResolvedValueOnce(
+      defaultRobots({ sitemaps: ['https://x.test/sitemap.xml?utm_source=robots'] }),
+    );
+    checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
+    probeSitemapMock.mockResolvedValue({ page: fakePage('s'), isSitemap: false });
+
+    await discoverSiteMetadata({
+      homepageUrl: 'https://x.test',
+      $: cheerio.load(''),
+      hasFaviconLink: true,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+      sitemapSampleMax: 100,
+    });
+
+    expect(probeSitemapMock).toHaveBeenCalledWith('https://x.test/sitemap.xml', 1000, 'ua');
+    expect(
+      probeSitemapMock.mock.calls.filter(([url]) => url === 'https://x.test/sitemap.xml'),
+    ).toHaveLength(1);
   });
 
   it('emits MISSING_SITEMAP when no candidate is a sitemap', async () => {

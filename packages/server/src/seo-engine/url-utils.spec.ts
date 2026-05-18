@@ -22,6 +22,9 @@ describe('url-utils', () => {
       expect(normalizeForComparison('https://example.test/path/?a=1#top')).toBe(
         'https://example.test/path?a=1',
       );
+      expect(normalizeForComparison('https://example.test/path?a=1#top')).toBe(
+        'https://example.test/path?a=1',
+      );
     });
 
     it('returns the original value when URL parsing fails', () => {
@@ -53,6 +56,7 @@ describe('url-utils', () => {
       ['https://example.test/search?page=2', 'pagination'],
       ['https://example.test/contact', 'static'],
       ['https://example.test/a/b/c', 'article'],
+      ['https://example.test/features', 'other'],
       ['not a url', 'other'],
     ] as const)('classifies %s as %s', (url, bucket) => {
       expect(classifyUrlBucket(url)).toBe(bucket);
@@ -60,6 +64,40 @@ describe('url-utils', () => {
   });
 
   describe('stratifiedSample', () => {
+    it('fills remaining budget when buckets contain multiple unique URLs', () => {
+      const urls = [
+        'https://example.test/blog/a',
+        'https://example.test/blog/b',
+        'https://example.test/blog/c',
+        'https://example.test/product/a',
+        'https://example.test/product/b',
+        'https://example.test/contact',
+      ];
+
+      expect(stratifiedSample(urls, 5)).toStrictEqual([
+        'https://example.test/blog/a',
+        'https://example.test/product/a',
+        'https://example.test/contact',
+        'https://example.test/blog/b',
+        'https://example.test/product/b',
+      ]);
+    });
+
+    it('falls back to original order when bucket cycling cannot fill the budget', () => {
+      const urls = [
+        'https://example.test/blog/a',
+        'https://example.test/blog/a',
+        'https://example.test/blog/b',
+        'https://example.test/blog/c',
+      ];
+
+      expect(stratifiedSample(urls, 3)).toStrictEqual([
+        'https://example.test/blog/a',
+        'https://example.test/blog/b',
+        'https://example.test/blog/c',
+      ]);
+    });
+
     it('spreads samples across URL buckets before filling remaining budget', () => {
       const urls = [
         'https://example.test/blog/a',
@@ -89,6 +127,32 @@ describe('url-utils', () => {
       expect(stratifiedSample(['https://example.test/a'], 5)).toStrictEqual([
         'https://example.test/a',
       ]);
+    });
+
+    it('stops bucket seeding and original-order fallback once the budget is full', () => {
+      expect(
+        stratifiedSample(
+          [
+            'https://example.test/blog/a',
+            'https://example.test/product/a',
+            'https://example.test/category/a',
+            'https://example.test/contact',
+          ],
+          2,
+        ),
+      ).toStrictEqual(['https://example.test/blog/a', 'https://example.test/product/a']);
+
+      expect(
+        stratifiedSample(
+          [
+            'https://example.test/blog/a',
+            'https://example.test/blog/a',
+            'https://example.test/blog/b',
+            'https://example.test/blog/c',
+          ],
+          2,
+        ),
+      ).toStrictEqual(['https://example.test/blog/a', 'https://example.test/blog/b']);
     });
   });
 });

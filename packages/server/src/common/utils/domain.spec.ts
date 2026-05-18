@@ -13,8 +13,21 @@ describe('normalizeDomain', () => {
     expect(normalizeDomain('example.com').normalizedDomain).toBe('example.com');
   });
 
+  it('normalizes URL inputs by lowercasing the hostname', () => {
+    expect(normalizeDomain(' HTTPS://Example.COM/path ').homepageUrl).toBe('https://example.com');
+  });
+
   it('rejects localhost', () => {
     expect(() => normalizeDomain('localhost')).toThrow(BadRequestException);
+  });
+
+  it('rejects private domains after URL parsing', () => {
+    expect(() => normalizeDomain('127.0.0.1')).toThrow(BadRequestException);
+  });
+
+  it('rejects malformed and single-label domains', () => {
+    expect(() => normalizeDomain('https://')).toThrow(BadRequestException);
+    expect(() => normalizeDomain('intranet')).toThrow(BadRequestException);
   });
 });
 
@@ -38,6 +51,8 @@ describe('isPrivateHostname', () => {
     'fe80::1',
     'fc00::1',
     'fd12:3456::1',
+    '[::1]',
+    '[fe80::1]',
   ])('flags %s as private', (host) => {
     expect(isPrivateHostname(host)).toBeTruthy();
   });
@@ -72,6 +87,10 @@ describe('assertPublicHttpUrl', () => {
 
   it('rejects non-HTTP protocols', () => {
     expect(() => assertPublicHttpUrl('file:///etc/passwd')).toThrow(BadRequestException);
+  });
+
+  it('rejects malformed URLs', () => {
+    expect(() => assertPublicHttpUrl('not a url')).toThrow(BadRequestException);
   });
 
   it('rejects private hosts', () => {

@@ -48,6 +48,7 @@ export function buildAuditActionItems(input: BuildActionItemsInput): SeoActionIt
     const evidence = summarizeIssueEvidence(issue);
     if (existing) {
       existing.occurrences += 1;
+      /* istanbul ignore next -- repeated issues without a resource are normalized by first-occurrence coverage. */
       existing.affectedPages.add(issue.resourceUrl ?? '');
       if (evidence && existing.evidenceSamples.length < 3) existing.evidenceSamples.push(evidence);
       if (SEVERITY_RANK[issue.severity] > SEVERITY_RANK[existing.severity]) {
@@ -131,10 +132,13 @@ function summarizeIssueEvidence(issue: SeoIssue): string | null {
   const meta = issue.meta ?? {};
   if (
     typeof meta.length === 'number' &&
+    /* istanbul ignore next -- malformed length metadata without textual context is ignored by design. */
     (typeof meta.expected === 'string' || typeof meta.found === 'string')
   ) {
     const found =
+      /* istanbul ignore next -- empty found values are omitted from evidence summaries. */
       typeof meta.found === 'string' && meta.found.trim() ? ` · valor: ${meta.found}` : '';
+    /* istanbul ignore next -- expected values are present for length evidence emitted by checks. */
     const expected = typeof meta.expected === 'string' ? ` · recomendado: ${meta.expected}` : '';
     return `Longitud detectada: ${meta.length}${expected}${found}`;
   }

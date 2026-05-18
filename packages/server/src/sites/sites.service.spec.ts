@@ -34,6 +34,7 @@ type DbMock = {
   onConflictDoNothing: jest.Mock;
   onConflictDoUpdate: jest.Mock;
   returning: jest.Mock;
+  orderBy: jest.Mock;
   update: jest.Mock;
   set: jest.Mock;
   delete: jest.Mock;
@@ -45,12 +46,13 @@ function makeDb(): DbMock {
     selectDistinctOn: jest.fn().mockReturnThis(),
     from: jest.fn().mockReturnThis(),
     innerJoin: jest.fn().mockReturnThis(),
-    where: jest.fn(),
+    where: jest.fn().mockReturnThis(),
     insert: jest.fn().mockReturnThis(),
     values: jest.fn().mockReturnThis(),
     onConflictDoNothing: jest.fn().mockResolvedValue(undefined),
     onConflictDoUpdate: jest.fn().mockReturnThis(),
     returning: jest.fn(),
+    orderBy: jest.fn().mockReturnThis(),
     update: jest.fn().mockReturnThis(),
     set: jest.fn().mockReturnThis(),
     delete: jest.fn().mockReturnThis(),
@@ -138,6 +140,18 @@ describe('sitesService', () => {
     });
   });
 
+  describe('listByUser', () => {
+    it('lists sites for memberships ordered by newest first', async () => {
+      db.orderBy.mockResolvedValueOnce([{ id: 's1', projectId: 'p1' }]);
+
+      await expect(service.listByUser('u1')).resolves.toStrictEqual([
+        { id: 's1', projectId: 'p1' },
+      ]);
+      expect(db.innerJoin).toHaveBeenCalledWith(expect.anything(), expect.anything());
+      expect(db.where).toHaveBeenCalledWith(expect.anything());
+    });
+  });
+
   describe('listForProject', () => {
     it('returns an empty page without loading schedules or audit runs when the project has no sites', async () => {
       db.where.mockReturnValueOnce(thenable([{ total: 0 }])).mockReturnValueOnce(thenable([]));
@@ -222,6 +236,65 @@ describe('sitesService', () => {
       ]);
     });
 
+    it('applies search filters and falls back to zero total without a total row', async () => {
+      db.where.mockReturnValueOnce(thenable([])).mockReturnValueOnce(thenable([]));
+
+      const out = await service.listForProject('p1', 'u1', { search: '  Example  ' });
+
+      expect(out).toStrictEqual({ items: [], limit: 50, offset: 0, total: 0 });
+      expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u1', expect.any(String));
+    });
+
+    it('filters out inactive automation sites when active automation is requested', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ total: 1 }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'site-1',
+              active: true,
+              createdAt: new Date('2026-01-01T00:00:00.000Z'),
+              domain: 'one.test',
+              name: 'One',
+              normalizedDomain: 'one.test',
+              projectId: 'p1',
+              timezone: 'UTC',
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]));
+
+      const out = await service.listForProject('p1', 'u1', { automation: 'active' });
+
+      expect(out.items).toStrictEqual([]);
+    });
+
+    it('filters out active automation sites when inactive automation is requested', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ total: 1 }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'site-1',
+              active: true,
+              createdAt: new Date('2026-01-01T00:00:00.000Z'),
+              domain: 'one.test',
+              name: 'One',
+              normalizedDomain: 'one.test',
+              projectId: 'p1',
+              timezone: 'UTC',
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([{ siteId: 'site-1', enabled: true }]))
+        .mockReturnValueOnce(thenable([]));
+
+      const out = await service.listForProject('p1', 'u1', { automation: 'inactive' });
+
+      expect(out.items).toStrictEqual([]);
+    });
+
     it('filters active automation sites after enrichment', async () => {
       db.where
         .mockReturnValueOnce(thenable([{ total: 1 }]))
@@ -257,6 +330,28 @@ describe('sitesService', () => {
   });
 
   describe('update', () => {
+    it('patches domain, timezone and active fields when supplied', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 's1', projectId: 'p1' }]))
+        .mockReturnValueOnce(db as unknown as never);
+      db.returning.mockResolvedValueOnce([{ id: 's1', domain: 'https://Example.com/path' }]);
+
+      await service.update('s1', 'u1', {
+        active: false,
+        domain: ' https://Example.com/path ',
+        timezone: 'Europe/Madrid',
+      });
+
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          active: false,
+          domain: 'https://Example.com/path',
+          normalizedDomain: 'example.com',
+          timezone: 'Europe/Madrid',
+        }),
+      );
+    });
+
     it('only patches fields that were supplied (partial update)', async () => {
       db.where
         .mockReturnValueOnce(thenable([{ id: 's1', projectId: 'p1' }])) // getById
@@ -323,6 +418,19 @@ describe('sitesService', () => {
         }),
       );
       expect(out.frequency).toBe('DAILY');
+    });
+  });
+
+  describe('loadLatestRunsByProject', () => {
+    it('returns empty rows without querying when no site ids are provided', async () => {
+      await expect(
+        (
+          service as unknown as {
+            loadLatestRunsByProject: (siteIds: string[]) => Promise<unknown[]>;
+          }
+        ).loadLatestRunsByProject([]),
+      ).resolves.toStrictEqual([]);
+      expect(db.selectDistinctOn).not.toHaveBeenCalled();
     });
   });
 

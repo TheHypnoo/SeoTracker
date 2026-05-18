@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { IndexabilityStatus } from '@seotracker/shared-types';
 
 import type { PaginationInput } from '../common/dto/pagination.dto';
@@ -10,13 +10,25 @@ import { SeoActionPlanService } from './seo-action-plan.service';
 
 @Injectable()
 export class AuditsService {
+  private readonly orchestrationService: AuditOrchestrationService;
+  private readonly processingService: AuditProcessingService;
+  private readonly comparisonService: AuditComparisonService;
+  private readonly readingService: AuditReadingService;
+  private readonly actionPlanService: SeoActionPlanService;
+
   constructor(
-    private readonly orchestrationService: AuditOrchestrationService,
-    private readonly processingService: AuditProcessingService,
-    private readonly comparisonService: AuditComparisonService,
-    private readonly readingService: AuditReadingService,
-    private readonly actionPlanService: SeoActionPlanService,
-  ) {}
+    @Inject(AuditOrchestrationService) orchestrationService: unknown,
+    @Inject(AuditProcessingService) processingService: unknown,
+    @Inject(AuditComparisonService) comparisonService: unknown,
+    @Inject(AuditReadingService) readingService: unknown,
+    @Inject(SeoActionPlanService) actionPlanService: unknown,
+  ) {
+    this.orchestrationService = orchestrationService as AuditOrchestrationService;
+    this.processingService = processingService as AuditProcessingService;
+    this.comparisonService = comparisonService as AuditComparisonService;
+    this.readingService = readingService as AuditReadingService;
+    this.actionPlanService = actionPlanService as SeoActionPlanService;
+  }
 
   runManual(siteId: string, userId: string) {
     return this.orchestrationService.runManual(siteId, userId);

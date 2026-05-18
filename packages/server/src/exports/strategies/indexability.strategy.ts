@@ -11,7 +11,11 @@ import type { CsvBuilderStrategy, CsvData, ExportRecord } from './csv-strategy.i
 export class IndexabilityCsvStrategy implements CsvBuilderStrategy {
   readonly kind = ExportKind.INDEXABILITY;
 
-  constructor(@Inject(DRIZZLE) private readonly db: Db) {}
+  private readonly db: Db;
+
+  constructor(@Inject(DRIZZLE) db: Db) {
+    this.db = db;
+  }
 
   async build(exportRecord: ExportRecord): Promise<CsvData> {
     if (!exportRecord.auditRunId) {

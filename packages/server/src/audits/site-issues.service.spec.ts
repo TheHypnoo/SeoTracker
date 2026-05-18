@@ -204,6 +204,79 @@ describe('projectIssuesService', () => {
     });
   });
 
+  it('lists project-scoped issues with default pagination, all filters and total fallback', async () => {
+    db.where.mockReturnValueOnce(query([])).mockReturnValueOnce(query([]));
+
+    const out = await service.listForProjectScope('project-1', 'user-1', {
+      category: IssueCategory.CRAWLABILITY,
+      severity: Severity.LOW,
+      siteId: 'site-1',
+      state: IssueState.FIXED,
+    });
+
+    expect(out).toStrictEqual({
+      items: [],
+      limit: 50,
+      offset: 0,
+      total: 0,
+    });
+    expect(projects.assertPermission).toHaveBeenCalledWith(
+      'project-1',
+      'user-1',
+      Permission.AUDIT_READ,
+    );
+  });
+
+  it('lists site persistent issues with optional state filter', async () => {
+    const rows = [{ id: 'issue-1', state: IssueState.OPEN }];
+    db.where.mockReturnValueOnce(query(rows));
+
+    await expect(
+      service.listForProject('site-1', 'user-1', { state: IssueState.OPEN }),
+    ).resolves.toBe(rows);
+    expect(sites.getById).toHaveBeenCalledWith('site-1', 'user-1');
+  });
+
+  it('lists all site persistent issues when no state filter is supplied', async () => {
+    const rows = [{ id: 'issue-1', state: IssueState.FIXED }];
+    db.where.mockReturnValueOnce(query(rows));
+
+    await expect(service.listForProject('site-1', 'user-1')).resolves.toBe(rows);
+    expect(sites.getById).toHaveBeenCalledWith('site-1', 'user-1');
+  });
+
+  it('builds a fingerprint map for site issues in an audit context', async () => {
+    const firstSeenAt = new Date('2026-05-01T10:00:00.000Z');
+    const rows = [
+      {
+        firstSeenAt,
+        firstSeenAuditRunId: 'run-0',
+        id: 'issue-1',
+        issueCode: IssueCode.MISSING_TITLE,
+        lastSeenAt: firstSeenAt,
+        occurrenceCount: 2,
+        resourceKey: 'https://example.com/a',
+        state: IssueState.OPEN,
+      },
+      {
+        firstSeenAt,
+        firstSeenAuditRunId: 'run-1',
+        id: 'issue-2',
+        issueCode: IssueCode.PAGE_TOO_HEAVY,
+        lastSeenAt: firstSeenAt,
+        occurrenceCount: 1,
+        resourceKey: '',
+        state: IssueState.IGNORED,
+      },
+    ];
+    db.where.mockReturnValueOnce(query(rows));
+
+    const fingerprints = await service.getFingerprintsForAudit('site-1', 'run-1');
+
+    expect(fingerprints.get(`${IssueCode.MISSING_TITLE}::https://example.com/a`)).toBe(rows[0]);
+    expect(fingerprints.get(`${IssueCode.PAGE_TOO_HEAVY}::`)).toBe(rows[1]);
+  });
+
   it('returns ignored fingerprints for crawler suppression', async () => {
     db.where.mockReturnValueOnce(
       query([
@@ -286,6 +359,33 @@ describe('projectIssuesService', () => {
       ACTIVITY_RECORDED_EVENT,
       expect.objectContaining({ action: ActivityAction.ISSUE_RESTORED }),
     );
+  });
+
+  it('returns updated issue without activity when the site row cannot be loaded', async () => {
+    const updated = {
+      id: 'issue-1',
+      issueCode: IssueCode.MISSING_TITLE,
+      siteId: 'site-1',
+      state: IssueState.FIXED,
+    };
+    db.where
+      .mockReturnValueOnce(query([{ id: 'issue-1', siteId: 'site-1' }]))
+      .mockResolvedValueOnce(undefined)
+      .mockReturnValueOnce(query([updated]))
+      .mockReturnValueOnce(query([]));
+
+    await expect(service.setState('issue-1', 'user-1', IssueState.FIXED)).resolves.toBe(updated);
+    expect(events.emit).not.toHaveBeenCalled();
+  });
+
+  it('returns undefined when an issue update does not return a refreshed row', async () => {
+    db.where
+      .mockReturnValueOnce(query([{ id: 'issue-1', siteId: 'site-1' }]))
+      .mockResolvedValueOnce(undefined)
+      .mockReturnValueOnce(query([]));
+
+    await expect(service.setState('issue-1', 'user-1', IssueState.FIXED)).resolves.toBeUndefined();
+    expect(events.emit).not.toHaveBeenCalled();
   });
 
   it('throws not-found for unknown persistent issues', async () => {

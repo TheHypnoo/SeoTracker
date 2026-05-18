@@ -95,6 +95,9 @@
       "json",
       "ts"
     ],
+    "moduleNameMapper": {
+      "^@seotracker/shared-types$": "<rootDir>/../../../packages/shared-types/src/index.ts"
+    },
     "rootDir": "src",
     "setupFilesAfterEnv": [
       "<rootDir>/../test/jest.setup.ts"

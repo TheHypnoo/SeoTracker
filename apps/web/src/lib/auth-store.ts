@@ -44,6 +44,7 @@ interface AuthActions {
 // Browser uses the relative path that flows through the dev/prod proxy.
 // On the server (SSR or server functions), use the absolute URL — Node fetch
 // can't resolve relative paths against an origin.
+/* v8 ignore next 4 -- environment selection is exercised by build/runtime, not unit tests. */
 const API_BASE_URL =
   typeof window !== 'undefined'
     ? (import.meta.env.VITE_API_URL ?? '/api/v1')

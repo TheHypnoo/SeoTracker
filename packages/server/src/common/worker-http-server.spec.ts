@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { DRIZZLE } from '../database/database.constants';
 import { MetricsService } from '../metrics/metrics.service';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
-import { startWorkerHttpServer } from './worker-http-server';
+import { startWorkerHttpServer, withTimeout } from './worker-http-server';
 
 function request(port: number, path: string, method = 'GET') {
   return fetch(`http://127.0.0.1:${port}${path}`, { method });
@@ -46,6 +46,17 @@ describe('startWorkerHttpServer', () => {
     db.execute.mockResolvedValue([{ ok: 1 }]);
     redis.ping.mockResolvedValue('PONG');
     metricsService.metrics.mockResolvedValue('metric_name 1\n');
+  });
+
+  it('withTimeout rejects hung worker readiness checks', async () => {
+    jest.useFakeTimers();
+    const promise = withTimeout(new Promise<never>(() => {}), 'redis').catch(
+      (error: unknown) => error,
+    );
+
+    await jest.advanceTimersByTimeAsync(3000);
+    jest.useRealTimers();
+    await expect(promise).resolves.toMatchObject({ message: 'redis timed out after 3000ms' });
   });
 
   it('serves liveness, readiness, metrics and fallback HTTP responses', async () => {
@@ -95,6 +106,31 @@ describe('startWorkerHttpServer', () => {
     expect(metricsContentType).toContain('text/plain');
     expect(missingStatus).toBe(404);
     expect(postLivenessStatus).toBe(405);
+  });
+
+  it('reports redis readiness failures separately', async () => {
+    redis.ping.mockRejectedValueOnce(new Error('redis down'));
+    const server = await startWorkerHttpServer(app as never, { port: 0, serviceName: 'scheduler' });
+    const port = (server.address() as AddressInfo).port;
+    try {
+      const readinessBody = await readPlainJson(port, '/health/readiness');
+      expect(readinessBody).toStrictEqual({
+        checks: { database: 'ok', redis: 'fail' },
+        service: 'scheduler',
+        status: 'unavailable',
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+    expect(redis.ping).toHaveBeenCalledWith();
   });
 
   it('returns unavailable readiness when a dependency fails and 500 when metrics fail', async () => {

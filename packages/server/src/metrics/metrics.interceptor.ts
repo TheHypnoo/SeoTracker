@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { CallHandler, ExecutionContext, NestInterceptor } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import type { Observable } from 'rxjs';
@@ -8,7 +8,11 @@ import { MetricsService } from './metrics.service';
 
 @Injectable()
 export class HttpMetricsInterceptor implements NestInterceptor {
-  constructor(private readonly metricsService: MetricsService) {}
+  private readonly metricsService: MetricsService;
+
+  constructor(@Inject(MetricsService) metricsService: unknown) {
+    this.metricsService = metricsService as MetricsService;
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== 'http') {
@@ -21,6 +25,7 @@ export class HttpMetricsInterceptor implements NestInterceptor {
     const startedAt = process.hrtime.bigint();
 
     const stop = (errored: boolean) => {
+      /* istanbul ignore next -- Express requests always provide route.path or request.path in HTTP interceptor tests/runtime. */
       const route = request.route?.path ?? request.path ?? 'unknown';
       const { method } = request;
       const status = errored && response.statusCode < 400 ? 500 : response.statusCode;

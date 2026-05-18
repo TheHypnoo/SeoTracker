@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -15,19 +15,25 @@ import { ProjectIssuesService } from './site-issues.service';
 @UseGuards(JwtAuthGuard)
 @Controller('projects/:projectId')
 export class ProjectScopedAuditsController {
+  private readonly auditsService: AuditsService;
+  private readonly issuesService: ProjectIssuesService;
+
   constructor(
-    private readonly auditsService: AuditsService,
-    private readonly issuesService: ProjectIssuesService,
-  ) {}
+    @Inject(AuditsService) auditsService: unknown,
+    @Inject(ProjectIssuesService) issuesService: unknown,
+  ) {
+    this.auditsService = auditsService as AuditsService;
+    this.issuesService = issuesService as ProjectIssuesService;
+  }
 
   @Get('audits')
   @ApiOperation({ summary: 'Listar auditorías de todos los dominios del proyecto' })
   listAudits(
     @CurrentUser() user: { sub: string },
     @Param('projectId', UUID_V4_PIPE) projectId: string,
-    @Query() query: ListProjectAuditsQueryDto,
+    @Query() query: unknown,
   ) {
-    const { siteId, status, trigger, limit, offset } = query;
+    const { siteId, status, trigger, limit, offset } = query as ListProjectAuditsQueryDto;
     return this.auditsService.listAuditsForProject(projectId, user.sub, {
       pagination: resolvePagination({ limit, offset }),
       siteId,
@@ -41,9 +47,9 @@ export class ProjectScopedAuditsController {
   listIssues(
     @CurrentUser() user: { sub: string },
     @Param('projectId', UUID_V4_PIPE) projectId: string,
-    @Query() query: ListProjectIssuesQueryDto,
+    @Query() query: unknown,
   ) {
-    const { siteId, severity, category, state, limit, offset } = query;
+    const { siteId, severity, category, state, limit, offset } = query as ListProjectIssuesQueryDto;
     return this.issuesService.listForProjectScope(projectId, user.sub, {
       category,
       pagination: resolvePagination({ limit, offset }),

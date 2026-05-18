@@ -38,10 +38,13 @@ import {
 
 @Injectable()
 export class ProjectsService {
-  constructor(
-    @Inject(DRIZZLE) private readonly db: Db,
-    private readonly eventEmitter: EventEmitter2,
-  ) {}
+  private readonly db: Db;
+  private readonly eventEmitter: EventEmitter2;
+
+  constructor(@Inject(DRIZZLE) db: Db, @Inject(EventEmitter2) eventEmitter: unknown) {
+    this.db = db;
+    this.eventEmitter = eventEmitter as EventEmitter2;
+  }
 
   private emitActivity(event: ActivityEvent) {
     this.eventEmitter.emit(ACTIVITY_RECORDED_EVENT, event);

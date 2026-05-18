@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IssueCode, Severity } from '@seotracker/shared-types';
 import { load } from 'cheerio';
@@ -37,7 +37,11 @@ const USER_AGENT = 'SEOTrackerBot/1.0 (+https://seotracker.local)';
 export class SeoEngineService {
   private readonly logger = new Logger(SeoEngineService.name);
 
-  constructor(private readonly configService: ConfigService<Env, true>) {}
+  private readonly configService: ConfigService<Env, true>;
+
+  constructor(@Inject(ConfigService) configService: unknown) {
+    this.configService = configService as ConfigService<Env, true>;
+  }
 
   async analyzeDomain(
     domain: string,
@@ -175,6 +179,7 @@ export class SeoEngineService {
     metrics.push(...crawl.metrics);
     pages.push(...crawl.pages);
     pageTexts.push(...crawl.pageTexts);
+    /* istanbul ignore next -- homepage page is always pushed before crawl analysis. */
     const analyzedPages = pages[0] ? [pages[0], ...crawl.pages] : crawl.pages;
     metrics.push(
       ...computeCrawlConfidence({

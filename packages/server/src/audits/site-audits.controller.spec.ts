@@ -16,6 +16,7 @@ describe('projectAuditsController', () => {
       listProjectRuns: jest.fn().mockResolvedValue([]),
       compareProjectRuns: jest.fn().mockResolvedValue('cmp'),
       getProjectTrends: jest.fn().mockResolvedValue([]),
+      getSiteActionPlan: jest.fn().mockResolvedValue('plan'),
     };
     const moduleRef = await Test.createTestingModule({
       controllers: [ProjectAuditsController],
@@ -27,6 +28,11 @@ describe('projectAuditsController', () => {
   it('run delegates to runManual', () => {
     void controller.run(USER, 's1');
     expect(service.runManual).toHaveBeenCalledWith('s1', 'u-1');
+  });
+
+  it('actionPlan delegates to getSiteActionPlan', () => {
+    void controller.actionPlan(USER, 's1');
+    expect(service.getSiteActionPlan).toHaveBeenCalledWith('s1', 'u-1');
   });
 
   it('list delegates with status/trigger/from/to + resolved pagination', () => {

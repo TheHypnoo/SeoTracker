@@ -11,6 +11,7 @@ describe('projectIssuesController', () => {
 
   beforeEach(async () => {
     service = {
+      listForProject: jest.fn().mockResolvedValue([]),
       setState: jest.fn().mockResolvedValue('updated'),
     };
     const moduleRef = await Test.createTestingModule({
@@ -18,6 +19,11 @@ describe('projectIssuesController', () => {
       providers: [{ provide: ProjectIssuesService, useValue: service }],
     }).compile();
     controller = moduleRef.get(ProjectIssuesController);
+  });
+
+  it('list delegates to listForProject with state filter', () => {
+    void controller.list({ sub: 'u-1' }, 's1', { state: IssueState.OPEN } as never);
+    expect(service.listForProject).toHaveBeenCalledWith('s1', 'u-1', { state: IssueState.OPEN });
   });
 
   it('updateState delegates to setState(id, userSub, state)', () => {

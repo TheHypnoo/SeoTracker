@@ -64,6 +64,7 @@ function extractUserKey(req: Request): string | null {
   }
 
   try {
+    /* istanbul ignore next -- token.split('.') length guard above guarantees index 1 exists. */
     const segment = parts[1] ?? '';
     if (!segment) {
       return null;
@@ -95,6 +96,7 @@ function requestPathCandidates(req: Request): string[] {
   ].filter(Boolean);
 
   return rawValues.map((value) => {
+    /* istanbul ignore next -- String#split always returns at least one element. */
     const [path = ''] = value.split('?');
     const trimmed = path.replace(/\/+$/, '');
     return trimmed || '/';

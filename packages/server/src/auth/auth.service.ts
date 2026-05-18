@@ -23,8 +23,6 @@ import { hashToken, randomToken, safeEqual } from '../common/utils/security';
 import { USER_REGISTERED_EVENT, type UserRegisteredEvent } from '../projects/onboarding.service';
 import { UsersService } from '../users/users.service';
 
-const ACCESS_TOKEN_TTL = '15m';
-
 /**
  * Authentication service.
  *
@@ -37,14 +35,28 @@ const ACCESS_TOKEN_TTL = '15m';
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
+  private readonly db: Db;
+  private readonly jwtService: JwtService;
+  private readonly configService: ConfigService<Env, true>;
+  private readonly usersService: UsersService;
+  private readonly notificationsService: NotificationsService;
+  private readonly eventEmitter: EventEmitter2;
+
   constructor(
-    @Inject(DRIZZLE) private readonly db: Db,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService<Env, true>,
-    private readonly usersService: UsersService,
-    private readonly notificationsService: NotificationsService,
-    private readonly eventEmitter: EventEmitter2,
-  ) {}
+    @Inject(DRIZZLE) db: Db,
+    @Inject(JwtService) jwtService: unknown,
+    @Inject(ConfigService) configService: unknown,
+    @Inject(UsersService) usersService: unknown,
+    @Inject(NotificationsService) notificationsService: unknown,
+    @Inject(EventEmitter2) eventEmitter: unknown,
+  ) {
+    this.db = db;
+    this.jwtService = jwtService as JwtService;
+    this.configService = configService as ConfigService<Env, true>;
+    this.usersService = usersService as UsersService;
+    this.notificationsService = notificationsService as NotificationsService;
+    this.eventEmitter = eventEmitter as EventEmitter2;
+  }
 
   /**
    * Create a new user, provision a default project, persist it as the active project, and
@@ -352,7 +364,7 @@ export class AuthService {
       { sub: user.id, email: user.email },
       {
         secret: this.configService.get('JWT_ACCESS_SECRET', { infer: true }),
-        expiresIn: this.configService.get('JWT_ACCESS_TTL', { infer: true }) || ACCESS_TOKEN_TTL,
+        expiresIn: this.configService.get('JWT_ACCESS_TTL', { infer: true }),
       },
     );
 

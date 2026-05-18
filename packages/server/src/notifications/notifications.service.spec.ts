@@ -120,6 +120,34 @@ describe('notificationsService', () => {
     jest.clearAllMocks();
   });
 
+  it('configures SMTP auth when user and password are present', () => {
+    const config = {
+      get: jest.fn((key: string) => {
+        const map: Record<string, unknown> = {
+          SMTP_FROM: 'from@test',
+          SMTP_HOST: 'smtp.test',
+          SMTP_PASS: 'pass',
+          SMTP_PORT: 465,
+          SMTP_SECURE: true,
+          SMTP_USER: 'user',
+        };
+        return map[key];
+      }),
+    };
+
+    const configuredService = new NotificationsService(
+      db as never,
+      config as never,
+      queue as never,
+      projects as never,
+    );
+
+    expect(configuredService).toBeInstanceOf(NotificationsService);
+    expect(nodemailer.createTransport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ auth: { pass: 'pass', user: 'user' }, secure: true }),
+    );
+  });
+
   it('persists an email delivery and enqueues a BullMQ job', async () => {
     db.returning.mockResolvedValueOnce([{ id: 'e1', status: EmailDeliveryStatus.PENDING }]);
 
@@ -147,6 +175,17 @@ describe('notificationsService', () => {
     expect(out.id).toBe('e1');
   });
 
+  it('lists user notifications with default pagination and total fallback', async () => {
+    db.where.mockResolvedValueOnce([]).mockReturnValueOnce(paginatedRows([]) as never);
+
+    await expect(service.listForUser('u1')).resolves.toStrictEqual({
+      items: [],
+      limit: 50,
+      offset: 0,
+      total: 0,
+    });
+  });
+
   it('lists user notifications with pagination metadata', async () => {
     const items = [{ id: 'n1' }, { id: 'n2' }];
     db.where
@@ -167,6 +206,18 @@ describe('notificationsService', () => {
     await expect(service.markAsRead('u1', 'n1')).resolves.toStrictEqual({ success: true });
     await expect(service.markAsRead('u1', 'foreign')).rejects.toBeInstanceOf(NotFoundException);
     expect(db.set).toHaveBeenCalledWith({ readAt: expect.any(Date) });
+  });
+
+  it('creates a single in-app notification', async () => {
+    const created = { id: 'n1', userId: 'u1' };
+    db.returning.mockResolvedValueOnce([created]);
+
+    await expect(
+      service.createInApp('u1', { body: 'Body', title: 'Title', type: 'custom' }),
+    ).resolves.toBe(created);
+    expect(db.values).toHaveBeenCalledWith(
+      expect.objectContaining({ body: 'Body', title: 'Title', type: 'custom', userId: 'u1' }),
+    );
   });
 
   it('creates in-app notifications for each project member', async () => {
@@ -197,6 +248,19 @@ describe('notificationsService', () => {
     );
   });
 
+  it('normalizes provider metadata when SMTP returns non-string/non-array fields', async () => {
+    sendMail.mockResolvedValueOnce({ accepted: 'not-array', messageId: 123, rejected: null });
+
+    await expect(
+      service.sendEmail({ to: 'mate@x.test', subject: 'Hello', text: 'Body' }),
+    ).resolves.toStrictEqual({
+      accepted: [],
+      messageId: undefined,
+      rejected: [],
+      response: undefined,
+    });
+  });
+
   it('throws when the SMTP provider rejects recipients and best-effort converts failures to null', async () => {
     sendMail.mockResolvedValueOnce({
       accepted: [],
@@ -220,6 +284,38 @@ describe('notificationsService', () => {
         text: 'Acepta la invitacion',
       }),
     ).resolves.toBeNull();
+  });
+
+  it('logs non-error best-effort send failures', async () => {
+    jest.spyOn(service, 'sendEmail').mockRejectedValueOnce('smtp offline');
+
+    await expect(
+      service.sendBestEffortEmail({
+        to: 'mate@x.test',
+        subject: 'Invitacion',
+        text: 'Acepta la invitacion',
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('records non-error enqueue failures without strict rethrowing', async () => {
+    db.returning.mockResolvedValueOnce([{ id: 'e1', status: EmailDeliveryStatus.PENDING }]);
+    queue.enqueueEmailDelivery.mockRejectedValueOnce('redis offline');
+
+    await expect(
+      service.enqueueEmailDelivery({
+        to: 'mate@x.test',
+        subject: 'Invitacion',
+        text: 'Acepta la invitacion',
+      }),
+    ).resolves.toStrictEqual({ id: 'e1', status: EmailDeliveryStatus.PENDING });
+
+    expect(db.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastError: 'Queue enqueue failed: redis offline',
+        status: EmailDeliveryStatus.FAILED,
+      }),
+    );
   });
 
   it('marks the delivery as failed when it cannot be enqueued', async () => {
@@ -384,6 +480,22 @@ describe('notificationsService', () => {
     );
   });
 
+  it('uses default reconciliation options and logs non-error queue failures', async () => {
+    db.where.mockReturnValueOnce(
+      thenable([{ id: 'e-pending', status: EmailDeliveryStatus.PENDING }]),
+    );
+    queue.enqueueEmailDelivery.mockRejectedValueOnce('redis busy');
+
+    await expect(service.reconcilePendingEmailDeliveries()).resolves.toStrictEqual({
+      reconciled: 1,
+    });
+
+    expect(queue.enqueueEmailDelivery).toHaveBeenCalledWith(
+      { deliveryId: 'e-pending' },
+      expect.objectContaining({ jobId: expect.stringContaining('e-pending:reconcile:') }),
+    );
+  });
+
   it('does not resend deliveries that are already sent', async () => {
     db.where.mockReturnValueOnce(
       thenable([{ id: 'e1', status: EmailDeliveryStatus.SENT, attemptCount: 1 }]),
@@ -393,6 +505,33 @@ describe('notificationsService', () => {
 
     expect(sendMail).not.toHaveBeenCalled();
     expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('persists non-error processing failures before rethrowing', async () => {
+    jest.spyOn(service, 'sendEmail').mockRejectedValueOnce('smtp offline');
+    db.where.mockReturnValueOnce(
+      thenable([
+        {
+          id: 'e1',
+          attemptCount: 2,
+          htmlBody: null,
+          recipientEmail: 'mate@x.test',
+          status: EmailDeliveryStatus.PENDING,
+          subject: 'Invitacion',
+          textBody: 'Hola',
+        },
+      ]),
+    );
+
+    await expect(service.processEmailDelivery('e1')).rejects.toBe('smtp offline');
+
+    expect(db.set).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        failedAt: expect.any(Date),
+        lastError: 'smtp offline',
+        status: EmailDeliveryStatus.FAILED,
+      }),
+    );
   });
 
   it('resets and requeues a failed delivery when a project owner retries it', async () => {
@@ -414,6 +553,20 @@ describe('notificationsService', () => {
     );
     expect(queue.enqueueEmailDelivery).toHaveBeenCalledWith({ deliveryId: 'e1' });
     expect(out).toStrictEqual({ success: true });
+  });
+
+  it('lists project email deliveries without status filters using defaults', async () => {
+    db.where.mockResolvedValueOnce([]).mockReturnValueOnce(paginatedRows([]) as never);
+
+    await expect(
+      service.listEmailDeliveriesForProject('project-1', 'owner-1'),
+    ).resolves.toStrictEqual({
+      items: [],
+      limit: 25,
+      offset: 0,
+      total: 0,
+    });
+    expect(projects.assertOwner).toHaveBeenCalledWith('project-1', 'owner-1');
   });
 
   it('lists project email deliveries for owners and applies status filters', async () => {
@@ -492,6 +645,142 @@ describe('notificationsService', () => {
         recipientEmail: 'active@example.com',
         userId: 'u-active',
       }),
+    );
+  });
+
+  it('uses audit-regression preferences for project member emails', async () => {
+    db.where.mockReturnValueOnce(
+      thenable([
+        {
+          email: 'muted@example.com',
+          emailOnAuditCompleted: true,
+          emailOnAuditRegression: false,
+          emailOnCriticalIssues: true,
+          userId: 'u-muted',
+        },
+        {
+          email: 'active@example.com',
+          emailOnAuditCompleted: true,
+          emailOnAuditRegression: true,
+          emailOnCriticalIssues: true,
+          userId: 'u-active',
+        },
+      ]),
+    );
+    db.returning.mockResolvedValueOnce([{ id: 'e-active' }]);
+
+    await service.sendEmailToProjectMembers(
+      'project-1',
+      { subject: 'Regression', text: 'Regression detected.' },
+      { notificationType: 'AUDIT_REGRESSION' },
+    );
+
+    expect(db.values).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientEmail: 'active@example.com', userId: 'u-active' }),
+    );
+    expect(db.values).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends project invites regardless of email preference flags', async () => {
+    db.where.mockReturnValueOnce(
+      thenable([
+        {
+          email: 'invitee@example.com',
+          emailOnAuditCompleted: false,
+          emailOnAuditRegression: false,
+          emailOnCriticalIssues: false,
+          userId: 'u-invitee',
+        },
+      ]),
+    );
+    db.returning.mockResolvedValueOnce([{ id: 'e-invite' }]);
+
+    await service.sendEmailToProjectMembers(
+      'project-1',
+      { subject: 'Invite', text: 'Join.' },
+      { notificationType: 'PROJECT_INVITE' },
+    );
+
+    expect(db.values).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientEmail: 'invitee@example.com', userId: 'u-invitee' }),
+    );
+  });
+
+  it('sends member emails with default options and omitted notification type', async () => {
+    db.where.mockReturnValueOnce(
+      thenable([
+        {
+          email: 'member@example.com',
+          emailOnAuditCompleted: false,
+          emailOnAuditRegression: false,
+          emailOnCriticalIssues: false,
+          userId: 'u-member',
+        },
+      ]),
+    );
+    db.returning.mockResolvedValueOnce([{ id: 'e-default' }]);
+
+    await service.sendEmailToProjectMembers('project-1', {
+      html: '<p>Hola</p>',
+      subject: 'Hello',
+      text: 'Body',
+    });
+
+    expect(db.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        htmlBody: '<p>Hola</p>',
+        notificationType: undefined,
+        recipientEmail: 'member@example.com',
+        userId: 'u-member',
+      }),
+    );
+    expect(queue.enqueueEmailDelivery).toHaveBeenCalledWith({ deliveryId: 'e-default' });
+  });
+
+  it('defaults nullable regression and critical-issue preferences to enabled', async () => {
+    db.where.mockReturnValueOnce(
+      thenable([
+        {
+          email: 'regression@example.com',
+          emailOnAuditCompleted: true,
+          emailOnAuditRegression: null,
+          emailOnCriticalIssues: true,
+          userId: 'u-regression',
+        },
+      ]),
+    );
+    db.returning.mockResolvedValueOnce([{ id: 'e-regression' }]);
+
+    await service.sendEmailToProjectMembers(
+      'project-1',
+      { subject: 'Regression', text: 'Regression detected.' },
+      { notificationType: 'AUDIT_REGRESSION' },
+    );
+
+    db.where.mockReturnValueOnce(
+      thenable([
+        {
+          email: 'critical@example.com',
+          emailOnAuditCompleted: true,
+          emailOnAuditRegression: true,
+          emailOnCriticalIssues: null,
+          userId: 'u-critical',
+        },
+      ]),
+    );
+    db.returning.mockResolvedValueOnce([{ id: 'e-critical' }]);
+
+    await service.sendEmailToProjectMembers(
+      'project-1',
+      { subject: 'Critical', text: 'Critical issues detected.' },
+      { notificationType: 'CRITICAL_ISSUES' },
+    );
+
+    expect(db.values).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientEmail: 'regression@example.com', userId: 'u-regression' }),
+    );
+    expect(db.values).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientEmail: 'critical@example.com', userId: 'u-critical' }),
     );
   });
 

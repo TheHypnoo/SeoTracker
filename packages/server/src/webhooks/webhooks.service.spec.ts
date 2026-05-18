@@ -94,6 +94,14 @@ describe('webhooksService', () => {
       expect(out.secret).toBeTruthy();
       expect(typeof out.secret).toBe('string');
     });
+
+    it('defaults new endpoints to enabled when omitted', async () => {
+      db.returning.mockResolvedValueOnce([{ id: 'e1', projectId: 'p1', endpointKey: 'k1' }]);
+
+      await service.createEndpoint('p1', 'u-owner', { name: 'Hook' });
+
+      expect(db.values).toHaveBeenCalledWith(expect.objectContaining({ enabled: true }));
+    });
   });
 
   describe('listProjectEndpoints', () => {
@@ -142,6 +150,19 @@ describe('webhooksService', () => {
       ).resolves.toStrictEqual({ id: 'e1', name: 'Fresh', enabled: false });
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Fresh', enabled: false, updatedAt: expect.any(Date) }),
+      );
+    });
+
+    it('allows partial updates that omit name or enabled', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'e1', projectId: 'p1' }]))
+        .mockReturnValueOnce(thenable([{ id: 'e1', name: 'Existing', enabled: true }]));
+
+      await service.updateEndpoint('p1', 'e1', 'u-owner', {});
+
+      expect(db.set).toHaveBeenCalledWith(expect.not.objectContaining({ name: expect.anything() }));
+      expect(db.set).toHaveBeenCalledWith(
+        expect.not.objectContaining({ enabled: expect.anything() }),
       );
     });
 

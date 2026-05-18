@@ -255,6 +255,13 @@ describe('seoActionPlanService', () => {
     );
   });
 
+  it('throws when the requested audit id does not exist', async () => {
+    db.where.mockReturnValueOnce(thenable([]));
+
+    await expect(service.getForAudit('missing-audit', 'user-1')).rejects.toThrow('Audit not found');
+    expect(sites.getById).not.toHaveBeenCalled();
+  });
+
   it('prefers persisted action items when available', async () => {
     db.where
       .mockReturnValueOnce(thenable([latestRun]))
@@ -300,6 +307,153 @@ describe('seoActionPlanService', () => {
       remediationPrompt: 'Prompt persisted',
       scoreImpactPoints: 14,
       status: IssueState.OPEN,
+    });
+  });
+
+  it('applies ignored and fixed persisted-state priority penalties', async () => {
+    db.where
+      .mockReturnValueOnce(thenable([latestRun]))
+      .mockReturnValueOnce(thenable([]))
+      .mockReturnValueOnce(
+        thenable([
+          {
+            affectedPages: [],
+            affectedPagesCount: 0,
+            category: IssueCategory.TECHNICAL,
+            effort: SeoActionEffort.LOW,
+            evidenceSummary: 'No canonical',
+            impact: 'MEDIUM',
+            issueCode: IssueCode.MISSING_CANONICAL,
+            occurrences: 1,
+            priorityReason: 'Persisted canonical',
+            priorityScore: 70,
+            recommendedAction: 'Definir canonical absoluto',
+            remediationPrompt: 'Prompt canonical',
+            scoreImpactPoints: 4,
+            severity: Severity.MEDIUM,
+          },
+          {
+            affectedPages: ['https://example.test/fixed'],
+            affectedPagesCount: 1,
+            category: IssueCategory.MEDIA,
+            effort: SeoActionEffort.LOW,
+            evidenceSummary: 'Image alt',
+            impact: 'LOW',
+            issueCode: IssueCode.IMAGE_WITHOUT_ALT,
+            occurrences: 1,
+            priorityReason: 'Persisted media',
+            priorityScore: 60,
+            recommendedAction: 'Añadir alt',
+            remediationPrompt: 'Prompt media',
+            scoreImpactPoints: 2,
+            severity: Severity.LOW,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        thenable([
+          {
+            issueCode: IssueCode.MISSING_CANONICAL,
+            resourceKey: '',
+            state: IssueState.IGNORED,
+          },
+          {
+            issueCode: IssueCode.IMAGE_WITHOUT_ALT,
+            resourceKey: 'https://example.test/fixed',
+            state: IssueState.FIXED,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(thenable([{ score: 70 }]))
+      .mockReturnValueOnce(thenable([]));
+
+    const plan = await service.getForAudit('audit-2', 'user-1');
+
+    expect(
+      plan.actions.find((action) => action.issueCode === IssueCode.MISSING_CANONICAL),
+    ).toMatchObject({
+      priority: 35,
+      status: IssueState.IGNORED,
+    });
+    expect(
+      plan.actions.find((action) => action.issueCode === IssueCode.IMAGE_WITHOUT_ALT),
+    ).toMatchObject({
+      priority: 0,
+      status: IssueState.FIXED,
+    });
+    expect(plan.totals).toMatchObject({ fixed: 1, ignored: 1, open: 0 });
+  });
+
+  it('estimates crawlability actions as medium effort', async () => {
+    db.where
+      .mockReturnValueOnce(thenable([latestRun]))
+      .mockReturnValueOnce(
+        thenable([
+          {
+            auditRunId: 'audit-2',
+            category: IssueCategory.CRAWLABILITY,
+            issueCode: IssueCode.MISSING_SITEMAP,
+            message: 'Missing sitemap',
+            resourceUrl: 'https://example.test/sitemap.xml',
+            severity: Severity.MEDIUM,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(thenable([]))
+      .mockReturnValueOnce(thenable([]))
+      .mockReturnValueOnce(thenable([{ score: 70 }]))
+      .mockReturnValueOnce(thenable([]));
+
+    const plan = await service.getForSite('site-1', 'user-1');
+
+    expect(plan.actions[0]).toMatchObject({
+      effort: SeoActionEffort.MEDIUM,
+      issueCode: IssueCode.MISSING_SITEMAP,
+    });
+  });
+
+  it('builds fallback actions with default copy, low effort, and capped page previews', async () => {
+    const unknownIssueCode = 'CUSTOM_UNKNOWN' as IssueCode;
+    const pages = Array.from({ length: 14 }, (_, index) => `https://example.test/page-${index}`);
+    db.where
+      .mockReturnValueOnce(thenable([{ ...latestRun, score: null }]))
+      .mockReturnValueOnce(
+        thenable(
+          pages.map((resourceUrl) => ({
+            auditRunId: 'audit-2',
+            category: IssueCategory.ON_PAGE,
+            issueCode: unknownIssueCode,
+            message: 'Unexpected canonical',
+            resourceUrl,
+            severity: Severity.LOW,
+          })),
+        ),
+      )
+      .mockReturnValueOnce(thenable([]))
+      .mockReturnValueOnce(
+        thenable([
+          {
+            issueCode: unknownIssueCode,
+            resourceKey: pages[0],
+            state: IssueState.IGNORED,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(thenable([{ score: null }]))
+      .mockReturnValueOnce(thenable([]));
+
+    const plan = await service.getForSite('site-1', 'user-1');
+
+    expect(plan.actions[0]).toMatchObject({
+      affectedPages: pages.slice(0, 6),
+      affectedPagesCount: 14,
+      effort: SeoActionEffort.HIGH,
+      impact: 'LOW',
+      issueCode: unknownIssueCode,
+      priority: 63,
+      recommendedAction:
+        'Resolver "Unexpected canonical" en las URLs afectadas y validar de nuevo.',
+      scoreImpactPoints: 6,
     });
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import type { ExecutionContext } from '@nestjs/common';
 
-import { CurrentUser } from './current-user.decorator';
+import { CurrentUser, currentUserFactory } from './current-user.decorator';
 
 // Param decorators in NestJS do not expose their factory through the public
 // API. Spinning up a full DI module to invoke the decorator runtime is
@@ -24,13 +24,11 @@ describe('currentUser decorator', () => {
 
   it('contract: returns request.user when present', () => {
     const ctx = makeCtx({ sub: 'u-1', email: 'a@b.c' });
-    const userFromCtx = ctx.switchToHttp().getRequest<{ user: unknown }>().user;
-    expect(userFromCtx).toStrictEqual({ sub: 'u-1', email: 'a@b.c' });
+    expect(currentUserFactory(undefined, ctx)).toStrictEqual({ sub: 'u-1', email: 'a@b.c' });
   });
 
   it('contract: returns undefined when no user is attached to the request', () => {
     const ctx = makeCtx(undefined);
-    const userFromCtx = ctx.switchToHttp().getRequest<{ user: unknown }>().user;
-    expect(userFromCtx).toBeUndefined();
+    expect(currentUserFactory(undefined, ctx)).toBeUndefined();
   });
 });

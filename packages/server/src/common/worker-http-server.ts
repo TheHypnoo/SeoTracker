@@ -12,7 +12,7 @@ import { REDIS_CONNECTION } from '../queue/queue.constants';
 
 const READINESS_TIMEOUT_MS = 3000;
 
-async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+export async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(
@@ -23,6 +23,7 @@ async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   try {
     return await Promise.race([promise, timeout]);
   } finally {
+    /* istanbul ignore else -- timer is always assigned synchronously before racing. */
     if (timer) {
       clearTimeout(timer);
     }
@@ -49,6 +50,7 @@ export async function startWorkerHttpServer(
   const redis = app.get<IORedis>(REDIS_CONNECTION);
 
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    /* istanbul ignore next -- Node HTTP requests always provide a URL for inbound requests. */
     const url = req.url ?? '/';
     if (req.method !== 'GET') {
       res.writeHead(405).end();

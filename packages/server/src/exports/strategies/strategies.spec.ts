@@ -175,6 +175,14 @@ describe('historyCsvStrategy', () => {
     expect(row?.[5]).toBe('');
     expect(row?.[7]).toBe('');
   });
+
+  it('defaults missing filters to an empty object', async () => {
+    db.where.mockReturnValueOnce(thenable([]));
+
+    const out = await strategy.build({ siteId: 's1' } as never);
+
+    expect(out.rows).toStrictEqual([]);
+  });
 });
 
 describe('issuesCsvStrategy', () => {
@@ -287,6 +295,35 @@ describe('comparisonCsvStrategy', () => {
     );
   });
 
+  it('emits empty strings for nullable comparison cells', async () => {
+    db.where.mockReturnValueOnce(thenable([{ id: 'c1' }])).mockReturnValueOnce(
+      thenable([
+        {
+          changeType: 'REMOVED_ISSUE',
+          issueCategory: null,
+          issueCode: null,
+          severity: null,
+          title: 'removed',
+          delta: null,
+          createdAt: ISO_DATE,
+        },
+      ]),
+    );
+
+    const out = await strategy.build({ comparisonId: 'c1' } as never);
+
+    expect(out.rows[0]).toStrictEqual([
+      'c1',
+      'REMOVED_ISSUE',
+      '',
+      '',
+      '',
+      'removed',
+      '',
+      ISO_DATE.toISOString(),
+    ]);
+  });
+
   it('returns rows shaped for changes table', async () => {
     db.where
       .mockReturnValueOnce(thenable([{ id: 'c1' }])) // comparison
@@ -343,6 +380,32 @@ describe('auditResultCsvStrategy', () => {
     await expect(strategy.build({ auditRunId: 'r1' } as never)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('emits empty strings for nullable audit result cells', async () => {
+    db.where
+      .mockReturnValueOnce(
+        thenable([
+          { id: 'r1', status: 'COMPLETED', score: null, httpStatus: null, responseMs: null },
+        ]),
+      )
+      .mockReturnValueOnce(thenable([{ key: 'note', valueNum: null, valueText: null }]))
+      .mockReturnValueOnce(
+        thenable([{ url: 'https://x.test/', statusCode: null, responseMs: null }]),
+      )
+      .mockReturnValueOnce(thenable([]))
+      .mockReturnValueOnce(thenable([]))
+      .mockReturnValueOnce(thenable([]));
+
+    const out = await strategy.build({ auditRunId: 'r1' } as never);
+
+    expect(out.rows.slice(2, 6)).toStrictEqual([
+      ['summary', 'score', ''],
+      ['summary', 'httpStatus', ''],
+      ['summary', 'responseMs', ''],
+      ['metric', 'note', ''],
+    ]);
+    expect(out.rows[6]).toStrictEqual(['page', 'https://x.test/', ' / ms']);
   });
 
   it('emits a flat report: summary + metric + page + issue rows', async () => {
@@ -441,6 +504,42 @@ describe('indexabilityCsvStrategy', () => {
     await expect(strategy.build({ auditRunId: null } as never)).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('exports fallback cells for nullable indexability fields', async () => {
+    db.where.mockReturnValueOnce(
+      thenable([
+        {
+          canonicalUrl: null,
+          createdAt: ISO_DATE,
+          evidence: null,
+          id: 'u2',
+          indexabilityStatus: 'INDEXABLE',
+          robotsDirective: null,
+          sitemapIncluded: false,
+          source: 'homepage',
+          statusCode: null,
+          url: 'https://x.test/',
+          xRobotsTag: null,
+        },
+      ]),
+    );
+
+    const out = await strategy.build({ auditRunId: 'run-1' } as never);
+
+    expect(out.rows[0]).toStrictEqual([
+      'u2',
+      'https://x.test/',
+      'homepage',
+      '',
+      'INDEXABLE',
+      '',
+      '',
+      '',
+      'no',
+      '{}',
+      ISO_DATE.toISOString(),
+    ]);
   });
 
   it('exports indexability matrix rows with evidence', async () => {

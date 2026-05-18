@@ -6,7 +6,9 @@ export interface CurrentUserPayload {
   email: string;
 }
 
-export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext) => {
+export const currentUserFactory = (_: unknown, ctx: ExecutionContext) => {
   const request = ctx.switchToHttp().getRequest<{ user?: CurrentUserPayload }>();
   return request.user;
-});
+};
+
+export const CurrentUser = createParamDecorator(currentUserFactory);

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Header,
+  Inject,
   NotFoundException,
   Req,
   Res,
@@ -16,10 +17,16 @@ import { MetricsService } from './metrics.service';
 
 @Controller('metrics')
 export class MetricsController {
+  private readonly metricsService: MetricsService;
+  private readonly configService: ConfigService<Env, true>;
+
   constructor(
-    private readonly metricsService: MetricsService,
-    private readonly configService: ConfigService<Env, true>,
-  ) {}
+    @Inject(MetricsService) metricsService: unknown,
+    @Inject(ConfigService) configService: unknown,
+  ) {
+    this.metricsService = metricsService as MetricsService;
+    this.configService = configService as ConfigService<Env, true>;
+  }
 
   @Get()
   @Header('Cache-Control', 'no-store')

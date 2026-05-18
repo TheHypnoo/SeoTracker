@@ -177,6 +177,30 @@ describe('distributedLockService', () => {
       expect(releaseCall).toBeDefined();
     });
 
+    it('resets refresh failure count after a successful lock extension', async () => {
+      jest.useFakeTimers();
+      redis.set.mockResolvedValueOnce('OK');
+      redis.eval.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+      let resolveWork: ((value: string) => void) | undefined;
+
+      const result = service.withLock(
+        'k',
+        3000,
+        () =>
+          new Promise<string>((resolve) => {
+            resolveWork = resolve;
+          }),
+      );
+
+      await jest.advanceTimersByTimeAsync(1000);
+      resolveWork?.('done');
+
+      await expect(result).resolves.toBe('done');
+      expect(
+        redis.eval.mock.calls.filter((args) => String(args[0]).includes('pexpire')),
+      ).toHaveLength(1);
+    });
+
     it('aborts the in-flight task after two consecutive failed refreshes', async () => {
       jest.useFakeTimers();
       redis.set.mockResolvedValueOnce('OK');

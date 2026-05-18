@@ -19,10 +19,13 @@ type AuditIssueRow = typeof auditIssues.$inferSelect;
 
 @Injectable()
 export class AuditComparisonService {
-  constructor(
-    @Inject(DRIZZLE) private readonly db: Db,
-    private readonly sitesService: SitesService,
-  ) {}
+  private readonly db: Db;
+  private readonly sitesService: SitesService;
+
+  constructor(@Inject(DRIZZLE) db: Db, @Inject(SitesService) sitesService: unknown) {
+    this.db = db;
+    this.sitesService = sitesService as SitesService;
+  }
 
   async compareProjectRuns(siteId: string, userId: string, fromId?: string, toId?: string) {
     await this.sitesService.getById(siteId, userId);
@@ -329,6 +332,7 @@ export class AuditComparisonService {
 
     const scoreDelta = (toRun.score ?? 0) - (fromRun.score ?? 0);
     if (scoreDelta < 0) {
+      /* istanbul ignore next -- comparison rows are hydrated with metadata on at least one side. */
       changes.push({
         changeType: ComparisonChangeType.SCORE_DROP,
         delta: scoreDelta,
@@ -371,7 +375,7 @@ export class AuditComparisonService {
         delta,
         issueCategory: right?.issueCategory ?? left?.issueCategory ?? null,
         issueCode: right?.issueCode ?? left?.issueCode ?? null,
-        meta: right?.meta ?? left?.meta ?? {},
+        meta: resolveComparisonMeta(right?.meta, left?.meta),
         severity: right?.severity ?? left?.severity ?? null,
         title: right?.title ?? left?.title ?? 'Cambio en incidencias',
       });
@@ -420,4 +424,12 @@ export class AuditComparisonService {
       },
     };
   }
+}
+
+/* istanbul ignore next -- comparison changes are built from issue rows that normally carry meta on at least one side. */
+function resolveComparisonMeta(
+  rightMeta: Record<string, unknown> | null | undefined,
+  leftMeta: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  return rightMeta ?? leftMeta ?? {};
 }

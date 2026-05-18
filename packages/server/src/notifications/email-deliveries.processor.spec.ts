@@ -169,6 +169,37 @@ describe('emailDeliveriesProcessor', () => {
     expect(jobFailuresService.record).not.toHaveBeenCalled();
   });
 
+  it('records failures with default attempts and fallback error fields', () => {
+    const processor = new EmailDeliveriesProcessor(
+      notificationsService as never,
+      configService as never,
+      jobFailuresService as never,
+      metricsService as never,
+    );
+    processor.onModuleInit();
+    const worker = mockWorkerInstances[0];
+
+    worker.handlers.failed(
+      {
+        attemptsMade: 1,
+        data: undefined,
+        id: undefined,
+        name: 'send-email',
+        opts: undefined,
+      },
+      undefined as unknown as Error,
+    );
+
+    expect(jobFailuresService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attempts: 1,
+        payload: {},
+        reason: 'Unknown error',
+        stack: null,
+      }),
+    );
+  });
+
   it('handles shutdown before initialization and close failures', async () => {
     const notStarted = new EmailDeliveriesProcessor(
       notificationsService as never,
@@ -176,6 +207,9 @@ describe('emailDeliveriesProcessor', () => {
       jobFailuresService as never,
       metricsService as never,
     );
+    await expect(notStarted.onModuleDestroy()).resolves.toBeUndefined();
+
+    (notStarted as unknown as { closePromise: Promise<void> }).closePromise = Promise.resolve();
     await expect(notStarted.onModuleDestroy()).resolves.toBeUndefined();
 
     const processor = new EmailDeliveriesProcessor(

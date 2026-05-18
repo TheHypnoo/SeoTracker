@@ -56,6 +56,10 @@ describe('jaccard', () => {
   it('returns proportion of intersection over union', () => {
     expect(jaccard(new Set(['a', 'b']), new Set(['b', 'c']))).toBeCloseTo(1 / 3);
   });
+
+  it('uses the smaller second set when appropriate', () => {
+    expect(jaccard(new Set(['a', 'b', 'c']), new Set(['a']))).toBeCloseTo(1 / 3);
+  });
 });
 
 describe('detectDuplicateContent', () => {
@@ -82,6 +86,20 @@ describe('detectDuplicateContent', () => {
     expect(pairs).toHaveLength(1);
     expect(pairs[0]?.similarity).toBeGreaterThanOrEqual(0.7);
   });
+
+  it('omits pairs when similarity is below threshold', () => {
+    const textA = Array.from({ length: 60 }, (_, index) => `alpha${index}`).join(' ');
+    const textB = Array.from({ length: 60 }, (_, index) => `beta${index}`).join(' ');
+    expect(
+      detectDuplicateContent(
+        [
+          { url: 'a', text: textA },
+          { url: 'b', text: textB },
+        ],
+        0.7,
+      ),
+    ).toStrictEqual([]);
+  });
 });
 
 describe('extractTextForComparison', () => {
@@ -94,6 +112,11 @@ describe('extractTextForComparison', () => {
     expect(text).not.toContain('alert');
     expect(text).not.toContain('nav');
   });
+
+  it('falls back to document text when no body exists', () => {
+    const $ = load('HELLO', null, false);
+    expect(extractTextForComparison($)).toBe('hello');
+  });
 });
 
 describe('detectHeadingSkips', () => {
@@ -105,6 +128,14 @@ describe('detectHeadingSkips', () => {
   it('returns empty when sequential', () => {
     const $ = load('<h1>a</h1><h2>b</h2><h3>c</h3>');
     expect(detectHeadingSkips($)).toStrictEqual([]);
+  });
+
+  it('ignores malformed heading nodes without numeric levels', () => {
+    const missingTagName = (() => ({ toArray: () => [{}] })) as never;
+    const nonNumericHeading = (() => ({ toArray: () => [{ tagName: 'headline' }] })) as never;
+
+    expect(detectHeadingSkips(missingTagName)).toStrictEqual([]);
+    expect(detectHeadingSkips(nonNumericHeading)).toStrictEqual([]);
   });
 });
 
@@ -127,15 +158,25 @@ describe('extractJsonLdTypes', () => {
 
   it('extracts from arrays and @graph', () => {
     const $ = load(
-      '<script type="application/ld+json">{"@graph":[{"@type":"Person"},{"@type":["BlogPosting","Article"]}]}</script>',
+      '<script type="application/ld+json">{"@type":["Product"],"@graph":[{"@type":"Person"},{"@type":["BlogPosting","Article"]}]}</script>',
     );
     const types = extractJsonLdTypes($);
-    expect(types).toStrictEqual(expect.arrayContaining(['Person', 'BlogPosting', 'Article']));
+    expect(types).toStrictEqual(
+      expect.arrayContaining(['Product', 'Person', 'BlogPosting', 'Article']),
+    );
   });
 
   it('ignores invalid JSON', () => {
     const $ = load('<script type="application/ld+json">{ invalid }</script>');
     expect(extractJsonLdTypes($)).toStrictEqual([]);
+  });
+
+  it('ignores empty scripts, primitives and non-string type entries', () => {
+    const $ = load(
+      '<script type="application/ld+json">   </script>' +
+        '<script type="application/ld+json">[null,42,{"@type":[123,null],"@graph":[{"@type":[false,"Thing"]}]}]</script>',
+    );
+    expect(extractJsonLdTypes($)).toStrictEqual(['Thing']);
   });
 });
 
@@ -165,6 +206,60 @@ describe('extractArticleMetadata', () => {
   it('handles author as object with name property', () => {
     const $ = load('<script type="application/ld+json">{"author":{"name":"FirstName"}}</script>');
     expect(extractArticleMetadata($).author).toBe('FirstName');
+  });
+
+  it('handles author arrays and invalid JSON-LD metadata', () => {
+    const withStringAuthor = load(
+      '<script type="application/ld+json">{"author":["Array Author"]}</script>',
+    );
+    const withObjectAuthor = load(
+      '<script type="application/ld+json">{"author":[{"name":"Object Author"}]}</script>',
+    );
+    const invalid = load('<script type="application/ld+json">{ invalid }</script>');
+
+    expect(extractArticleMetadata(withStringAuthor).author).toBe('Array Author');
+    expect(extractArticleMetadata(withObjectAuthor).author).toBe('Object Author');
+    expect(extractArticleMetadata(invalid)).toStrictEqual({
+      author: undefined,
+      modifiedDate: undefined,
+      publishedDate: undefined,
+    });
+  });
+
+  it('handles metadata arrays, graphs, empty scripts and absent object fields', () => {
+    const withGraph = load(
+      '<script type="application/ld+json">[{"@graph":[null,{"datePublished":"2024-06-01","author":{"name":42}}]}]</script>',
+    );
+    const withEmptyScript = load('<script type="application/ld+json">   </script>');
+    const withMetaAuthor = load(
+      '<meta name="author" content="Meta Author"><script type="application/ld+json">{"author":"Json Author"}</script>',
+    );
+
+    expect(extractArticleMetadata(withGraph).publishedDate).toBeInstanceOf(Date);
+    expect(extractArticleMetadata(withEmptyScript)).toStrictEqual({
+      author: undefined,
+      modifiedDate: undefined,
+      publishedDate: undefined,
+    });
+    expect(extractArticleMetadata(withMetaAuthor).author).toBe('Meta Author');
+  });
+
+  it('handles JSON-LD author strings and non-string array/object author entries', () => {
+    const withStringAuthor = load(
+      '<script type="application/ld+json">{"author":"String Author"}</script>',
+    );
+    const withNullArrayAuthor = load(
+      '<script type="application/ld+json">{"author":[null]}</script>',
+    );
+    const withNumericNameArrayAuthor = load(
+      '<script type="application/ld+json">{"author":[{"name":42}]}</script>',
+    );
+    const withFalsyObjectAuthor = load('<script type="application/ld+json">{"author":0}</script>');
+
+    expect(extractArticleMetadata(withStringAuthor).author).toBe('String Author');
+    expect(extractArticleMetadata(withNullArrayAuthor).author).toBeUndefined();
+    expect(extractArticleMetadata(withNumericNameArrayAuthor).author).toBeUndefined();
+    expect(extractArticleMetadata(withFalsyObjectAuthor).author).toBeUndefined();
   });
 
   it('returns undefined fields when no metadata', () => {
@@ -218,5 +313,12 @@ describe('computeFleschScore', () => {
     const score = computeFleschScore(text);
     expect(score).toBeDefined();
     expect(typeof score).toBe('number');
+  });
+
+  it('skips punctuation-only tokens and counts consonant-only words as one syllable', () => {
+    const text = Array.from({ length: 50 }, (_, index) =>
+      index % 2 === 0 ? 'rhythm' : '!!!',
+    ).join(' ');
+    expect(computeFleschScore(text)).toBeDefined();
   });
 });

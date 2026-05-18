@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Inject, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -13,7 +13,11 @@ import { ListSiteAuditsQueryDto } from './dto/list-site-audits.query.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('sites/:siteId/audits')
 export class ProjectAuditsController {
-  constructor(private readonly auditsService: AuditsService) {}
+  private readonly auditsService: AuditsService;
+
+  constructor(@Inject(AuditsService) auditsService: unknown) {
+    this.auditsService = auditsService as AuditsService;
+  }
 
   @Post('run')
   @ApiOperation({ summary: 'Lanzar auditoria manual' })
@@ -32,8 +36,9 @@ export class ProjectAuditsController {
   list(
     @CurrentUser() user: { sub: string },
     @Param('siteId', UUID_V4_PIPE) siteId: string,
-    @Query() query: ListSiteAuditsQueryDto,
+    @Query() queryInput: unknown,
   ) {
+    const query = queryInput as ListSiteAuditsQueryDto;
     const { status, trigger, from, to, limit, offset } = query;
     return this.auditsService.listProjectRuns(siteId, user.sub, {
       from,

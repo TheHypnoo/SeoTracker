@@ -44,12 +44,22 @@ const HARD_CAP = {
 
 @Injectable()
 export class CrawlConfigService {
+  private readonly db: Db;
+  private readonly configService: ConfigService<Env, true>;
+  private readonly sitesService: SitesService;
+  private readonly eventEmitter: EventEmitter2;
+
   constructor(
-    @Inject(DRIZZLE) private readonly db: Db,
-    private readonly configService: ConfigService<Env, true>,
-    private readonly sitesService: SitesService,
-    private readonly eventEmitter: EventEmitter2,
-  ) {}
+    @Inject(DRIZZLE) db: Db,
+    @Inject(ConfigService) configService: unknown,
+    @Inject(SitesService) sitesService: unknown,
+    @Inject(EventEmitter2) eventEmitter: unknown,
+  ) {
+    this.db = db;
+    this.configService = configService as ConfigService<Env, true>;
+    this.sitesService = sitesService as SitesService;
+    this.eventEmitter = eventEmitter as EventEmitter2;
+  }
 
   private emitActivity(event: ActivityEvent) {
     this.eventEmitter.emit(ACTIVITY_RECORDED_EVENT, event);

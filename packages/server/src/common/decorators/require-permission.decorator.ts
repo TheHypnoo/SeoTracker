@@ -13,5 +13,7 @@ export const REQUIRED_PERMISSION_KEY = 'required_permission';
  *   @RequirePermission(Permission.AUDIT_RUN)
  *   @Post('sites/:siteId/audits/run')
  */
-export const RequirePermission = (permission: Permission) =>
+export const requirePermissionFactory = (permission: Permission) =>
   SetMetadata(REQUIRED_PERMISSION_KEY, permission);
+
+export const RequirePermission = requirePermissionFactory;

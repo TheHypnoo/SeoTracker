@@ -283,6 +283,19 @@ describe('auditProcessingService', () => {
       seo.analyzeDomain.mockResolvedValueOnce({
         ...SAMPLE_ANALYSIS,
         metrics: [{ key: 'pages_total', valueNum: 1, valueText: null }],
+        urlInspections: [
+          {
+            canonicalUrl: 'https://x.test/',
+            evidence: { source: 'sitemap' },
+            indexabilityStatus: 'indexable',
+            robotsDirective: null,
+            sitemapIncluded: true,
+            source: 'sitemap',
+            statusCode: 200,
+            url: 'https://x.test/',
+            xRobotsTag: null,
+          },
+        ],
         issues: [
           {
             issueCode: IssueCode.MISSING_TITLE,
@@ -330,6 +343,172 @@ describe('auditProcessingService', () => {
         expect.objectContaining({ type: 'AUDIT_COMPLETED' }),
       );
       expect(orchestration.markRunFailed).not.toHaveBeenCalled();
+    });
+
+    it('persists a minimal successful audit with empty collections and undefined inspections', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([{ id: 'r1', siteId: 's1', status: AuditStatus.QUEUED, trigger: 'SCHEDULED' }]),
+        )
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 's1',
+              projectId: 'p1',
+              name: 'Site',
+              domain: 'x.test',
+              normalizedDomain: 'x.test',
+            },
+          ]),
+        );
+      const tx = {
+        update: jest.fn().mockReturnValue({
+          set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) }),
+        }),
+        insert: jest.fn().mockReturnValue({ values: jest.fn().mockResolvedValue(undefined) }),
+      };
+      db.transaction.mockImplementation(async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx));
+      seo.analyzeDomain.mockResolvedValueOnce({
+        ...SAMPLE_ANALYSIS,
+        pages: [],
+        metrics: [],
+        issues: [],
+        urlInspections: undefined,
+      });
+
+      await service.processQueuedRun('r1', 5);
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(outbound.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: OutboundEvent.AUDIT_COMPLETED,
+          payload: expect.objectContaining({ criticalIssuesCount: 0, issuesCount: 0 }),
+        }),
+      );
+      expect(orchestration.markRunFailed).not.toHaveBeenCalled();
+    });
+
+    it('evaluates a comparison without emitting a regression webhook when score delta is absent', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([{ id: 'r1', siteId: 's1', status: AuditStatus.QUEUED, trigger: 'MANUAL' }]),
+        )
+        .mockReturnValueOnce(thenable([{ total: 0 }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 's1',
+              projectId: 'p1',
+              name: 'Site',
+              domain: 'x.test',
+              normalizedDomain: 'x.test',
+            },
+          ]),
+        );
+      const tx = {
+        update: jest.fn().mockReturnValue({
+          set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) }),
+        }),
+        insert: jest.fn().mockReturnValue({ values: jest.fn().mockResolvedValue(undefined) }),
+      };
+      db.transaction.mockImplementation(async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx));
+      comparison.persistComparisonForRun.mockResolvedValueOnce({ id: 'comparison-1' });
+
+      await service.processQueuedRun('r1', 5);
+
+      expect(alerts.evaluateRegression).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 's1' }),
+        expect.objectContaining({ id: 'comparison-1' }),
+      );
+      const events = outbound.dispatch.mock.calls.map((call) => call[0]?.event);
+      expect(events).toContain(OutboundEvent.AUDIT_COMPLETED);
+      expect(events).not.toContain(OutboundEvent.SITE_REGRESSION);
+    });
+
+    it('rescores ignored issues with a domain fallback when the analysis has no pages', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([{ id: 'r1', siteId: 's1', status: AuditStatus.QUEUED, trigger: 'MANUAL' }]),
+        )
+        .mockReturnValueOnce(thenable([{ total: 0 }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 's1',
+              projectId: 'p1',
+              name: 'Site',
+              domain: 'x.test',
+              normalizedDomain: 'x.test',
+            },
+          ]),
+        );
+      const tx = {
+        update: jest.fn().mockReturnValue({
+          set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) }),
+        }),
+        insert: jest.fn().mockReturnValue({ values: jest.fn().mockResolvedValue(undefined) }),
+      };
+      db.transaction.mockImplementation(async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx));
+      seo.analyzeDomain.mockResolvedValueOnce({
+        ...SAMPLE_ANALYSIS,
+        pages: [],
+        issues: [
+          {
+            issueCode: IssueCode.MISSING_TITLE,
+            category: IssueCategory.ON_PAGE,
+            severity: Severity.HIGH,
+            message: 'ignored title',
+            resourceUrl: null,
+            meta: null,
+          },
+        ],
+      });
+      projectIssues.getIgnoredFingerprints.mockResolvedValueOnce(
+        new Set([`${IssueCode.MISSING_TITLE}::`]),
+      );
+
+      await service.processQueuedRun('r1', 5);
+
+      expect(db.transaction).toHaveBeenCalledTimes(2);
+      expect(outbound.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: OutboundEvent.AUDIT_COMPLETED,
+          payload: expect.objectContaining({ score: 100 }),
+        }),
+      );
+    });
+
+    it('logs when the AUDIT_FAILED webhook dispatch also fails', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([{ id: 'r1', siteId: 's1', status: AuditStatus.QUEUED, trigger: 'MANUAL' }]),
+        )
+        .mockReturnValueOnce(thenable([{ total: 0 }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 's1',
+              projectId: 'p1',
+              name: 'Site',
+              domain: 'x.test',
+              normalizedDomain: 'x.test',
+            },
+          ]),
+        );
+      seo.analyzeDomain.mockRejectedValueOnce(new Error('analysis failed'));
+      outbound.dispatch.mockRejectedValueOnce(new Error('webhook failed'));
+
+      await service.processQueuedRun('r1', 5);
+
+      expect(orchestration.markRunFailed).toHaveBeenCalledWith(
+        'r1',
+        expect.stringContaining('analysis failed'),
+        expect.any(Error),
+      );
+      expect(outbound.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ event: OutboundEvent.AUDIT_FAILED }),
+      );
     });
   });
 

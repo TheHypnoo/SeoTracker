@@ -80,4 +80,35 @@ describe('envSchema', () => {
       /Invalid URL/,
     );
   });
+
+  it('coerces SMTP_SECURE and OTEL_ENABLED from booleans and strings', () => {
+    const env = envSchema.parse({
+      ...BASE_ENV,
+      COOKIE_SECURE: true,
+      OTEL_ENABLED: false,
+      SMTP_SECURE: false,
+    });
+
+    expect(env.COOKIE_SECURE).toBe(true);
+    expect(env.SMTP_SECURE).toBe(false);
+    expect(env.OTEL_ENABLED).toBe(false);
+  });
+
+  it('normalizes empty optional webhook and metrics env vars', () => {
+    const env = envSchema.parse({ ...BASE_ENV, ALERT_WEBHOOK_URL: '', METRICS_TOKEN: '' });
+
+    expect(env.ALERT_WEBHOOK_URL).toBeUndefined();
+    expect(env.METRICS_TOKEN).toBeUndefined();
+  });
+
+  it('accepts configured optional metrics and alert values', () => {
+    const env = envSchema.parse({
+      ...BASE_ENV,
+      ALERT_WEBHOOK_URL: 'https://alerts.example.test/hook',
+      METRICS_TOKEN: '1234567890abcdef',
+    });
+
+    expect(env.ALERT_WEBHOOK_URL).toBe('https://alerts.example.test/hook');
+    expect(env.METRICS_TOKEN).toBe('1234567890abcdef');
+  });
 });

@@ -80,6 +80,21 @@ describe('jobFailuresService', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('swallows unexpected alert dispatch setup errors', async () => {
+    const config = {
+      get: jest.fn(() => {
+        throw new Error('config down');
+      }),
+    } as unknown as ConfigService;
+    const svc = new JobFailuresService(dbMock as never, config);
+
+    await expect(
+      svc.record({ queueName: 'q', jobName: 'j', attempts: 1, payload: {}, reason: 'x' }),
+    ).resolves.toBeUndefined();
+    await flushPromises();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('does NOT call fetch when ALERT_WEBHOOK_URL is unset', async () => {
     const svc = new JobFailuresService(dbMock as never, buildConfig());
     await svc.record({ queueName: 'q', jobName: 'j', attempts: 1, payload: {}, reason: 'r' });

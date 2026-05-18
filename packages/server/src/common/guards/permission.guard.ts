@@ -26,11 +26,19 @@ import { REQUIRED_PERMISSION_KEY } from '../decorators/require-permission.decora
  */
 @Injectable()
 export class PermissionGuard implements CanActivate {
+  private readonly reflector: Reflector;
+  private readonly projectsService: ProjectsService;
+  private readonly db: Db;
+
   constructor(
-    private readonly reflector: Reflector,
-    private readonly projectsService: ProjectsService,
-    @Inject(DRIZZLE) private readonly db: Db,
-  ) {}
+    @Inject(Reflector) reflector: unknown,
+    @Inject(ProjectsService) projectsService: unknown,
+    @Inject(DRIZZLE) db: unknown,
+  ) {
+    this.reflector = reflector as Reflector;
+    this.projectsService = projectsService as ProjectsService;
+    this.db = db as Db;
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const required = this.reflector.getAllAndOverride<Permission | undefined>(

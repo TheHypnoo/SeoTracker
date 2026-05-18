@@ -173,6 +173,29 @@ describe(useAuthStore, () => {
     expect(JSON.parse(init.body as string)).toStrictEqual({ token: 't', password: 'newpw' });
   });
 
+  it('shared api client refreshes through the store when a protected request has no token', async () => {
+    setCsrfCookie('csrf-api');
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, { accessToken: 'from-refresh', user: { id: 'u', email: 'e' } }),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+
+    const { api } = await import('./auth-store');
+
+    await expect(api.get('/protected')).resolves.toStrictEqual({ ok: true });
+    expect(useAuthStore.getState().accessToken).toBe('from-refresh');
+  });
+
+  it('setSession patches the access token when explicitly provided', () => {
+    useAuthStore.setState({ accessToken: 'a', user: { id: 'u', email: 'e', name: 'n' } });
+
+    useAuthStore.getState().setSession({ accessToken: null });
+
+    expect(useAuthStore.getState().accessToken).toBeNull();
+    expect(useAuthStore.getState().user).toStrictEqual({ id: 'u', email: 'e', name: 'n' });
+  });
+
   it('setSession is partial: only patches fields explicitly provided', () => {
     useAuthStore.setState({ accessToken: 'a', user: { id: 'u', email: 'e', name: 'n' } });
 

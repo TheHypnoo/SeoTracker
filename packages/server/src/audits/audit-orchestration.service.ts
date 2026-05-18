@@ -14,13 +14,25 @@ import { SystemLogsService } from '../system-logs/system-logs.service';
 
 @Injectable()
 export class AuditOrchestrationService {
+  private readonly db: Db;
+  private readonly queueService: QueueService;
+  private readonly sitesService: SitesService;
+  private readonly systemLogsService: SystemLogsService;
+  private readonly eventEmitter: EventEmitter2;
+
   constructor(
-    @Inject(DRIZZLE) private readonly db: Db,
-    private readonly queueService: QueueService,
-    private readonly sitesService: SitesService,
-    private readonly systemLogsService: SystemLogsService,
-    private readonly eventEmitter: EventEmitter2,
-  ) {}
+    @Inject(DRIZZLE) db: Db,
+    @Inject(QueueService) queueService: unknown,
+    @Inject(SitesService) sitesService: unknown,
+    @Inject(SystemLogsService) systemLogsService: unknown,
+    @Inject(EventEmitter2) eventEmitter: unknown,
+  ) {
+    this.db = db;
+    this.queueService = queueService as QueueService;
+    this.sitesService = sitesService as SitesService;
+    this.systemLogsService = systemLogsService as SystemLogsService;
+    this.eventEmitter = eventEmitter as EventEmitter2;
+  }
 
   private emitActivity(event: ActivityEvent) {
     this.eventEmitter.emit(ACTIVITY_RECORDED_EVENT, event);

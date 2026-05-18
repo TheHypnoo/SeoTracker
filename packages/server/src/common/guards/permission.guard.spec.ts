@@ -26,7 +26,7 @@ function mockExecutionContext(opts: {
     getHandler: () => handler,
     getClass: () => cls,
     switchToHttp: () => ({
-      getRequest: () => ({ user: opts.user, params: opts.params ?? {} }),
+      getRequest: () => ({ user: opts.user, params: opts.params }),
     }),
   } as unknown as ExecutionContext;
 }
@@ -100,6 +100,16 @@ describe('permissionGuard', () => {
       'u1',
       Permission.AUDIT_RUN,
     );
+  });
+
+  it('handles requests whose params object is missing', async () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(Permission.AUDIT_RUN);
+    const ctx = mockExecutionContext({
+      user: { sub: 'u1' },
+      params: undefined,
+    });
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(InternalServerErrorException);
   });
 
   it('throws InternalServerErrorException when neither projectId nor siteId is present', async () => {

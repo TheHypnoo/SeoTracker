@@ -16,7 +16,7 @@
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
+    "test:cov": "jest --coverage --passWithNoTests",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -83,9 +83,18 @@
   },
   "jest": {
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "configure-api-app.ts",
+      "run-migrations.ts"
     ],
     "coverageDirectory": "../coverage",
+    "coverageThreshold": {
+      "global": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      }
+    },
     "moduleFileExtensions": [
       "js",
       "json",

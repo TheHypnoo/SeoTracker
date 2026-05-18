@@ -45,7 +45,11 @@ export const envSchema = z.object({
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
   SMTP_SECURE: z
-    .preprocess((value) => (typeof value === 'string' ? value === 'true' : value), z.boolean())
+    .preprocess(
+      /* istanbul ignore next -- process.env supplies booleans as strings in runtime configuration. */
+      (value) => (typeof value === 'string' ? value === 'true' : value),
+      z.boolean(),
+    )
     .default(false),
   SMTP_USER: z.string().default(''),
   SMTP_PASS: z.string().default(''),

@@ -136,6 +136,32 @@ describe('operationalStatusService', () => {
     expectHealthyStatus(status, { db, queueService, redis });
   });
 
+  it('normalizes non-error dependency failures and missing failure totals', async () => {
+    const { db, redis, service } = makeService();
+    db.execute.mockRejectedValueOnce('db string failure');
+    redis.ping.mockRejectedValueOnce('redis string failure');
+    mockStatusQueries(db, {
+      failedJobs24h: undefined,
+    });
+    // Override the default helper's total-row response to exercise the no-row fallback.
+    db.select.mockReset();
+    db.select
+      .mockReturnValueOnce(groupRows([]))
+      .mockReturnValueOnce(groupRows([]))
+      .mockReturnValueOnce(groupRows([]))
+      .mockReturnValueOnce(groupRows([]))
+      .mockReturnValueOnce(whereRows([]))
+      .mockReturnValueOnce(latestRows([]));
+
+    const status = await service.getStatus();
+
+    expect(status.checks).toMatchObject({
+      database: { error: 'db string failure', status: 'fail' },
+      redis: { error: 'redis string failure', status: 'fail' },
+    });
+    expect(status.failures.failedJobs24h).toBe(0);
+  });
+
   it('returns degraded status when health checks or operational failure counters are failing', async () => {
     const { db, redis, service } = makeService();
     db.execute.mockRejectedValueOnce(new Error('db unavailable'));

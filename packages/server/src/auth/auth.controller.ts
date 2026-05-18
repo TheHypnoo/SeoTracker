@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Headers,
+  Inject,
   Post,
   Req,
   Res,
@@ -28,23 +29,29 @@ const CREDENTIAL_THROTTLE = { default: { limit: 5, ttl: 60_000 } } as const;
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
+  private readonly authService: AuthService;
+  private readonly configService: ConfigService<Env, true>;
+
   constructor(
-    private readonly authService: AuthService,
-    private readonly configService: ConfigService<Env, true>,
-  ) {}
+    @Inject(AuthService) authService: unknown,
+    @Inject(ConfigService) configService: unknown,
+  ) {
+    this.authService = authService as AuthService;
+    this.configService = configService as ConfigService<Env, true>;
+  }
 
   @Post('register')
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: 'Crear cuenta' })
-  register(@Body() body: RegisterDto, @Res({ passthrough: true }) response: Response) {
-    return this.authService.register(body, response);
+  register(@Body() body: unknown, @Res({ passthrough: true }) response: Response) {
+    return this.authService.register(body as RegisterDto, response);
   }
 
   @Post('login')
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: 'Iniciar sesion' })
-  login(@Body() body: LoginDto, @Res({ passthrough: true }) response: Response) {
-    return this.authService.login(body, response);
+  login(@Body() body: unknown, @Res({ passthrough: true }) response: Response) {
+    return this.authService.login(body as LoginDto, response);
   }
 
   @Post('refresh')
@@ -87,15 +94,16 @@ export class AuthController {
   @Post('password/forgot')
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: 'Solicitar email de recuperacion de contraseña' })
-  forgotPassword(@Body() body: ForgotPasswordDto) {
-    return this.authService.requestPasswordReset(body.email);
+  forgotPassword(@Body() body: unknown) {
+    return this.authService.requestPasswordReset((body as ForgotPasswordDto).email);
   }
 
   @Post('password/reset')
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: 'Restablecer contraseña con token' })
-  resetPassword(@Body() body: ResetPasswordDto) {
-    return this.authService.resetPassword(body.token, body.password);
+  resetPassword(@Body() body: unknown) {
+    const { token, password } = body as ResetPasswordDto;
+    return this.authService.resetPassword(token, password);
   }
 
   @Get('me')

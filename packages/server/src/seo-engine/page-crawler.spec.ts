@@ -20,6 +20,13 @@ const okPage = (url: string, links: string[] = []) => ({
   links,
 });
 
+const issue = {
+  issueCode: IssueCode.MISSING_TITLE,
+  category: 'ON_PAGE',
+  severity: 'LOW',
+  message: 'missing title',
+};
+
 const brokenPage = (url: string, status: number) => ({
   page: { url, statusCode: status } as never,
   issues: [],
@@ -77,6 +84,32 @@ describe('crawlPages', () => {
     expect(result.pageTexts).toHaveLength(0);
   });
 
+  it('collects depth-1 page issues and skips empty text without treating status 0 as broken', async () => {
+    analyzeMock.mockResolvedValueOnce({
+      page: { url: 'https://x.test/unknown', statusCode: 0 } as never,
+      issues: [issue],
+      text: '',
+      links: [],
+    });
+
+    const result = await crawlPages({
+      homepageKey: 'x.test/',
+      depth1Selected: ['https://x.test/unknown'],
+      remainingInternal: [],
+      externalLinks: [],
+      maxDepth: 1,
+      maxPages: 10,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+    });
+
+    expect(result.issues).toContain(issue);
+    expect(result.issues).not.toContainEqual(
+      expect.objectContaining({ issueCode: IssueCode.BROKEN_LINK }),
+    );
+    expect(result.pageTexts).toStrictEqual([]);
+  });
+
   it('explores depth-2 when maxDepth >= 2 with budget left', async () => {
     analyzeMock.mockResolvedValueOnce(
       okPage('https://x.test/a', ['https://x.test/sub1', 'https://x.test/sub2']),
@@ -98,6 +131,61 @@ describe('crawlPages', () => {
     expect(analyzeMock).toHaveBeenCalledTimes(3);
     expect(result.metrics).toContainEqual({ key: 'depth2_pages_analyzed', valueNum: 2 });
     expect(result.metrics).toContainEqual({ key: 'pages_analyzed', valueNum: 4 });
+  });
+
+  it('handles missing depth-2 links, duplicate candidates and broken depth-2 pages', async () => {
+    analyzeMock.mockResolvedValueOnce({ ...okPage('https://x.test/a'), links: undefined });
+    analyzeMock.mockResolvedValueOnce(
+      okPage('https://x.test/b', [
+        'https://x.test/depth-2',
+        'https://x.test/depth-2',
+        'https://x.test/b',
+      ]),
+    );
+    analyzeMock.mockResolvedValueOnce(brokenPage('https://x.test/depth-2', 500));
+
+    const result = await crawlPages({
+      homepageKey: 'x.test/',
+      depth1Selected: ['https://x.test/a', 'https://x.test/b'],
+      remainingInternal: [],
+      externalLinks: [],
+      maxDepth: 2,
+      maxPages: 4,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+    });
+
+    expect(analyzeMock).toHaveBeenCalledTimes(3);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        issueCode: IssueCode.BROKEN_LINK,
+        resourceUrl: 'https://x.test/depth-2',
+      }),
+    );
+  });
+
+  it('collects depth-2 issues while skipping empty depth-2 text', async () => {
+    analyzeMock.mockResolvedValueOnce(okPage('https://x.test/a', ['https://x.test/depth-2']));
+    analyzeMock.mockResolvedValueOnce({
+      page: { url: 'https://x.test/depth-2', statusCode: 200 } as never,
+      issues: [issue],
+      text: '',
+      links: [],
+    });
+
+    const result = await crawlPages({
+      homepageKey: 'x.test/',
+      depth1Selected: ['https://x.test/a'],
+      remainingInternal: [],
+      externalLinks: [],
+      maxDepth: 2,
+      maxPages: 3,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+    });
+
+    expect(result.issues).toContain(issue);
+    expect(result.pageTexts).toStrictEqual([{ url: 'https://x.test/a', text: 'body' }]);
   });
 
   it('skips depth-2 candidates already visited at depth-1', async () => {

@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 
 import { DRIZZLE } from '../database/database.constants';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
-import { HealthController } from './health.controller';
+import { HealthController, withTimeout } from './health.controller';
 
 describe('healthController', () => {
   let controller: HealthController;
@@ -25,6 +25,17 @@ describe('healthController', () => {
     controller = moduleRef.get(HealthController);
   });
 
+  it('withTimeout rejects when a dependency hangs', async () => {
+    jest.useFakeTimers();
+    const promise = withTimeout(new Promise<never>(() => {}), 'database').catch(
+      (error: unknown) => error,
+    );
+
+    await jest.advanceTimersByTimeAsync(3000);
+    jest.useRealTimers();
+    await expect(promise).resolves.toMatchObject({ message: 'database timed out after 3000ms' });
+  });
+
   it('liveness returns ok + ISO timestamp', () => {
     const out = controller.liveness();
     expect(out.status).toBe('ok');
@@ -39,6 +50,17 @@ describe('healthController', () => {
 
     expect(out.status).toBe('ready');
     expect(out.checks).toStrictEqual({ database: 'ok', redis: 'ok' });
+  });
+
+  it('readiness reports non-error dependency failures as unknown errors', async () => {
+    db.execute.mockRejectedValueOnce('db string failure');
+    redis.ping.mockRejectedValueOnce('redis string failure');
+
+    await expect(controller.readiness()).rejects.toMatchObject({
+      response: expect.objectContaining({
+        failures: { database: 'unknown error', redis: 'unknown error' },
+      }),
+    });
   });
 
   it('readiness throws ServiceUnavailableException when DB is down', async () => {

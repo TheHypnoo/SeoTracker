@@ -61,16 +61,34 @@ export function isScheduleDue(
 export class SchedulingService {
   private readonly logger = new Logger(SchedulingService.name);
 
+  private readonly db: Db;
+  private readonly configService: ConfigService<Env, true>;
+  private readonly auditsService: AuditsService;
+  private readonly distributedLockService: DistributedLockService;
+  private readonly systemLogsService: SystemLogsService;
+  private readonly notificationsService: NotificationsService;
+  private readonly exportsService: ExportsService;
+  private readonly outboundWebhooksService: OutboundWebhooksService;
+
   constructor(
-    @Inject(DRIZZLE) private readonly db: Db,
-    private readonly configService: ConfigService<Env, true>,
-    private readonly auditsService: AuditsService,
-    private readonly distributedLockService: DistributedLockService,
-    private readonly systemLogsService: SystemLogsService,
-    private readonly notificationsService: NotificationsService,
-    private readonly exportsService: ExportsService,
-    private readonly outboundWebhooksService: OutboundWebhooksService,
-  ) {}
+    @Inject(DRIZZLE) db: Db,
+    @Inject(ConfigService) configService: unknown,
+    @Inject(AuditsService) auditsService: unknown,
+    @Inject(DistributedLockService) distributedLockService: unknown,
+    @Inject(SystemLogsService) systemLogsService: unknown,
+    @Inject(NotificationsService) notificationsService: unknown,
+    @Inject(ExportsService) exportsService: unknown,
+    @Inject(OutboundWebhooksService) outboundWebhooksService: unknown,
+  ) {
+    this.db = db;
+    this.configService = configService as ConfigService<Env, true>;
+    this.auditsService = auditsService as AuditsService;
+    this.distributedLockService = distributedLockService as DistributedLockService;
+    this.systemLogsService = systemLogsService as SystemLogsService;
+    this.notificationsService = notificationsService as NotificationsService;
+    this.exportsService = exportsService as ExportsService;
+    this.outboundWebhooksService = outboundWebhooksService as OutboundWebhooksService;
+  }
 
   @Cron(CronExpression.EVERY_MINUTE)
   async runDueSchedules() {

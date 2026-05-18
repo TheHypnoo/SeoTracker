@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Inject,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -13,12 +23,16 @@ import { ProjectsService } from './projects.service';
 @UseGuards(JwtAuthGuard)
 @Controller('projects')
 export class ProjectsController {
-  constructor(private readonly projectsService: ProjectsService) {}
+  private readonly projectsService: ProjectsService;
+
+  constructor(@Inject(ProjectsService) projectsService: unknown) {
+    this.projectsService = projectsService as ProjectsService;
+  }
 
   @Post()
   @ApiOperation({ summary: 'Crear project' })
-  create(@CurrentUser() user: { sub: string }, @Body() body: CreateProjectDto) {
-    return this.projectsService.createProject(user.sub, body.name);
+  create(@CurrentUser() user: { sub: string }, @Body() body: unknown) {
+    return this.projectsService.createProject(user.sub, (body as CreateProjectDto).name);
   }
 
   @Get()
@@ -38,9 +52,9 @@ export class ProjectsController {
   update(
     @CurrentUser() user: { sub: string },
     @Param('projectId') projectId: string,
-    @Body() body: UpdateProjectDto,
+    @Body() body: unknown,
   ) {
-    return this.projectsService.updateProject(projectId, user.sub, body);
+    return this.projectsService.updateProject(projectId, user.sub, body as UpdateProjectDto);
   }
 
   @Delete(':projectId')
@@ -77,8 +91,13 @@ export class ProjectsController {
     @CurrentUser() user: { sub: string },
     @Param('projectId') projectId: string,
     @Param('userId') userId: string,
-    @Body() body: UpdateMemberPermissionsDto,
+    @Body() body: unknown,
   ) {
-    return this.projectsService.updateMemberPermissions(projectId, userId, user.sub, body);
+    return this.projectsService.updateMemberPermissions(
+      projectId,
+      userId,
+      user.sub,
+      body as UpdateMemberPermissionsDto,
+    );
   }
 }

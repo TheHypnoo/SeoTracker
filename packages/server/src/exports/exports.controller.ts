@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Inject, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { createReadStream } from 'node:fs';
@@ -17,16 +17,20 @@ import { ExportsService } from './exports.service';
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class ExportsController {
-  constructor(private readonly exportsService: ExportsService) {}
+  private readonly exportsService: ExportsService;
+
+  constructor(@Inject(ExportsService) exportsService: unknown) {
+    this.exportsService = exportsService as ExportsService;
+  }
 
   @Post('sites/:siteId/exports')
   @ApiOperation({ summary: 'Solicitar una exportación de proyecto' })
   create(
     @CurrentUser() user: { sub: string },
     @Param('siteId', UUID_V4_PIPE) siteId: string,
-    @Body() body: CreateExportDto,
+    @Body() body: unknown,
   ) {
-    return this.exportsService.create(siteId, user.sub, body);
+    return this.exportsService.create(siteId, user.sub, body as CreateExportDto);
   }
 
   @Get('sites/:siteId/exports')
@@ -34,12 +38,13 @@ export class ExportsController {
   list(
     @CurrentUser() user: { sub: string },
     @Param('siteId', UUID_V4_PIPE) siteId: string,
-    @Query() query: ListSiteExportsQueryDto,
+    @Query() query: unknown,
   ) {
+    const { limit, offset } = query as ListSiteExportsQueryDto;
     return this.exportsService.listForProject(
       siteId,
       user.sub,
-      resolvePagination({ limit: query.limit, offset: query.offset }, { limit: 50, offset: 0 }),
+      resolvePagination({ limit, offset }, { limit: 50, offset: 0 }),
     );
   }
 
@@ -48,12 +53,13 @@ export class ExportsController {
   listForProject(
     @CurrentUser() user: { sub: string },
     @Param('projectId', UUID_V4_PIPE) projectId: string,
-    @Query() query: ListSiteExportsQueryDto,
+    @Query() query: unknown,
   ) {
+    const { limit, offset } = query as ListSiteExportsQueryDto;
     return this.exportsService.listForProjectScope(
       projectId,
       user.sub,
-      resolvePagination({ limit: query.limit, offset: query.offset }, { limit: 50, offset: 0 }),
+      resolvePagination({ limit, offset }, { limit: 50, offset: 0 }),
     );
   }
 

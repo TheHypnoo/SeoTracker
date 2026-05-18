@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Permission } from '@seotracker/shared-types';
 
@@ -13,10 +13,16 @@ import { ActivityLogService } from './activity-log.service';
 @UseGuards(JwtAuthGuard)
 @Controller('projects/:projectId/activity')
 export class ActivityLogController {
+  private readonly activityLogService: ActivityLogService;
+  private readonly projectsService: ProjectsService;
+
   constructor(
-    private readonly activityLogService: ActivityLogService,
-    private readonly projectsService: ProjectsService,
-  ) {}
+    @Inject(ActivityLogService) activityLogService: unknown,
+    @Inject(ProjectsService) projectsService: unknown,
+  ) {
+    this.activityLogService = activityLogService as ActivityLogService;
+    this.projectsService = projectsService as ProjectsService;
+  }
 
   @Get()
   @ApiOperation({ summary: 'Listar actividad reciente del proyecto' })

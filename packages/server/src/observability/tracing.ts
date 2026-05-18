@@ -64,6 +64,7 @@ export function startTracing(options: TracingOptions): void {
     }
     try {
       await sdk.shutdown();
+      sdk = null;
     } catch (error) {
       // eslint-disable-next-line no-console
       console.warn(`[otel] shutdown failed: ${String(error)}`);

@@ -176,6 +176,78 @@ describe('auditComparisonService', () => {
       expect(newIssues).toHaveLength(1);
       expect(newIssues[0]?.delta).toBe(2);
     });
+
+    it('falls back across sparse issue metadata when building issue changes', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'i-old',
+              issueCode: null,
+              category: null,
+              severity: null,
+              message: null,
+              resourceUrl: null,
+            },
+          ]),
+        )
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'i-new',
+              issueCode: null,
+              category: null,
+              severity: null,
+              message: null,
+              resourceUrl: null,
+            },
+            {
+              id: 'i-new-2',
+              issueCode: null,
+              category: null,
+              severity: null,
+              message: null,
+              resourceUrl: null,
+            },
+          ]),
+        );
+
+      const snap = await service.buildComparisonSnapshot('s1', RUN_A, { ...RUN_B, score: 90 });
+
+      expect(snap.changes).toContainEqual(
+        expect.objectContaining({
+          changeType: ComparisonChangeType.NEW_ISSUE,
+          issueCategory: null,
+          issueCode: null,
+          severity: null,
+          title: 'Cambio en incidencias',
+        }),
+      );
+    });
+
+    it('skips unchanged signatures and treats null scores as zero', async () => {
+      const sameIssue = {
+        id: 'i1',
+        issueCode: 'CANONICAL_MISSING',
+        category: 'TECHNICAL',
+        severity: Severity.MEDIUM,
+        message: 'missing canonical',
+        resourceUrl: null,
+      };
+      db.where
+        .mockReturnValueOnce(thenable([sameIssue]))
+        .mockReturnValueOnce(thenable([{ ...sameIssue, id: 'i2' }]));
+
+      const snap = await service.buildComparisonSnapshot(
+        's1',
+        { ...RUN_A, score: null },
+        { ...RUN_B, score: null },
+      );
+
+      expect(snap.changes).toHaveLength(0);
+      expect(snap.delta).toStrictEqual({ issues: 0, score: 0 });
+      expect(snap.from.severity).toStrictEqual({ [Severity.MEDIUM]: 1 });
+    });
   });
 
   describe('compareProjectRuns', () => {
@@ -221,6 +293,19 @@ describe('auditComparisonService', () => {
       expect(db.insert).not.toHaveBeenCalled();
       expect((out as { comparison?: { id: string } }).comparison?.id).toBe('c1');
     });
+
+    it('builds a transient comparison when no stored comparison exists', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([RUN_B, RUN_A]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]));
+
+      const out = await service.compareProjectRuns('s1', 'u1');
+
+      expect(out.comparison.id).toBe('transient');
+      expect(out.delta.score).toBe(-10);
+    });
   });
 
   describe('listProjectComparisons', () => {
@@ -262,6 +347,29 @@ describe('auditComparisonService', () => {
           targetRun: RUN_B,
         }),
       ]);
+    });
+
+    it('uses default pagination and null run fallbacks', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'c1',
+              baselineAuditRunId: 'missing-old',
+              targetAuditRunId: 'missing-new',
+              siteId: 's1',
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([]));
+
+      const out = await service.listProjectComparisons('s1', 'u1');
+
+      expect(out.limit).toBe(50);
+      expect(out.offset).toBe(0);
+      expect(out.total).toBe(0);
+      expect(out.items[0]).toMatchObject({ baselineRun: null, targetRun: null });
     });
   });
 
@@ -360,6 +468,81 @@ describe('auditComparisonService', () => {
           }),
         ]),
       );
+    });
+
+    it('does not insert change rows when the snapshot has no changes', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            { ...RUN_B, score: 90, status: AuditStatus.COMPLETED },
+            { ...RUN_A, score: 90, status: AuditStatus.COMPLETED },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]));
+      db.returning.mockResolvedValueOnce([{ id: 'c-clean' }]);
+
+      await expect(
+        service.persistComparisonForRun({ site, targetRunId: 'r-new' }),
+      ).resolves.toStrictEqual({ id: 'c-clean' });
+
+      expect(db.insert).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getStoredComparison', () => {
+    it('hydrates stored comparisons with run severities', async () => {
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'c1',
+              baselineAuditRunId: 'r-old',
+              targetAuditRunId: 'r-new',
+              scoreDelta: -10,
+              issuesDelta: 1,
+              regressionsCount: 1,
+              improvementsCount: 0,
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([RUN_A]))
+        .mockReturnValueOnce(thenable([RUN_B]))
+        .mockReturnValueOnce(thenable([{ id: 'change-1' }]))
+        .mockReturnValueOnce(
+          thenable([
+            { id: 'from-1', severity: Severity.CRITICAL },
+            { id: 'from-2', severity: Severity.CRITICAL },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([{ id: 'to-1', severity: Severity.LOW }]));
+
+      const out = await service.getStoredComparison('r-old', 'r-new');
+
+      expect(out).toStrictEqual(
+        expect.objectContaining({
+          changes: [{ id: 'change-1' }],
+          from: expect.objectContaining({ severity: { [Severity.CRITICAL]: 2 } }),
+          to: expect.objectContaining({ severity: { [Severity.LOW]: 1 } }),
+        }),
+      );
+    });
+
+    it('returns null when no stored comparison row exists', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await expect(service.getStoredComparison('r-old', 'r-new')).resolves.toBeNull();
+    });
+
+    it('returns null when a stored comparison references missing runs', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'c1' }]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([RUN_B]))
+        .mockReturnValueOnce(thenable([]));
+
+      await expect(service.getStoredComparison('r-old', 'r-new')).resolves.toBeNull();
     });
   });
 });
