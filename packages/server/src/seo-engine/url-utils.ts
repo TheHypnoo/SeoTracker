@@ -110,7 +110,6 @@ export function stratifiedSample(urls: string[], budget: number): string[] {
       break;
     }
     const first = list[0];
-    /* istanbul ignore next -- buckets are only created after pushing a URL into the list. */
     if (first && !picked.has(first)) {
       picked.add(first);
       selected.push(first);
@@ -124,7 +123,6 @@ export function stratifiedSample(urls: string[], budget: number): string[] {
         break;
       }
       const idx = Math.floor((selected.length - totalBuckets) / Math.max(totalBuckets, 1)) + 1;
-      /* istanbul ignore next -- modulo fallback is defensive for sparse bucket arrays. */
       const candidate = list[idx] ?? list[cursor % list.length];
       if (candidate && !picked.has(candidate)) {
         picked.add(candidate);

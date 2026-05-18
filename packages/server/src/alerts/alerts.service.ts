@@ -39,19 +39,11 @@ interface RegressionSignalInput {
 
 @Injectable()
 export class AlertsService {
-  private readonly db: Db;
-  private readonly sitesService: SitesService;
-  private readonly notificationsService: NotificationsService;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(SitesService) sitesService: unknown,
-    @Inject(NotificationsService) notificationsService: unknown,
-  ) {
-    this.db = db;
-    this.sitesService = sitesService as SitesService;
-    this.notificationsService = notificationsService as NotificationsService;
-  }
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly sitesService: SitesService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async getForProject(siteId: string, userId: string) {
     await this.sitesService.getByIdWithPermission(siteId, userId, Permission.ALERT_READ);

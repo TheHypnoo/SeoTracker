@@ -1,4 +1,4 @@
-import { Controller, Inject, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OperationalStatusService } from './operational-status.service';
@@ -6,11 +6,7 @@ import { OperationalStatusService } from './operational-status.service';
 @Controller('system')
 @UseGuards(JwtAuthGuard)
 export class OperationalStatusController {
-  private readonly operationalStatusService: OperationalStatusService;
-
-  constructor(@Inject(OperationalStatusService) operationalStatusService: unknown) {
-    this.operationalStatusService = operationalStatusService as OperationalStatusService;
-  }
+  constructor(private readonly operationalStatusService: OperationalStatusService) {}
 
   @Get('status')
   status() {

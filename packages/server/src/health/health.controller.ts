@@ -13,25 +13,9 @@ import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
 
-const READINESS_TIMEOUT_MS = 3000;
+import { withTimeout } from '../common/utils/with-timeout';
 
-export async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(`${label} timed out after ${READINESS_TIMEOUT_MS}ms`)),
-      READINESS_TIMEOUT_MS,
-    );
-  });
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    /* istanbul ignore else -- timer is always assigned synchronously before racing. */
-    if (timer) {
-      clearTimeout(timer);
-    }
-  }
-}
+const READINESS_TIMEOUT_MS = 3000;
 
 @Controller('health')
 export class HealthController {
@@ -55,8 +39,8 @@ export class HealthController {
   @HttpCode(200)
   async readiness() {
     const [dbResult, redisResult] = await Promise.allSettled([
-      withTimeout(this.db.execute(sql`select 1`), 'database'),
-      withTimeout(this.redis.ping(), 'redis'),
+      withTimeout(this.db.execute(sql`select 1`), 'database', READINESS_TIMEOUT_MS),
+      withTimeout(this.redis.ping(), 'redis', READINESS_TIMEOUT_MS),
     ]);
 
     const dbOk = dbResult.status === 'fulfilled';

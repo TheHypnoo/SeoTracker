@@ -15,22 +15,12 @@ export type OutboundDispatchPayload = Record<string, unknown>;
 
 @Injectable()
 export class OutboundWebhooksService {
-  private readonly db: Db;
-  private readonly queueService: QueueService;
-  private readonly projectsService: ProjectsService;
-  private readonly systemLogsService: SystemLogsService;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(QueueService) queueService: unknown,
-    @Inject(ProjectsService) projectsService: unknown,
-    @Inject(SystemLogsService) systemLogsService: unknown,
-  ) {
-    this.db = db;
-    this.queueService = queueService as QueueService;
-    this.projectsService = projectsService as ProjectsService;
-    this.systemLogsService = systemLogsService as SystemLogsService;
-  }
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly queueService: QueueService,
+    private readonly projectsService: ProjectsService,
+    private readonly systemLogsService: SystemLogsService,
+  ) {}
 
   async list(projectId: string, actorUserId: string) {
     await this.projectsService.assertPermission(projectId, actorUserId, Permission.OUTBOUND_READ);

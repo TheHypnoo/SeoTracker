@@ -28,19 +28,11 @@ type AuditRunRow = typeof auditRuns.$inferSelect;
 
 @Injectable()
 export class AuditReadingService {
-  private readonly db: Db;
-  private readonly sitesService: SitesService;
-  private readonly projectsService: ProjectsService;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(SitesService) sitesService: unknown,
-    @Inject(ProjectsService) projectsService: unknown,
-  ) {
-    this.db = db;
-    this.sitesService = sitesService as SitesService;
-    this.projectsService = projectsService as ProjectsService;
-  }
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly sitesService: SitesService,
+    private readonly projectsService: ProjectsService,
+  ) {}
 
   async listProjectRuns(
     siteId: string,
@@ -122,12 +114,9 @@ export class AuditReadingService {
       criticalIssueCounts.map((row) => [row.auditRunId, Number(row.total)]),
     );
 
-    /* istanbul ignore next -- aggregate fallbacks are defensive for inconsistent count query rows. */
     const items = runs.map((run) => ({
       ...run,
-      /* istanbul ignore next -- list rows are hydrated from the same run ids used for aggregate queries. */
       criticalIssuesCount: criticalCountByRun.get(run.id) ?? 0,
-      /* istanbul ignore next -- list rows are hydrated from the same run ids used for aggregate queries. */
       issuesCount: issueCountByRun.get(run.id) ?? 0,
     }));
 
@@ -216,12 +205,9 @@ export class AuditReadingService {
       criticalIssueCounts.map((row) => [row.auditRunId, Number(row.total)]),
     );
 
-    /* istanbul ignore next -- aggregate fallbacks are defensive for inconsistent project count query rows. */
     const items = runs.map(({ run, siteName, siteDomain }) => ({
       ...run,
-      /* istanbul ignore next -- project list rows are hydrated from the same run ids used for aggregate queries. */
       criticalIssuesCount: criticalCountByRun.get(run.id) ?? 0,
-      /* istanbul ignore next -- project list rows are hydrated from the same run ids used for aggregate queries. */
       issuesCount: issueCountByRun.get(run.id) ?? 0,
       siteDomain,
       siteName,
@@ -409,7 +395,6 @@ export class AuditReadingService {
 
     const issueCodes = [...new Set(issues.map((issue) => issue.issueCode))];
 
-    /* istanbul ignore next -- audit issue listings in the exercised path include issue rows; empty listings return an empty merge map. */
     const states = issueCodes.length
       ? await this.db
           .select({

@@ -4,7 +4,8 @@ import type { AddressInfo } from 'node:net';
 import { DRIZZLE } from '../database/database.constants';
 import { MetricsService } from '../metrics/metrics.service';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
-import { startWorkerHttpServer, withTimeout } from './worker-http-server';
+import { withTimeout } from './utils/with-timeout';
+import { startWorkerHttpServer } from './worker-http-server';
 
 function request(port: number, path: string, method = 'GET') {
   return fetch(`http://127.0.0.1:${port}${path}`, { method });
@@ -50,7 +51,7 @@ describe('startWorkerHttpServer', () => {
 
   it('withTimeout rejects hung worker readiness checks', async () => {
     jest.useFakeTimers();
-    const promise = withTimeout(new Promise<never>(() => {}), 'redis').catch(
+    const promise = withTimeout(new Promise<never>(() => {}), 'redis', 3000).catch(
       (error: unknown) => error,
     );
 

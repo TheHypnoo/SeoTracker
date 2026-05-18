@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { ActivityAction, type Role } from '@seotracker/shared-types';
 
@@ -29,16 +29,10 @@ export const ACTIVITY_RECORDED_EVENT = 'activity.recorded' as const;
 
 @Injectable()
 export class ActivityLogListener {
-  private readonly activityLogService: ActivityLogService;
-
-  constructor(@Inject(ActivityLogService) activityLogService: unknown) {
-    this.activityLogService = activityLogService as ActivityLogService;
-  }
+  constructor(private readonly activityLogService: ActivityLogService) {}
 
   @OnEvent(ACTIVITY_RECORDED_EVENT)
-  /* istanbul ignore next -- Nest event metadata emits design-time Promise/object fallback branches. */
-  async handle(eventInput: unknown) {
-    const event = eventInput as ActivityEvent;
+  async handle(event: ActivityEvent): Promise<void> {
     const role =
       event.role !== undefined
         ? event.role

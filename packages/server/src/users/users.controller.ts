@@ -1,4 +1,4 @@
-import { Body, Controller, Inject, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -11,11 +11,7 @@ import { UsersService } from './users.service';
 @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
-  private readonly usersService: UsersService;
-
-  constructor(@Inject(UsersService) usersService: unknown) {
-    this.usersService = usersService as UsersService;
-  }
+  constructor(private readonly usersService: UsersService) {}
 
   @Get('preferences')
   @ApiOperation({ summary: 'Obtener preferencias del usuario autenticado' })
@@ -25,7 +21,7 @@ export class UsersController {
 
   @Patch('preferences')
   @ApiOperation({ summary: 'Actualizar preferencias del usuario autenticado' })
-  updatePreferences(@CurrentUser() user: { sub: string }, @Body() body: unknown) {
-    return this.usersService.updatePreferences(user.sub, body as UpdatePreferencesDto);
+  updatePreferences(@CurrentUser() user: { sub: string }, @Body() body: UpdatePreferencesDto) {
+    return this.usersService.updatePreferences(user.sub, body);
   }
 }

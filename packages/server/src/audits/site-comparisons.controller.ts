@@ -1,4 +1,4 @@
-import { Controller, Inject, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -12,20 +12,15 @@ import { AuditsService } from './audits.service';
 @UseGuards(JwtAuthGuard)
 @Controller('sites/:siteId/comparisons')
 export class ProjectComparisonsController {
-  private readonly auditsService: AuditsService;
-
-  constructor(@Inject(AuditsService) auditsService: unknown) {
-    this.auditsService = auditsService as AuditsService;
-  }
+  constructor(private readonly auditsService: AuditsService) {}
 
   @Get()
   @ApiOperation({ summary: 'Listar comparativas persistidas de un proyecto' })
   list(
     @CurrentUser() user: { sub: string },
     @Param('siteId', UUID_V4_PIPE) siteId: string,
-    @Query() queryInput: unknown,
+    @Query() query: PaginationQueryDto,
   ) {
-    const query = queryInput as PaginationQueryDto;
     return this.auditsService.listProjectComparisons(
       siteId,
       user.sub,

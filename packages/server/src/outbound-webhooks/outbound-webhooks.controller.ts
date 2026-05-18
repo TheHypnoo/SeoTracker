@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Inject,
   Delete,
   Get,
   Param,
@@ -24,11 +23,7 @@ import { OutboundWebhooksService } from './outbound-webhooks.service';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class OutboundWebhooksController {
-  private readonly service: OutboundWebhooksService;
-
-  constructor(@Inject(OutboundWebhooksService) service: unknown) {
-    this.service = service as OutboundWebhooksService;
-  }
+  constructor(private readonly service: OutboundWebhooksService) {}
 
   @Get()
   @ApiOperation({ summary: 'Listar integraciones salientes del project' })
@@ -41,9 +36,9 @@ export class OutboundWebhooksController {
   create(
     @CurrentUser() user: { sub: string },
     @Param('projectId', UUID_V4_PIPE) projectId: string,
-    @Body() body: unknown,
+    @Body() body: CreateOutboundWebhookDto,
   ) {
-    return this.service.create(projectId, user.sub, body as CreateOutboundWebhookDto);
+    return this.service.create(projectId, user.sub, body);
   }
 
   @Patch(':webhookId')
@@ -52,9 +47,9 @@ export class OutboundWebhooksController {
     @CurrentUser() user: { sub: string },
     @Param('projectId', UUID_V4_PIPE) projectId: string,
     @Param('webhookId', UUID_V4_PIPE) webhookId: string,
-    @Body() body: unknown,
+    @Body() body: UpdateOutboundWebhookDto,
   ) {
-    return this.service.update(projectId, webhookId, user.sub, body as UpdateOutboundWebhookDto);
+    return this.service.update(projectId, webhookId, user.sub, body);
   }
 
   @Delete(':webhookId')

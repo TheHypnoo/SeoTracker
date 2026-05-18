@@ -46,43 +46,19 @@ import { buildAuditActionItems } from './action-item-builder';
 export class AuditProcessingService {
   private readonly logger = new Logger(AuditProcessingService.name);
 
-  private readonly db: Db;
-  private readonly queueService: QueueService;
-  private readonly seoEngineService: SeoEngineService;
-  private readonly notificationsService: NotificationsService;
-  private readonly alertsService: AlertsService;
-  private readonly systemLogsService: SystemLogsService;
-  private readonly orchestrationService: AuditOrchestrationService;
-  private readonly comparisonService: AuditComparisonService;
-  private readonly outboundWebhooksService: OutboundWebhooksService;
-  private readonly projectIssuesService: ProjectIssuesService;
-  private readonly crawlConfigService: CrawlConfigService;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(QueueService) queueService: unknown,
-    @Inject(SeoEngineService) seoEngineService: unknown,
-    @Inject(NotificationsService) notificationsService: unknown,
-    @Inject(AlertsService) alertsService: unknown,
-    @Inject(SystemLogsService) systemLogsService: unknown,
-    @Inject(AuditOrchestrationService) orchestrationService: unknown,
-    @Inject(AuditComparisonService) comparisonService: unknown,
-    @Inject(OutboundWebhooksService) outboundWebhooksService: unknown,
-    @Inject(ProjectIssuesService) projectIssuesService: unknown,
-    @Inject(CrawlConfigService) crawlConfigService: unknown,
-  ) {
-    this.db = db;
-    this.queueService = queueService as QueueService;
-    this.seoEngineService = seoEngineService as SeoEngineService;
-    this.notificationsService = notificationsService as NotificationsService;
-    this.alertsService = alertsService as AlertsService;
-    this.systemLogsService = systemLogsService as SystemLogsService;
-    this.orchestrationService = orchestrationService as AuditOrchestrationService;
-    this.comparisonService = comparisonService as AuditComparisonService;
-    this.outboundWebhooksService = outboundWebhooksService as OutboundWebhooksService;
-    this.projectIssuesService = projectIssuesService as ProjectIssuesService;
-    this.crawlConfigService = crawlConfigService as CrawlConfigService;
-  }
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly queueService: QueueService,
+    private readonly seoEngineService: SeoEngineService,
+    private readonly notificationsService: NotificationsService,
+    private readonly alertsService: AlertsService,
+    private readonly systemLogsService: SystemLogsService,
+    private readonly orchestrationService: AuditOrchestrationService,
+    private readonly comparisonService: AuditComparisonService,
+    private readonly outboundWebhooksService: OutboundWebhooksService,
+    private readonly projectIssuesService: ProjectIssuesService,
+    private readonly crawlConfigService: CrawlConfigService,
+  ) {}
 
   /**
    * Entry point invoked by the audits worker for each dequeued job.
@@ -319,7 +295,6 @@ export class AuditProcessingService {
 
             for (const page of analysis.pages) {
               const newScore = rescored.pageScores.get(page.url);
-              /* istanbul ignore next -- scoreAudit returns a page score for every input page. */
               if (typeof newScore === 'number') {
                 await tx
                   .update(auditPages)

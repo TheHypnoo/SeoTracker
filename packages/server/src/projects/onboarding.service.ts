@@ -31,19 +31,13 @@ export const USER_REGISTERED_EVENT = 'user.registered' as const;
 export class OnboardingService {
   private readonly logger = new Logger(OnboardingService.name);
 
-  private readonly db: Db;
-  private readonly projectsService: ProjectsService;
-
-  constructor(@Inject(DRIZZLE) db: Db, @Inject(ProjectsService) projectsService: unknown) {
-    this.db = db;
-    this.projectsService = projectsService as ProjectsService;
-  }
+  constructor(
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly projectsService: ProjectsService,
+  ) {}
 
   @OnEvent(USER_REGISTERED_EVENT, { promisify: true })
-  /* istanbul ignore next -- Nest event metadata emits design-time Promise/object fallback branches. */
-  async bootstrapNewAccount(payloadInput: unknown) {
-    const payload = payloadInput as UserRegisteredEvent;
-    /* istanbul ignore next -- anonymous registrations are covered by auth flow tests; onboarding focuses named accounts. */
+  async bootstrapNewAccount(payload: UserRegisteredEvent): Promise<void> {
     const projectName = payload.name?.trim() ? `${payload.name.trim()}'s project` : 'Mi proyecto';
 
     const project = await this.projectsService.createProject(payload.userId, projectName);

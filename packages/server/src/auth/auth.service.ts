@@ -35,28 +35,14 @@ import { UsersService } from '../users/users.service';
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  private readonly db: Db;
-  private readonly jwtService: JwtService;
-  private readonly configService: ConfigService<Env, true>;
-  private readonly usersService: UsersService;
-  private readonly notificationsService: NotificationsService;
-  private readonly eventEmitter: EventEmitter2;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(JwtService) jwtService: unknown,
-    @Inject(ConfigService) configService: unknown,
-    @Inject(UsersService) usersService: unknown,
-    @Inject(NotificationsService) notificationsService: unknown,
-    @Inject(EventEmitter2) eventEmitter: unknown,
-  ) {
-    this.db = db;
-    this.jwtService = jwtService as JwtService;
-    this.configService = configService as ConfigService<Env, true>;
-    this.usersService = usersService as UsersService;
-    this.notificationsService = notificationsService as NotificationsService;
-    this.eventEmitter = eventEmitter as EventEmitter2;
-  }
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService<Env, true>,
+    private readonly usersService: UsersService,
+    private readonly notificationsService: NotificationsService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   /**
    * Create a new user, provision a default project, persist it as the active project, and

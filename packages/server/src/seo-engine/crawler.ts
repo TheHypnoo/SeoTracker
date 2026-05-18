@@ -112,7 +112,6 @@ export async function fetchRobots(
       const disallowMatch = line.match(/^disallow\s*:\s*(\S*)/i);
       if (disallowMatch) {
         currentGroupHasDirectives = true;
-        /* istanbul ignore next -- the regex match always creates capture group 1, even when empty. */
         const path = disallowMatch[1] ?? '';
         for (const agent of currentAgents) {
           if (agent === '*' && path === '/') {
@@ -303,7 +302,6 @@ export async function extractSitemapUrls(
     let match: RegExpExecArray | null;
     while ((match = locRegex.exec(body)) !== null) {
       const loc = match[1]?.trim();
-      /* istanbul ignore next -- the loc regex only matches non-empty loc content. */
       if (!loc) {
         continue;
       }
@@ -445,7 +443,6 @@ export function findInvalidHreflangLinks($: Cheerio, pageUrl: string) {
   const invalid: Array<{ hreflang: string; href: string; reason: string }> = [];
   const seen = new Set<string>();
   $('link[rel="alternate"][hreflang]').each((_, node) => {
-    /* istanbul ignore next -- selector requires the hreflang attribute to exist. */
     const hreflang = $(node).attr('hreflang')?.trim() ?? '';
     const href = $(node).attr('href')?.trim() ?? '';
     const normalizedLang = hreflang.toLowerCase();
@@ -537,7 +534,6 @@ export async function analyzeInternalPage(
     responseMs = Math.round(performance.now() - startedAt);
     statusCode = response.status;
     contentType = response.headers.get('content-type') ?? undefined;
-    /* istanbul ignore next -- absence of x-robots-tag is already exercised by the undefined value path. */
     xRobotsTag = response.headers.get('x-robots-tag')?.toLowerCase() ?? undefined;
 
     if (response.status >= 400) {
@@ -744,7 +740,6 @@ export async function analyzeInternalPage(
             continue;
           }
         } catch {
-          /* istanbul ignore next -- safeResolveUrl only returns URLs accepted by URL parsing. */
           continue;
         }
         if (!isSeoCrawlCandidateUrl(resolved)) {

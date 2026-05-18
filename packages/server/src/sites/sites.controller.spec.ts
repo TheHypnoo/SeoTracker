@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { CrawlConfigService } from './crawl-config.service';
@@ -59,19 +58,6 @@ describe('sitesController', () => {
       'u-1',
       expect.objectContaining({ projectId: PROJECT_ID }),
     );
-  });
-
-  it('create rejects invalid site payloads', () => {
-    expect(() =>
-      controller.create(USER, {
-        active: 'yes',
-        domain: 'x.test',
-        name: 'M',
-        projectId: 'p1',
-        timezone: 'Europe/Madrid',
-      } as never),
-    ).toThrow(BadRequestException);
-    expect(service.create).not.toHaveBeenCalled();
   });
 
   it('list with projectId filter delegates to listForProject', () => {

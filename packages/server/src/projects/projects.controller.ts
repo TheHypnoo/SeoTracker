@@ -1,18 +1,5 @@
-import {
-  BadRequestException,
-  Body,
-  Controller,
-  Inject,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { plainToInstance } from 'class-transformer';
-import { validateSync } from 'class-validator';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -26,17 +13,12 @@ import { ProjectsService } from './projects.service';
 @UseGuards(JwtAuthGuard)
 @Controller('projects')
 export class ProjectsController {
-  private readonly projectsService: ProjectsService;
-
-  constructor(@Inject(ProjectsService) projectsService: unknown) {
-    this.projectsService = projectsService as ProjectsService;
-  }
+  constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
   @ApiOperation({ summary: 'Crear project' })
-  create(@CurrentUser() user: { sub: string }, @Body() body: unknown) {
-    const dto = parseBodyDto(CreateProjectDto, body);
-    return this.projectsService.createProject(user.sub, dto.name);
+  create(@CurrentUser() user: { sub: string }, @Body() body: CreateProjectDto) {
+    return this.projectsService.createProject(user.sub, body.name);
   }
 
   @Get()
@@ -56,9 +38,9 @@ export class ProjectsController {
   update(
     @CurrentUser() user: { sub: string },
     @Param('projectId') projectId: string,
-    @Body() body: unknown,
+    @Body() body: UpdateProjectDto,
   ) {
-    return this.projectsService.updateProject(projectId, user.sub, body as UpdateProjectDto);
+    return this.projectsService.updateProject(projectId, user.sub, body);
   }
 
   @Delete(':projectId')
@@ -95,24 +77,8 @@ export class ProjectsController {
     @CurrentUser() user: { sub: string },
     @Param('projectId') projectId: string,
     @Param('userId') userId: string,
-    @Body() body: unknown,
+    @Body() body: UpdateMemberPermissionsDto,
   ) {
-    return this.projectsService.updateMemberPermissions(
-      projectId,
-      userId,
-      user.sub,
-      body as UpdateMemberPermissionsDto,
-    );
+    return this.projectsService.updateMemberPermissions(projectId, userId, user.sub, body);
   }
-}
-
-function parseBodyDto<T extends object>(dto: new () => T, body: unknown): T {
-  const parsed = plainToInstance(dto, body);
-  const errors = validateSync(parsed, { forbidNonWhitelisted: true, whitelist: true });
-  if (errors.length > 0) {
-    throw new BadRequestException(
-      errors.flatMap((error) => Object.values(error.constraints as Record<string, string>)),
-    );
-  }
-  return parsed;
 }

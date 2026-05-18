@@ -1,5 +1,5 @@
 import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Worker } from 'bullmq';
 
@@ -16,22 +16,12 @@ export class EmailDeliveriesProcessor implements OnModuleInit, OnModuleDestroy {
   private closePromise: Promise<void> | null = null;
   private worker: Worker<EmailDeliveryJobData> | null = null;
 
-  private readonly notificationsService: NotificationsService;
-  private readonly configService: ConfigService<Env, true>;
-  private readonly jobFailuresService: JobFailuresService;
-  private readonly metricsService: MetricsService;
-
   constructor(
-    @Inject(NotificationsService) notificationsService: unknown,
-    @Inject(ConfigService) configService: unknown,
-    @Inject(JobFailuresService) jobFailuresService: unknown,
-    @Inject(MetricsService) metricsService: unknown,
-  ) {
-    this.notificationsService = notificationsService as NotificationsService;
-    this.configService = configService as ConfigService<Env, true>;
-    this.jobFailuresService = jobFailuresService as JobFailuresService;
-    this.metricsService = metricsService as MetricsService;
-  }
+    private readonly notificationsService: NotificationsService,
+    private readonly configService: ConfigService<Env, true>,
+    private readonly jobFailuresService: JobFailuresService,
+    private readonly metricsService: MetricsService,
+  ) {}
 
   onModuleInit() {
     this.worker = new Worker<EmailDeliveryJobData>(

@@ -23,19 +23,11 @@ import { QueueService } from '../queue/queue.service';
 
 @Injectable()
 export class OperationalStatusService {
-  private readonly db: Db;
-  private readonly redis: IORedis;
-  private readonly queueService: QueueService;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(REDIS_CONNECTION) redis: IORedis,
-    @Inject(QueueService) queueService: unknown,
-  ) {
-    this.db = db;
-    this.redis = redis;
-    this.queueService = queueService as QueueService;
-  }
+    @Inject(DRIZZLE) private readonly db: Db,
+    @Inject(REDIS_CONNECTION) private readonly redis: IORedis,
+    private readonly queueService: QueueService,
+  ) {}
 
   async getStatus() {
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);

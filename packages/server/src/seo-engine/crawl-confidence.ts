@@ -36,7 +36,6 @@ function calculateSuccessfulPageRatio(pages: SeoPageResult[]): number {
   const pagesWithStatus = pages.filter((page) => typeof page.statusCode === 'number');
   if (pagesWithStatus.length === 0) return 0;
   const successful = pagesWithStatus.filter((page) => {
-    /* istanbul ignore next -- pagesWithStatus filters to numeric statuses before this point. */
     const status = page.statusCode ?? 0;
     return status > 0 && status < 400;
   });

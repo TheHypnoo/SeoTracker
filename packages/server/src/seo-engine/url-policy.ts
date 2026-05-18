@@ -64,7 +64,6 @@ export function isSeoCrawlCandidateUrl(url: string): boolean {
 
 function pathMatchesPrefix(path: string, rawPrefix: string): boolean {
   const prefix = normalizePathPrefix(rawPrefix);
-  /* istanbul ignore next -- prefix constants are non-empty and normalized by construction. */
   if (!prefix) return false;
   if (prefix.endsWith('/')) return path.startsWith(prefix);
   return path === prefix || path.startsWith(`${prefix}/`);
@@ -72,8 +71,6 @@ function pathMatchesPrefix(path: string, rawPrefix: string): boolean {
 
 function normalizePathPrefix(prefix: string): string | undefined {
   const trimmed = prefix.trim().toLowerCase();
-  /* istanbul ignore next -- URL policy prefix constants are intentionally non-empty. */
   if (!trimmed) return;
-  /* istanbul ignore next -- URL policy prefix constants are defined with leading slashes. */
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }

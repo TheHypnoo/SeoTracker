@@ -1,8 +1,6 @@
 import {
-  BadRequestException,
   Body,
   Controller,
-  Inject,
   Delete,
   Get,
   Param,
@@ -13,8 +11,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { plainToInstance } from 'class-transformer';
-import { validateSync } from 'class-validator';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { resolvePagination } from '../common/dto/pagination.dto';
@@ -34,30 +30,22 @@ import { SitesService } from './sites.service';
 @UseGuards(JwtAuthGuard)
 @Controller('sites')
 export class SitesController {
-  private readonly sitesService: SitesService;
-  private readonly crawlConfigService: CrawlConfigService;
-  private readonly publicBadgeAdminService: PublicBadgeAdminService;
-
   constructor(
-    @Inject(SitesService) sitesService: unknown,
-    @Inject(CrawlConfigService) crawlConfigService: unknown,
-    @Inject(PublicBadgeAdminService) publicBadgeAdminService: unknown,
-  ) {
-    this.sitesService = sitesService as SitesService;
-    this.crawlConfigService = crawlConfigService as CrawlConfigService;
-    this.publicBadgeAdminService = publicBadgeAdminService as PublicBadgeAdminService;
-  }
+    private readonly sitesService: SitesService,
+    private readonly crawlConfigService: CrawlConfigService,
+    private readonly publicBadgeAdminService: PublicBadgeAdminService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Crear proyecto' })
-  create(@CurrentUser() user: { sub: string }, @Body() body: unknown) {
-    return this.sitesService.create(user.sub, parseBodyDto(CreateSiteDto, body));
+  create(@CurrentUser() user: { sub: string }, @Body() body: CreateSiteDto) {
+    return this.sitesService.create(user.sub, body);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar proyectos (filtrable por projectId)' })
-  list(@CurrentUser() user: { sub: string }, @Query() query: unknown) {
-    const { projectId, search, status, automation, limit, offset } = query as ListSitesQueryDto;
+  list(@CurrentUser() user: { sub: string }, @Query() query: ListSitesQueryDto) {
+    const { projectId, search, status, automation, limit, offset } = query;
     if (projectId) {
       return this.sitesService.listForProject(projectId, user.sub, {
         search,
@@ -81,9 +69,9 @@ export class SitesController {
   update(
     @CurrentUser() user: { sub: string },
     @Param('siteId') siteId: string,
-    @Body() body: unknown,
+    @Body() body: UpdateSiteDto,
   ) {
-    return this.sitesService.update(siteId, user.sub, body as UpdateSiteDto);
+    return this.sitesService.update(siteId, user.sub, body);
   }
 
   @Delete(':siteId')
@@ -97,9 +85,9 @@ export class SitesController {
   upsertSchedule(
     @CurrentUser() user: { sub: string },
     @Param('siteId') siteId: string,
-    @Body() body: unknown,
+    @Body() body: UpsertScheduleDto,
   ) {
-    return this.sitesService.upsertSchedule(siteId, user.sub, body as UpsertScheduleDto);
+    return this.sitesService.upsertSchedule(siteId, user.sub, body);
   }
 
   @Get(':siteId/schedule')
@@ -119,9 +107,9 @@ export class SitesController {
   updateCrawlConfig(
     @CurrentUser() user: { sub: string },
     @Param('siteId') siteId: string,
-    @Body() body: unknown,
+    @Body() body: UpdateCrawlConfigDto,
   ) {
-    return this.crawlConfigService.update(siteId, user.sub, body as UpdateCrawlConfigDto);
+    return this.crawlConfigService.update(siteId, user.sub, body);
   }
 
   @Get(':siteId/public-badge')
@@ -135,19 +123,8 @@ export class SitesController {
   updatePublicBadge(
     @CurrentUser() user: { sub: string },
     @Param('siteId') siteId: string,
-    @Body() body: unknown,
+    @Body() body: UpdatePublicBadgeDto,
   ) {
-    return this.publicBadgeAdminService.update(siteId, user.sub, body as UpdatePublicBadgeDto);
+    return this.publicBadgeAdminService.update(siteId, user.sub, body);
   }
-}
-
-function parseBodyDto<T extends object>(dto: new () => T, body: unknown): T {
-  const parsed = plainToInstance(dto, body);
-  const errors = validateSync(parsed, { forbidNonWhitelisted: true, whitelist: true });
-  if (errors.length > 0) {
-    throw new BadRequestException(
-      errors.flatMap((error) => Object.values(error.constraints as Record<string, string>)),
-    );
-  }
-  return parsed;
 }

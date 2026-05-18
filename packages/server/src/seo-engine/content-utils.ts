@@ -8,7 +8,6 @@ export function extractTextForComparison($: Cheerio): string {
   const $clone = load($.html());
   $clone('script, style, noscript, nav, header, footer, aside, svg, form, iframe').remove();
   const bodySelection = $clone('body');
-  /* istanbul ignore next -- Cheerio normalizes parsed documents with a body for supported inputs. */
   const text = bodySelection.length ? bodySelection.text() : $clone.text();
   return text.replaceAll(/\s+/g, ' ').trim().toLowerCase();
 }
@@ -40,7 +39,6 @@ export function jaccard(a: Set<string>, b: Set<string>): number {
     if (larger.has(item)) intersection += 1;
   }
   const union = a.size + b.size - intersection;
-  /* istanbul ignore next -- non-empty set inputs cannot produce a zero union. */
   return union === 0 ? 0 : intersection / union;
 }
 
@@ -56,7 +54,6 @@ export function detectDuplicateContent(
     for (let j = i + 1; j < shingles.length; j += 1) {
       const a = shingles[i];
       const b = shingles[j];
-      /* istanbul ignore next -- loop bounds only address existing shingle entries. */
       if (!a || !b) continue;
       const sim = jaccard(a.set, b.set);
       if (sim >= threshold) {
@@ -208,7 +205,6 @@ export function isBlogLike(pageUrl: string, $: Cheerio): boolean {
 export function computeFleschScore(text: string): number | undefined {
   const wordCount = countWords(text);
   if (wordCount < 50) return undefined;
-  /* istanbul ignore next -- long text with at least 50 words always leaves one sentence fragment. */
   const sentences = text.split(/[.!?¿¡]+/).filter((s) => s.trim().length > 0).length || 1;
   let syllables = 0;
   for (const word of text.split(/\s+/)) {

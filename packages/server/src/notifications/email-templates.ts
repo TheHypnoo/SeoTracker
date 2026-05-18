@@ -493,7 +493,6 @@ export async function renderLayout(input: LayoutInput): Promise<RenderedEmail> {
         kicker: signal.tone === 'danger' ? 'Crítico' : 'Aviso',
         number: String(index + 1).padStart(2, '0'),
       })) ?? [],
-    /* istanbul ignore next -- layouts without spotlight are covered by plain-text rendering paths. */
     spotlight: input.spotlight ? buildSpotlight(input.spotlight) : null,
     subject: input.subject,
     subtitle: input.subtitle ?? '',
@@ -569,7 +568,6 @@ function renderPlainText(input: LayoutInput) {
     '',
     input.intro,
     ...(input.body ?? []),
-    /* istanbul ignore next -- HTML rendering covers spotlight content; plaintext tests focus non-spotlight payloads. */
     ...(input.spotlight ? ['', ...formatSpotlightPlainText(input.spotlight)] : []),
     ...(input.callout ? ['', `${input.callout.title}: ${input.callout.body}`] : []),
     ...(input.metrics?.length ? ['', ...input.metrics.map(formatMetricPlainText)] : []),

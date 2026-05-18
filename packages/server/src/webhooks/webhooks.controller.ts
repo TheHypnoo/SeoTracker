@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Headers,
-  Inject,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuditsService } from '../audits/audits.service';
@@ -23,16 +13,10 @@ import { WebhooksService } from './webhooks.service';
 @ApiTags('webhooks')
 @Controller()
 export class WebhooksController {
-  private readonly webhooksService: WebhooksService;
-  private readonly auditsService: AuditsService;
-
   constructor(
-    @Inject(WebhooksService) webhooksService: unknown,
-    @Inject(AuditsService) auditsService: unknown,
-  ) {
-    this.webhooksService = webhooksService as WebhooksService;
-    this.auditsService = auditsService as AuditsService;
-  }
+    private readonly webhooksService: WebhooksService,
+    private readonly auditsService: AuditsService,
+  ) {}
 
   @Get('projects/:projectId/webhooks')
   @UseGuards(JwtAuthGuard)
@@ -49,13 +33,9 @@ export class WebhooksController {
   create(
     @CurrentUser() user: { sub: string },
     @Param('projectId', UUID_V4_PIPE) projectId: string,
-    @Body() body: unknown,
+    @Body() body: CreateWebhookEndpointDto,
   ) {
-    return this.webhooksService.createEndpoint(
-      projectId,
-      user.sub,
-      body as CreateWebhookEndpointDto,
-    );
+    return this.webhooksService.createEndpoint(projectId, user.sub, body);
   }
 
   @Patch('projects/:projectId/webhooks/:endpointId')
@@ -66,14 +46,9 @@ export class WebhooksController {
     @CurrentUser() user: { sub: string },
     @Param('projectId', UUID_V4_PIPE) projectId: string,
     @Param('endpointId', UUID_V4_PIPE) endpointId: string,
-    @Body() body: unknown,
+    @Body() body: UpdateWebhookEndpointDto,
   ) {
-    return this.webhooksService.updateEndpoint(
-      projectId,
-      endpointId,
-      user.sub,
-      body as UpdateWebhookEndpointDto,
-    );
+    return this.webhooksService.updateEndpoint(projectId, endpointId, user.sub, body);
   }
 
   @Post('projects/:projectId/webhooks/:endpointId/rotate-secret')
@@ -94,15 +69,15 @@ export class WebhooksController {
   })
   async triggerAudit(
     @Param('endpointKey') endpointKey: string,
-    @Body() body: unknown,
+    @Body() body: TriggerWebhookAuditDto,
     @Headers('x-seotracker-timestamp') timestamp: string | undefined,
     @Headers('x-seotracker-signature') signature: string | undefined,
   ) {
     const result = await this.webhooksService.verifyAndResolveProject({
       endpointKey,
-      payload: body as TriggerWebhookAuditDto,
+      payload: body,
       signatureHeader: signature,
-      siteId: (body as TriggerWebhookAuditDto).siteId,
+      siteId: body.siteId,
       timestampHeader: timestamp,
     });
 

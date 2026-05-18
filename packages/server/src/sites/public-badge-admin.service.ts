@@ -17,22 +17,12 @@ import { SitesService } from './sites.service';
  */
 @Injectable()
 export class PublicBadgeAdminService {
-  private readonly db: Db;
-  private readonly sitesService: SitesService;
-  private readonly publicBadgesService: PublicBadgesService;
-  private readonly eventEmitter: EventEmitter2;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(SitesService) sitesService: unknown,
-    @Inject(PublicBadgesService) publicBadgesService: unknown,
-    @Inject(EventEmitter2) eventEmitter: unknown,
-  ) {
-    this.db = db;
-    this.sitesService = sitesService as SitesService;
-    this.publicBadgesService = publicBadgesService as PublicBadgesService;
-    this.eventEmitter = eventEmitter as EventEmitter2;
-  }
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly sitesService: SitesService,
+    private readonly publicBadgesService: PublicBadgesService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   private emitActivity(event: ActivityEvent) {
     this.eventEmitter.emit(ACTIVITY_RECORDED_EVENT, event);

@@ -14,22 +14,12 @@ import { SystemLogsService } from '../system-logs/system-logs.service';
 
 @Injectable()
 export class WebhooksService {
-  private readonly db: Db;
-  private readonly configService: ConfigService<Env, true>;
-  private readonly projectsService: ProjectsService;
-  private readonly systemLogsService: SystemLogsService;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(ConfigService) configService: unknown,
-    @Inject(ProjectsService) projectsService: unknown,
-    @Inject(SystemLogsService) systemLogsService: unknown,
-  ) {
-    this.db = db;
-    this.configService = configService as ConfigService<Env, true>;
-    this.projectsService = projectsService as ProjectsService;
-    this.systemLogsService = systemLogsService as SystemLogsService;
-  }
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly configService: ConfigService<Env, true>,
+    private readonly projectsService: ProjectsService,
+    private readonly systemLogsService: SystemLogsService,
+  ) {}
 
   async listProjectEndpoints(projectId: string, actorUserId: string) {
     await this.projectsService.assertPermission(projectId, actorUserId, Permission.WEBHOOK_READ);
@@ -76,9 +66,7 @@ export class WebhooksService {
 
     const [endpoint] = await this.db
       .insert(webhookEndpoints)
-      /* istanbul ignore next -- endpoint creation default branches are exercised through service DTO defaults. */
       .values({
-        /* istanbul ignore next -- endpoint creation defaults enabled when the DTO omits the flag. */
         enabled: input.enabled ?? true,
         endpointKey,
         endpointPath,
@@ -117,11 +105,8 @@ export class WebhooksService {
 
     const [updated] = await this.db
       .update(webhookEndpoints)
-      /* istanbul ignore next -- partial update spread branches are defensive DTO composition. */
       .set({
-        /* istanbul ignore next -- omitted name updates are covered through unchanged endpoint update paths. */
         ...(typeof input.name === 'string' ? { name: input.name.trim() } : {}),
-        /* istanbul ignore next -- omitted enabled updates are covered through unchanged endpoint update paths. */
         ...(typeof input.enabled === 'boolean' ? { enabled: input.enabled } : {}),
         updatedAt: new Date(),
       })

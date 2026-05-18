@@ -183,13 +183,10 @@ export interface SeoActionPlan {
 
 @Injectable()
 export class SeoActionPlanService {
-  private readonly db: Db;
-  private readonly sitesService: SitesService;
-
-  constructor(@Inject(DRIZZLE) db: Db, @Inject(SitesService) sitesService: unknown) {
-    this.db = db;
-    this.sitesService = sitesService as SitesService;
-  }
+  constructor(
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly sitesService: SitesService,
+  ) {}
 
   async getForSite(siteId: string, userId: string): Promise<SeoActionPlan> {
     const site = await this.sitesService.getById(siteId, userId);
@@ -246,7 +243,6 @@ export class SeoActionPlanService {
     const regressionsByCode = new Map<IssueCode, number>();
 
     for (const change of comparisonContext.changes) {
-      /* istanbul ignore else -- comparison change rows without issue codes or non-regression types are filtered upstream for action-plan regressions. */
       if (
         change.issueCode &&
         (change.changeType === ComparisonChangeType.NEW_ISSUE ||
@@ -358,7 +354,6 @@ export class SeoActionPlanService {
         severity: issue.severity,
         states: {
           [IssueState.OPEN]: state === IssueState.OPEN ? 1 : 0,
-          /* istanbul ignore next -- ignored fallback action state is covered by persisted action state resolution. */
           [IssueState.IGNORED]: state === IssueState.IGNORED ? 1 : 0,
           [IssueState.FIXED]: state === IssueState.FIXED ? 1 : 0,
         },
@@ -410,7 +405,6 @@ export class SeoActionPlanService {
         Math.min(entry.occurrences * 2, 30) +
         Math.min(affectedPages.length * 3, 20) +
         entry.regressionCount * 15 -
-        /* istanbul ignore next -- ignored priority discount is covered by persisted action items. */
         (status === IssueState.IGNORED ? 35 : 0) -
         (status === IssueState.FIXED ? 80 : 0),
     );
@@ -502,10 +496,8 @@ export class SeoActionPlanService {
   }) {
     const scoreLine =
       input.scoreDelta === null
-        ? /* istanbul ignore next -- selected audits in action-plan summaries always include a score in this branch. */
-          `Score actual: ${formatAuditScore(input.run.score)}/100`
-        : /* istanbul ignore next -- selected audits in action-plan summaries always include a score in this branch. */
-          `Score actual: ${formatAuditScore(input.run.score)}/100 (${formatDelta(input.scoreDelta)})`;
+        ? `Score actual: ${formatAuditScore(input.run.score)}/100`
+        : `Score actual: ${formatAuditScore(input.run.score)}/100 (${formatDelta(input.scoreDelta)})`;
     const nextActions = input.actions
       .slice(0, 3)
       .map((action, index) => `${index + 1}. ${action.title}: ${action.recommendedAction}`)
@@ -550,7 +542,6 @@ export function buildRemediationPrompt(input: {
     `- Dominio: ${input.site.domain}`,
     `- Proyecto: ${input.site.name}`,
     `- Auditoría: ${input.run.id}`,
-    /* istanbul ignore next -- remediation prompts are built for completed audits that include a score. */
     `- Score actual: ${formatAuditScore(input.run.score)}/100`,
     `- Incidencia: ${input.title} (${input.issueCode})`,
     `- Severidad: ${input.severity}`,
@@ -598,7 +589,6 @@ function resolveStatesForAction(
   const resources = action.affectedPages.length > 0 ? action.affectedPages : [''];
   for (const resource of resources) {
     const key = `${action.issueCode}::${ProjectIssuesService.fingerprintResource(resource)}`;
-    /* istanbul ignore next -- persisted action state resolution defaults are covered through actions without affected pages. */
     const state = stateByKey.get(key)?.state ?? IssueState.OPEN;
     states[state] += 1;
   }
@@ -637,8 +627,7 @@ function estimateImpactPoints(severity: Severity, affectedPages: number): number
   const base =
     severity === Severity.CRITICAL
       ? 12
-      : /* istanbul ignore next -- high impact points are covered through issue-definition scoring in action item builder. */
-        severity === Severity.HIGH
+      : severity === Severity.HIGH
         ? 8
         : severity === Severity.MEDIUM
           ? 4

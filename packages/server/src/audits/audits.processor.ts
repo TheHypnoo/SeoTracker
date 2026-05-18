@@ -1,5 +1,5 @@
 import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Worker } from 'bullmq';
 
@@ -16,22 +16,12 @@ export class AuditsProcessor implements OnModuleInit, OnModuleDestroy {
   private closePromise: Promise<void> | null = null;
   private worker: Worker<AuditJobData> | null = null;
 
-  private readonly auditsService: AuditsService;
-  private readonly configService: ConfigService<Env, true>;
-  private readonly jobFailuresService: JobFailuresService;
-  private readonly metricsService: MetricsService;
-
   constructor(
-    @Inject(AuditsService) auditsService: unknown,
-    @Inject(ConfigService) configService: unknown,
-    @Inject(JobFailuresService) jobFailuresService: unknown,
-    @Inject(MetricsService) metricsService: unknown,
-  ) {
-    this.auditsService = auditsService as AuditsService;
-    this.configService = configService as ConfigService<Env, true>;
-    this.jobFailuresService = jobFailuresService as JobFailuresService;
-    this.metricsService = metricsService as MetricsService;
-  }
+    private readonly auditsService: AuditsService,
+    private readonly configService: ConfigService<Env, true>,
+    private readonly jobFailuresService: JobFailuresService,
+    private readonly metricsService: MetricsService,
+  ) {}
 
   onModuleInit() {
     this.worker = new Worker<AuditJobData>(

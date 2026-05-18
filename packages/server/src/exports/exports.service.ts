@@ -36,28 +36,15 @@ export class ExportsService {
   /** Built once at construction; index → fast O(1) dispatch by kind. */
   private readonly strategiesByKind: ReadonlyMap<ExportKind, CsvBuilderStrategy>;
 
-  private readonly db: Db;
-  private readonly configService: ConfigService<Env, true>;
-  private readonly sitesService: SitesService;
-  private readonly projectsService: ProjectsService;
-  private readonly queueService: QueueService;
-  private readonly systemLogsService: SystemLogsService;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(ConfigService) configService: unknown,
-    @Inject(SitesService) sitesService: unknown,
-    @Inject(ProjectsService) projectsService: unknown,
-    @Inject(QueueService) queueService: unknown,
-    @Inject(SystemLogsService) systemLogsService: unknown,
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly configService: ConfigService<Env, true>,
+    private readonly sitesService: SitesService,
+    private readonly projectsService: ProjectsService,
+    private readonly queueService: QueueService,
+    private readonly systemLogsService: SystemLogsService,
     @Inject(CSV_BUILDER_STRATEGIES) strategies: CsvBuilderStrategy[],
   ) {
-    this.db = db;
-    this.configService = configService as ConfigService<Env, true>;
-    this.sitesService = sitesService as SitesService;
-    this.projectsService = projectsService as ProjectsService;
-    this.queueService = queueService as QueueService;
-    this.systemLogsService = systemLogsService as SystemLogsService;
     this.strategiesByKind = new Map(strategies.map((s) => [s.kind, s]));
   }
 

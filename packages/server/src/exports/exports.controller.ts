@@ -1,4 +1,4 @@
-import { Body, Controller, Inject, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { createReadStream } from 'node:fs';
@@ -17,20 +17,16 @@ import { ExportsService } from './exports.service';
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class ExportsController {
-  private readonly exportsService: ExportsService;
-
-  constructor(@Inject(ExportsService) exportsService: unknown) {
-    this.exportsService = exportsService as ExportsService;
-  }
+  constructor(private readonly exportsService: ExportsService) {}
 
   @Post('sites/:siteId/exports')
   @ApiOperation({ summary: 'Solicitar una exportación de proyecto' })
   create(
     @CurrentUser() user: { sub: string },
     @Param('siteId', UUID_V4_PIPE) siteId: string,
-    @Body() body: unknown,
+    @Body() body: CreateExportDto,
   ) {
-    return this.exportsService.create(siteId, user.sub, body as CreateExportDto);
+    return this.exportsService.create(siteId, user.sub, body);
   }
 
   @Get('sites/:siteId/exports')
@@ -38,9 +34,9 @@ export class ExportsController {
   list(
     @CurrentUser() user: { sub: string },
     @Param('siteId', UUID_V4_PIPE) siteId: string,
-    @Query() query: unknown,
+    @Query() query: ListSiteExportsQueryDto,
   ) {
-    const { limit, offset } = query as ListSiteExportsQueryDto;
+    const { limit, offset } = query;
     return this.exportsService.listForProject(
       siteId,
       user.sub,
@@ -53,9 +49,9 @@ export class ExportsController {
   listForProject(
     @CurrentUser() user: { sub: string },
     @Param('projectId', UUID_V4_PIPE) projectId: string,
-    @Query() query: unknown,
+    @Query() query: ListSiteExportsQueryDto,
   ) {
-    const { limit, offset } = query as ListSiteExportsQueryDto;
+    const { limit, offset } = query;
     return this.exportsService.listForProjectScope(
       projectId,
       user.sub,

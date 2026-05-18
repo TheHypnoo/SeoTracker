@@ -72,21 +72,12 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly transporter: Transporter;
 
-  private readonly db: Db;
-  private readonly configService: ConfigService<Env, true>;
-  private readonly queueService: QueueService;
-  private readonly projectsService: ProjectsService;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(ConfigService) configService: unknown,
-    @Inject(QueueService) queueService: unknown,
-    @Inject(ProjectsService) projectsService: unknown,
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly configService: ConfigService<Env, true>,
+    private readonly queueService: QueueService,
+    private readonly projectsService: ProjectsService,
   ) {
-    this.db = db;
-    this.configService = configService as ConfigService<Env, true>;
-    this.queueService = queueService as QueueService;
-    this.projectsService = projectsService as ProjectsService;
     this.transporter = nodemailer.createTransport({
       auth:
         this.configService.get('SMTP_USER', { infer: true }) &&

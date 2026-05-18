@@ -25,25 +25,13 @@ import type { CreateInviteDto } from './dto/create-invite.dto';
 
 @Injectable()
 export class InvitationsService {
-  private readonly db: Db;
-  private readonly projectsService: ProjectsService;
-  private readonly notificationsService: NotificationsService;
-  private readonly configService: ConfigService<Env, true>;
-  private readonly eventEmitter: EventEmitter2;
-
   constructor(
-    @Inject(DRIZZLE) db: Db,
-    @Inject(ProjectsService) projectsService: unknown,
-    @Inject(NotificationsService) notificationsService: unknown,
-    @Inject(ConfigService) configService: unknown,
-    @Inject(EventEmitter2) eventEmitter: unknown,
-  ) {
-    this.db = db;
-    this.projectsService = projectsService as ProjectsService;
-    this.notificationsService = notificationsService as NotificationsService;
-    this.configService = configService as ConfigService<Env, true>;
-    this.eventEmitter = eventEmitter as EventEmitter2;
-  }
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly projectsService: ProjectsService,
+    private readonly notificationsService: NotificationsService,
+    private readonly configService: ConfigService<Env, true>,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   private emitActivity(event: ActivityEvent) {
     this.eventEmitter.emit(ACTIVITY_RECORDED_EVENT, event);
@@ -146,9 +134,7 @@ export class InvitationsService {
       invite.projectId,
       actorUserId,
       invite.role,
-      /* istanbul ignore next -- invitation rows default permission arrays to empty arrays. */
       (invite.extraPermissions ?? []) as Permission[],
-      /* istanbul ignore next -- invitation rows default permission arrays to empty arrays. */
       (invite.revokedPermissions ?? []) as Permission[],
     );
 

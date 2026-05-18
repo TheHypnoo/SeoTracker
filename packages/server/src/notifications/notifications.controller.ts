@@ -11,7 +11,7 @@ import {
   Min,
 } from 'class-validator';
 import { EmailDeliveryStatus } from '@seotracker/shared-types';
-import { Body, Controller, Inject, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -43,9 +43,7 @@ export class MarkNotificationsReadDto {
   ids!: string[];
 }
 
-/* istanbul ignore next -- DTO decorator metadata is exercised by class-transformer focused tests. */
 export class ListEmailDeliveriesQueryDto extends ListNotificationsQueryDto {
-  /* istanbul ignore next -- class-validator decorator metadata emits design:type fallback branches. */
   @IsOptional()
   @IsEnum(EmailDeliveryStatus)
   status?: unknown;
@@ -56,16 +54,11 @@ export class ListEmailDeliveriesQueryDto extends ListNotificationsQueryDto {
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
 export class NotificationsController {
-  private readonly notificationsService: NotificationsService;
-
-  constructor(@Inject(NotificationsService) notificationsService: unknown) {
-    this.notificationsService = notificationsService as NotificationsService;
-  }
+  constructor(private readonly notificationsService: NotificationsService) {}
 
   @Get()
   @ApiOperation({ summary: 'Listar notificaciones del usuario' })
-  list(@CurrentUser() user: { sub: string }, @Query() queryInput: unknown) {
-    const query = queryInput as ListNotificationsQueryDto;
+  list(@CurrentUser() user: { sub: string }, @Query() query: ListNotificationsQueryDto) {
     return this.notificationsService.listForUser(
       user.sub,
       resolvePagination(query, { limit: 25, offset: 0 }),
@@ -74,8 +67,7 @@ export class NotificationsController {
 
   @Post('read')
   @ApiOperation({ summary: 'Marcar varias notificaciones como leidas' })
-  markManyRead(@CurrentUser() user: { sub: string }, @Body() bodyInput: unknown) {
-    const body = bodyInput as MarkNotificationsReadDto;
+  markManyRead(@CurrentUser() user: { sub: string }, @Body() body: MarkNotificationsReadDto) {
     return this.notificationsService.markManyAsRead(user.sub, body.ids);
   }
 
@@ -90,9 +82,8 @@ export class NotificationsController {
   listEmailDeliveries(
     @CurrentUser() user: { sub: string },
     @Param('projectId', UUID_V4_PIPE) projectId: string,
-    @Query() queryInput: unknown,
+    @Query() query: ListEmailDeliveriesQueryDto,
   ) {
-    const query = queryInput as ListEmailDeliveriesQueryDto;
     return this.notificationsService.listEmailDeliveriesForProject(
       projectId,
       user.sub,

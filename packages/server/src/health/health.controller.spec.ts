@@ -4,7 +4,8 @@ import { Test } from '@nestjs/testing';
 
 import { DRIZZLE } from '../database/database.constants';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
-import { HealthController, withTimeout } from './health.controller';
+import { withTimeout } from '../common/utils/with-timeout';
+import { HealthController } from './health.controller';
 
 describe('healthController', () => {
   let controller: HealthController;
@@ -27,7 +28,7 @@ describe('healthController', () => {
 
   it('withTimeout rejects when a dependency hangs', async () => {
     jest.useFakeTimers();
-    const promise = withTimeout(new Promise<never>(() => {}), 'database').catch(
+    const promise = withTimeout(new Promise<never>(() => {}), 'database', 3000).catch(
       (error: unknown) => error,
     );
 

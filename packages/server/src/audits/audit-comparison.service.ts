@@ -19,13 +19,10 @@ type AuditIssueRow = typeof auditIssues.$inferSelect;
 
 @Injectable()
 export class AuditComparisonService {
-  private readonly db: Db;
-  private readonly sitesService: SitesService;
-
-  constructor(@Inject(DRIZZLE) db: Db, @Inject(SitesService) sitesService: unknown) {
-    this.db = db;
-    this.sitesService = sitesService as SitesService;
-  }
+  constructor(
+    @Inject(DRIZZLE) private readonly db: Db,
+    private readonly sitesService: SitesService,
+  ) {}
 
   async compareProjectRuns(siteId: string, userId: string, fromId?: string, toId?: string) {
     await this.sitesService.getById(siteId, userId);
@@ -332,7 +329,6 @@ export class AuditComparisonService {
 
     const scoreDelta = (toRun.score ?? 0) - (fromRun.score ?? 0);
     if (scoreDelta < 0) {
-      /* istanbul ignore next -- comparison rows are hydrated with metadata on at least one side. */
       changes.push({
         changeType: ComparisonChangeType.SCORE_DROP,
         delta: scoreDelta,
@@ -426,7 +422,6 @@ export class AuditComparisonService {
   }
 }
 
-/* istanbul ignore next -- comparison changes are built from issue rows that normally carry meta on at least one side. */
 function resolveComparisonMeta(
   rightMeta: Record<string, unknown> | null | undefined,
   leftMeta: Record<string, unknown> | null | undefined,

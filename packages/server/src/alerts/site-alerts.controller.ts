@@ -1,4 +1,4 @@
-import { Body, Controller, Inject, Get, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -12,11 +12,7 @@ import { UpdateAlertRuleDto } from './dto/update-alert-rule.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('sites/:siteId/alerts')
 export class ProjectAlertsController {
-  private readonly alertsService: AlertsService;
-
-  constructor(@Inject(AlertsService) alertsService: unknown) {
-    this.alertsService = alertsService as AlertsService;
-  }
+  constructor(private readonly alertsService: AlertsService) {}
 
   @Get()
   @ApiOperation({ summary: 'Obtener regla de alertas de un proyecto' })
@@ -29,8 +25,8 @@ export class ProjectAlertsController {
   updateRule(
     @CurrentUser() user: { sub: string },
     @Param('siteId', UUID_V4_PIPE) siteId: string,
-    @Body() body: unknown,
+    @Body() body: UpdateAlertRuleDto,
   ) {
-    return this.alertsService.updateForProject(siteId, user.sub, body as UpdateAlertRuleDto);
+    return this.alertsService.updateForProject(siteId, user.sub, body);
   }
 }
