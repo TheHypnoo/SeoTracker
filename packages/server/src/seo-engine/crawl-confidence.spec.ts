@@ -35,4 +35,33 @@ describe('computeCrawlConfidence', () => {
     expect(metrics).toContainEqual({ key: 'crawl_confidence_level', valueText: 'Baja' });
     expect(metrics).toContainEqual({ key: 'crawl_coverage_ratio', valueNum: 0.05 });
   });
+
+  it('reports medium confidence and zero success ratio when no page has status', () => {
+    const metrics = computeCrawlConfidence({
+      crawlCandidateCount: 1,
+      maxDepth: 1,
+      maxPages: 2,
+      analyzedPages: [{ url: 'https://x.test/' }],
+      sitemapUrls: [],
+      totalAnalyzed: 2,
+    });
+
+    expect(metrics).toContainEqual({ key: 'crawl_confidence_score', valueNum: 65 });
+    expect(metrics).toContainEqual({ key: 'crawl_confidence_level', valueText: 'Media' });
+    expect(metrics).toContainEqual({ key: 'crawl_success_ratio', valueNum: 0 });
+  });
+
+  it('clamps coverage and score at one hundred', () => {
+    const metrics = computeCrawlConfidence({
+      crawlCandidateCount: 0,
+      maxDepth: 2,
+      maxPages: 100,
+      analyzedPages: [{ statusCode: 204, url: 'https://x.test/' }],
+      sitemapUrls: ['https://x.test/sitemap.xml'],
+      totalAnalyzed: 10,
+    });
+
+    expect(metrics).toContainEqual({ key: 'crawl_confidence_score', valueNum: 100 });
+    expect(metrics).toContainEqual({ key: 'crawl_coverage_ratio', valueNum: 1 });
+  });
 });

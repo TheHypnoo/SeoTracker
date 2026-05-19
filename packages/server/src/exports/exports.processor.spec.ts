@@ -169,6 +169,37 @@ describe('exportsProcessor', () => {
     expect(jobFailuresService.record).not.toHaveBeenCalled();
   });
 
+  it('records failures with default attempts and fallback error fields', () => {
+    const processor = new ExportsProcessor(
+      exportsService as never,
+      configService as never,
+      jobFailuresService as never,
+      metricsService as never,
+    );
+    processor.onModuleInit();
+    const worker = mockWorkerInstances[0];
+
+    worker.handlers.failed(
+      {
+        attemptsMade: 1,
+        data: undefined,
+        id: undefined,
+        name: 'build-export',
+        opts: undefined,
+      },
+      undefined as unknown as Error,
+    );
+
+    expect(jobFailuresService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attempts: 1,
+        payload: {},
+        reason: 'Unknown error',
+        stack: null,
+      }),
+    );
+  });
+
   it('handles shutdown before initialization and close failures', async () => {
     const notStarted = new ExportsProcessor(
       exportsService as never,
@@ -176,6 +207,10 @@ describe('exportsProcessor', () => {
       jobFailuresService as never,
       metricsService as never,
     );
+    await expect(notStarted.onModuleDestroy()).resolves.toBeUndefined();
+
+    const closing = Promise.resolve();
+    (notStarted as unknown as { closePromise: Promise<void> }).closePromise = closing;
     await expect(notStarted.onModuleDestroy()).resolves.toBeUndefined();
 
     const processor = new ExportsProcessor(

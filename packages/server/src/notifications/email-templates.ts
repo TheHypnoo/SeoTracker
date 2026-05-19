@@ -61,7 +61,7 @@ interface Spotlight {
   tone: SpotlightTone;
 }
 
-interface LayoutInput {
+export interface LayoutInput {
   subject: string;
   preview: string;
   eyebrow: string;
@@ -104,7 +104,7 @@ export interface AuditRegressionEmailInput {
   signals: AuditRegressionSignal[];
 }
 
-class EmailTemplateError extends Error {
+export class EmailTemplateError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'EmailTemplateError';
@@ -466,7 +466,7 @@ const layoutTemplate = handlebars.compile(
 handlebars.registerPartial('header', headerPartial);
 handlebars.registerPartial('footer', footerPartial);
 
-async function renderLayout(input: LayoutInput): Promise<RenderedEmail> {
+export async function renderLayout(input: LayoutInput): Promise<RenderedEmail> {
   const data = {
     actionLabel: input.action?.label ?? '',
     actionUrl: input.action?.url ?? '',

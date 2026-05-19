@@ -44,6 +44,33 @@ describe('bullmqMetricsCollector', () => {
     expect(metricsService.bullmqQueueDepth.set).not.toHaveBeenCalled();
   });
 
+  it('logs sample failures from the immediate tick', async () => {
+    configService.get.mockReturnValueOnce(60_000);
+    const failingQueue = { getJobCounts: jest.fn().mockRejectedValue(new Error('bullmq down')) };
+    const collector = new BullmqMetricsCollector(
+      failingQueue as never,
+      makeQueue() as never,
+      makeQueue() as never,
+      makeQueue() as never,
+      configService as never,
+      metricsService as never,
+    );
+
+    collector.onModuleInit();
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+    collector.onModuleDestroy();
+
+    expect(failingQueue.getJobCounts).toHaveBeenCalledWith(
+      'waiting',
+      'active',
+      'delayed',
+      'failed',
+      'completed',
+    );
+  });
+
   it('samples all queue depths immediately and clears its timer on shutdown', async () => {
     configService.get.mockReturnValueOnce(60_000);
     const auditQueue = makeQueue({ waiting: 9 });

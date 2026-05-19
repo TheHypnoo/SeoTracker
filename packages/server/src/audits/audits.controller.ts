@@ -1,12 +1,12 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { IndexabilityStatus } from '@seotracker/shared-types';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PaginationQueryDto, resolvePagination } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UUID_V4_PIPE } from '../common/pipes/uuid-v4.pipe';
 import { AuditsService } from './audits.service';
+import { IndexabilityQueryDto } from './dto/indexability.query.dto';
 
 @ApiTags('audits')
 @ApiBearerAuth()
@@ -36,10 +36,7 @@ export class AuditsController {
   getIndexability(
     @CurrentUser() user: { sub: string },
     @Param('auditId', UUID_V4_PIPE) auditId: string,
-    @Query() query: PaginationQueryDto & {
-      indexabilityStatus?: IndexabilityStatus;
-      source?: string;
-    },
+    @Query() query: IndexabilityQueryDto,
   ) {
     return this.auditsService.getAuditIndexability(auditId, user.sub, {
       indexabilityStatus: query.indexabilityStatus,

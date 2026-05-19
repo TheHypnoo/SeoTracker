@@ -177,6 +177,24 @@ describe('startTracing', () => {
     expectTracingStartedOnce(mocks, onceSpy);
   });
 
+  it('runs SIGINT shutdown handler and no-ops after SDK shutdown cleared state', async () => {
+    process.env.OTEL_ENABLED = 'true';
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'https://otel.example.test';
+    const { startTracing, mocks } = await loadTracing();
+
+    startTracing({ serviceName: 'api' });
+    const sigintHandler = onceSpy.mock.calls.find(([event]) => event === 'SIGINT')?.[1] as
+      | (() => void)
+      | undefined;
+    sigintHandler?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    sigintHandler?.();
+    await Promise.resolve();
+
+    expect(mocks.shutdown).toHaveBeenCalledTimes(1);
+  });
+
   it('logs shutdown failures from registered signal handlers', async () => {
     process.env.OTEL_ENABLED = 'true';
     process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'https://otel.example.test';

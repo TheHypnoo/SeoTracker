@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ExportFormat, ExportKind, ExportStatus, Permission } from '@seotracker/shared-types';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -158,6 +158,13 @@ describe('exportsService', () => {
         kind: ExportKind.INDEXABILITY,
       }),
     ).rejects.toThrow('auditRunId is required');
+
+    await expect(
+      service.create('site-1', 'user-1', {
+        format: ExportFormat.CSV,
+        kind: ExportKind.COMPARISON,
+      }),
+    ).rejects.toThrow('comparisonId is required');
   });
 
   it('lists project-scope exports after checking project permission', async () => {
@@ -185,6 +192,37 @@ describe('exportsService', () => {
     );
   });
 
+  it('lists project-scope exports with default pagination and total fallback', async () => {
+    const db = {
+      select: jest
+        .fn()
+        .mockReturnValueOnce(selectDirectRows([{ total: undefined }]))
+        .mockReturnValueOnce(selectRows([])),
+    };
+    const { service } = makeService(db);
+
+    await expect(service.listForProjectScope('project-1', 'user-1')).resolves.toStrictEqual({
+      items: [],
+      limit: 50,
+      offset: 0,
+      total: 0,
+    });
+  });
+
+  it('lists project-scope exports when the total query returns no row', async () => {
+    const db = {
+      select: jest
+        .fn()
+        .mockReturnValueOnce(selectDirectRows([]))
+        .mockReturnValueOnce(selectRows([])),
+    };
+    const { service } = makeService(db);
+
+    await expect(service.listForProjectScope('project-1', 'user-1')).resolves.toMatchObject({
+      total: 0,
+    });
+  });
+
   it('lists site exports after checking read permission', async () => {
     const items = [{ id: 'export-1' }, { id: 'export-2' }];
     const db = {
@@ -208,6 +246,23 @@ describe('exportsService', () => {
       'user-1',
       Permission.EXPORT_READ,
     );
+  });
+
+  it('lists site exports with default pagination and total fallback', async () => {
+    const db = {
+      select: jest
+        .fn()
+        .mockReturnValueOnce(selectDirectRows([]))
+        .mockReturnValueOnce(selectRows([])),
+    };
+    const { service } = makeService(db);
+
+    await expect(service.listForProject('site-1', 'user-1')).resolves.toStrictEqual({
+      items: [],
+      limit: 50,
+      offset: 0,
+      total: 0,
+    });
   });
 
   it('throws when an export cannot be found by id', async () => {
@@ -375,6 +430,30 @@ describe('exportsService', () => {
     expect(db.update).toHaveBeenCalledTimes(1);
   });
 
+  it('reconciles with default options when no overrides are supplied', async () => {
+    const db = {
+      select: jest.fn().mockReturnValueOnce(
+        selectRows([
+          {
+            id: 'pending-1',
+            kind: ExportKind.HISTORY,
+            siteId: 'site-1',
+            status: ExportStatus.PENDING,
+          },
+        ]),
+      ),
+      update: jest.fn().mockReturnValue(updateChain()),
+    };
+    const { queueService, service } = makeService(db);
+    queueService.enqueueExport.mockResolvedValueOnce(undefined);
+
+    await expect(service.reconcilePendingExports()).resolves.toStrictEqual({ requeued: 1 });
+    expect(queueService.enqueueExport).toHaveBeenCalledWith(
+      { exportId: 'pending-1' },
+      { jobId: expect.stringContaining('pending-1:reconcile:') },
+    );
+  });
+
   it('processes queued exports and persists generated file metadata', async () => {
     const exportRecord = {
       id: VALID_EXPORT_ID,
@@ -452,6 +531,59 @@ describe('exportsService', () => {
       expect.any(Error),
       expect.objectContaining({ exportId: VALID_EXPORT_ID }),
     );
+  });
+
+  it('rejects scoped exports when the audit run is outside the site', async () => {
+    const db = {
+      insert: jest.fn(),
+      select: jest.fn().mockReturnValueOnce(selectRows([])),
+    };
+    const { service } = makeService(db);
+
+    await expect(
+      service.create('site-1', 'user-1', {
+        auditRunId: 'foreign-run',
+        format: ExportFormat.CSV,
+        kind: ExportKind.METRICS,
+      }),
+    ).rejects.toThrow('Audit run not found in site');
+  });
+
+  it('writes CSV files through the private stream helper', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'seotracker-csv-'));
+    const storagePath = path.join(dir, 'export.csv');
+    const db = {};
+    const { service } = makeService(db as never);
+
+    let content = '';
+    try {
+      await (
+        service as unknown as { writeCsv: (path: string, data: unknown) => Promise<void> }
+      ).writeCsv(storagePath, { headers: ['Name'], rows: [{ Name: 'Example' }] });
+      content = await readFile(storagePath, 'utf-8');
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+
+    expect(content).toContain('Name\nExample');
+  });
+
+  it('rejects unsupported export kinds when no CSV strategy is registered', async () => {
+    const service = new ExportsService(
+      {} as never,
+      { get: jest.fn() } as never,
+      { getByIdWithPermission: jest.fn() } as never,
+      { assertPermission: jest.fn() } as never,
+      { enqueueExport: jest.fn() } as never,
+      { error: jest.fn(), info: jest.fn(), warn: jest.fn() } as never,
+      [] as never,
+    );
+
+    await expect(
+      (service as unknown as { buildCsv: (record: unknown) => Promise<unknown> }).buildCsv({
+        kind: ExportKind.HISTORY,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('validates audit run and comparison scope before creating scoped exports', async () => {

@@ -215,5 +215,16 @@ describe('auditOrchestrationService', () => {
         'run-1',
       );
     });
+
+    it('uses default reconciliation options when none are provided', async () => {
+      const query = thenable([]);
+      db.where.mockReturnValueOnce(query);
+
+      await expect(service.reconcileQueuedRuns()).resolves.toStrictEqual({
+        checked: 0,
+        requeued: 0,
+      });
+      expect(query.limit).toHaveBeenCalledWith(50);
+    });
   });
 });

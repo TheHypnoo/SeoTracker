@@ -38,4 +38,49 @@ describe('evaluateMetricsAccess', () => {
       }),
     ).toBe('allow');
   });
+
+  it('uses the first value from array headers', () => {
+    expect(
+      evaluateMetricsAccess({
+        authorization: ['Bearer 1234567890abcdef', 'Bearer wrong'],
+        configuredToken: '1234567890abcdef',
+        nodeEnv: 'production',
+      }),
+    ).toBe('allow');
+  });
+
+  it('falls back to x-metrics-token when authorization is not bearer', () => {
+    expect(
+      evaluateMetricsAccess({
+        authorization: 'Basic nope',
+        configuredToken: '1234567890abcdef',
+        metricsTokenHeader: ['1234567890abcdef'],
+        nodeEnv: 'production',
+      }),
+    ).toBe('allow');
+  });
+
+  it('rejects malformed, empty and mismatched tokens', () => {
+    expect(
+      evaluateMetricsAccess({
+        authorization: 'Bearer',
+        configuredToken: '1234567890abcdef',
+        nodeEnv: 'production',
+      }),
+    ).toBe('unauthorized');
+    expect(
+      evaluateMetricsAccess({
+        authorization: 'Bearer short',
+        configuredToken: '1234567890abcdef',
+        nodeEnv: 'production',
+      }),
+    ).toBe('unauthorized');
+    expect(
+      evaluateMetricsAccess({
+        authorization: 'Bearer 1234567890abcdeg',
+        configuredToken: '1234567890abcdef',
+        nodeEnv: 'production',
+      }),
+    ).toBe('unauthorized');
+  });
 });

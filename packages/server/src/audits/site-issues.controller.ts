@@ -12,12 +12,12 @@ import { ProjectIssuesService } from './site-issues.service';
 class ListSiteIssuesQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsEnum(IssueState)
-  state?: IssueState;
+  state?: unknown;
 }
 
 class UpdateIssueStateDto {
   @IsEnum(IssueState)
-  state!: IssueState;
+  state!: unknown;
 }
 
 @ApiTags('site-issues')
@@ -36,7 +36,9 @@ export class ProjectIssuesController {
   ) {
     // Pagination on the site-scoped issue list was added by main, but the service in
     // focused-villani returns the full list. Strip the pagination arg until plumbed through.
-    return this.projectIssuesService.listForProject(siteId, user.sub, { state: query.state });
+    return this.projectIssuesService.listForProject(siteId, user.sub, {
+      state: query.state as IssueState | undefined,
+    });
   }
 
   @Patch(':id/state')
@@ -46,6 +48,6 @@ export class ProjectIssuesController {
     @Param('id', UUID_V4_PIPE) id: string,
     @Body() body: UpdateIssueStateDto,
   ) {
-    return this.projectIssuesService.setState(id, user.sub, body.state);
+    return this.projectIssuesService.setState(id, user.sub, body.state as IssueState);
   }
 }

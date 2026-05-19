@@ -41,6 +41,18 @@ describe('scoreAudit', () => {
     expect(result.score).toBe(65);
   });
 
+  it('uses the issue definition default severity when a payload omits severity', () => {
+    const result = scoreForIssues([
+      {
+        category: IssueCategory.ON_PAGE,
+        issueCode: IssueCode.MISSING_TITLE,
+        message: 'Missing title',
+      },
+    ]);
+
+    expect(result.breakdown.perSeverity.HIGH.rawDeduction).toBe(14);
+  });
+
   it('calculates category and page scores while skipping site-level issues for page scores', () => {
     const issues: SeoIssue[] = [
       {
@@ -115,6 +127,74 @@ describe('scoreAudit', () => {
 
     expect(result.categoryScores.ON_PAGE).toBe(86);
     expect(result.categoryScores.TECHNICAL).toBe(100);
+  });
+
+  it('returns zero from scoreForIssues for zero-score issue codes', () => {
+    const result = scoreForIssues([
+      {
+        category: IssueCategory.TECHNICAL,
+        issueCode: IssueCode.DOMAIN_UNREACHABLE,
+        message: 'down',
+        severity: Severity.CRITICAL,
+      },
+    ]);
+
+    expect(result.score).toBe(0);
+    expect(result.breakdown.totalDeduction).toBe(100);
+  });
+
+  it('zeros every page when a zero-score issue is present', () => {
+    const result = scoreAudit(
+      [
+        {
+          category: IssueCategory.TECHNICAL,
+          issueCode: IssueCode.DOMAIN_UNREACHABLE,
+          message: 'down',
+          severity: Severity.CRITICAL,
+        },
+      ],
+      [{ url: 'https://example.test/' }, { url: 'https://example.test/a' }],
+      'https://example.test/',
+    );
+
+    expect([...result.pageScores.values()]).toStrictEqual([0, 0]);
+  });
+
+  it('groups repeated page issues and defaults resource-less issues to the homepage', () => {
+    const result = scoreAudit(
+      [
+        {
+          category: IssueCategory.ON_PAGE,
+          issueCode: IssueCode.MISSING_TITLE,
+          message: 'missing title 1',
+          resourceUrl: 'https://example.test/a',
+          severity: Severity.HIGH,
+        },
+        {
+          category: IssueCategory.ON_PAGE,
+          issueCode: IssueCode.MISSING_TITLE,
+          message: 'missing title 2',
+          resourceUrl: 'https://example.test/a',
+          severity: Severity.HIGH,
+        },
+        {
+          category: IssueCategory.MEDIA,
+          issueCode: IssueCode.IMAGE_WITHOUT_ALT,
+          message: 'missing alt',
+          severity: Severity.LOW,
+        },
+      ],
+      [
+        { url: 'https://example.test/' },
+        { url: 'https://example.test/a' },
+        { url: 'https://example.test/no-issues' },
+      ],
+      'https://example.test/',
+    );
+
+    expect(result.pageScores.get('https://example.test/a')).toBeLessThan(100);
+    expect(result.pageScores.get('https://example.test/')).toBe(98);
+    expect(result.pageScores.get('https://example.test/no-issues')).toBe(100);
   });
 });
 

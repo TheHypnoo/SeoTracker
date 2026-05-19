@@ -84,6 +84,17 @@ describe('getServerSession (SSR)', () => {
     expect((init as RequestInit).method).toBe('GET');
   });
 
+  it('uses an empty cookie header when the incoming Cookie header is missing', async () => {
+    getCookie.mockReturnValue('rt-abc');
+    getRequestHeader.mockReturnValue(undefined);
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: 'u1', email: 'a@b.c' }));
+
+    await getServerSession();
+
+    const [, init] = fetchMock.mock.calls[0] as FetchCallWithInit;
+    expect((init.headers as Record<string, string>).cookie).toBe('');
+  });
+
   it('returns EMPTY when fetch itself throws (network/SSR offline)', async () => {
     getCookie.mockReturnValue('rt-abc');
     getRequestHeader.mockReturnValue('');

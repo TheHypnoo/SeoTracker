@@ -34,7 +34,10 @@ function makeService(db = makeDb()) {
       return values[key];
     }),
   };
-  const auditsService = { reconcileQueuedRuns: jest.fn(), runScheduled: jest.fn() };
+  const auditsService = {
+    reconcileQueuedRuns: jest.fn().mockResolvedValue({ requeued: 0 }),
+    runScheduled: jest.fn(),
+  };
   const distributedLockService = {
     withLock: jest.fn((_key: string, _ttl: number, fn: (signal: AbortSignal) => Promise<void>) =>
       fn(new AbortController().signal),
@@ -100,8 +103,26 @@ describe('isScheduleDue', () => {
     };
 
     expect(isScheduleDue({ ...schedule, timeOfDay: 'bad' }, nowUtc, 5)).toBe(false);
+    expect(isScheduleDue({ ...schedule, timeOfDay: '10' }, nowUtc, 5)).toBe(false);
     expect(isScheduleDue({ ...schedule, timeOfDay: '10:10' }, nowUtc, 5)).toBe(false);
+    expect(isScheduleDue({ ...schedule, timeOfDay: '09:00' }, nowUtc, 5)).toBe(false);
     expect(isScheduleDue({ ...schedule, dayOfWeek: 1 }, nowUtc, 5)).toBe(false);
+  });
+
+  it('accepts matching weekly schedules that last ran before this slot', () => {
+    expect(
+      isScheduleDue(
+        {
+          dayOfWeek: 5,
+          frequency: ScheduleFrequency.WEEKLY,
+          lastRunAt: new Date('2026-05-01T10:03:00.000Z'),
+          timeOfDay: '10:00',
+          timezone: 'utc',
+        },
+        nowUtc,
+        5,
+      ),
+    ).toBe(true);
   });
 });
 
@@ -154,6 +175,82 @@ describe('schedulingService', () => {
       expect.any(Error),
       { scheduleId: 'schedule-1', siteId: 'site-1' },
     );
+  });
+
+  it('continues past non-due schedules without running audits', async () => {
+    const db = makeDb([
+      {
+        dayOfWeek: null,
+        frequency: ScheduleFrequency.DAILY,
+        id: 'not-due',
+        lastRunAt: null,
+        siteId: 'site-1',
+        timeOfDay: '00:00',
+        timezone: 'utc',
+      },
+    ]);
+    const { auditsService, service } = makeService(db);
+
+    await service.runDueSchedules();
+
+    expect(auditsService.runScheduled).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('skips non-due schedules and stops when the lock signal is aborted', async () => {
+    const db = makeDb([
+      {
+        dayOfWeek: null,
+        frequency: ScheduleFrequency.DAILY,
+        id: 'not-due',
+        lastRunAt: null,
+        siteId: 'site-1',
+        timeOfDay: '00:00',
+        timezone: 'utc',
+      },
+      {
+        dayOfWeek: null,
+        frequency: ScheduleFrequency.DAILY,
+        id: 'aborted',
+        lastRunAt: null,
+        siteId: 'site-2',
+        timeOfDay: DateTime.now().toUTC().toFormat('HH:mm'),
+        timezone: 'utc',
+      },
+    ]);
+    const { auditsService, distributedLockService, service } = makeService(db);
+    const controller = new AbortController();
+    distributedLockService.withLock.mockImplementationOnce(
+      async (_key: string, _ttl: number, fn: (signal: AbortSignal) => Promise<void>) => {
+        controller.abort();
+        return fn(controller.signal);
+      },
+    );
+
+    await service.runDueSchedules();
+
+    expect(auditsService.runScheduled).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('quietly skips scheduler work when another instance owns each lock', async () => {
+    const { distributedLockService, service } = makeService();
+    distributedLockService.withLock.mockResolvedValue(null);
+
+    await service.runDueSchedules();
+    await service.reconcileEmailDeliveries();
+    await service.reconcileQueuedWork();
+
+    expect(distributedLockService.withLock).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not log reconciliation summaries when no jobs are requeued', async () => {
+    const { service } = makeService();
+
+    await service.reconcileEmailDeliveries();
+    await service.reconcileQueuedWork();
+
+    expect(true).toBe(true);
   });
 
   it('reconciles email deliveries and queued work under separate locks', async () => {

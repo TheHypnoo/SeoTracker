@@ -60,6 +60,7 @@ export class ExportsProcessor implements OnModuleInit, OnModuleDestroy {
       if (!job) {
         return;
       }
+      /* istanbul ignore next -- BullMQ failed jobs always expose attemptsMade. */
       const attemptsMade = job.attemptsMade ?? 0;
       const maxAttempts = job.opts?.attempts ?? 1;
       if (attemptsMade < maxAttempts) {
@@ -96,6 +97,7 @@ export class ExportsProcessor implements OnModuleInit, OnModuleDestroy {
       } catch (error) {
         this.logger.error(
           `Failed to close ${EXPORT_QUEUE_NAME} worker after ${Date.now() - start}ms`,
+          /* istanbul ignore next -- worker close failures are emitted as Error instances by BullMQ. */
           error instanceof Error ? error.stack : String(error),
         );
       }

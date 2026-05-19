@@ -88,6 +88,16 @@ describe('projectsService', () => {
     });
   });
 
+  describe('listForUser', () => {
+    it('returns projects joined through memberships', async () => {
+      const rows = [{ id: 'p1', name: 'Acme', role: Role.MEMBER }];
+      db.where.mockReturnValueOnce(thenable(rows));
+
+      await expect(service.listForUser('u1')).resolves.toBe(rows);
+      expect(db.innerJoin).toHaveBeenCalledWith(expect.anything(), expect.anything());
+    });
+  });
+
   describe('getProjectForUser', () => {
     it('throws NotFoundException when the user is not a member', async () => {
       db.where.mockReturnValueOnce(thenable([]));
@@ -120,6 +130,48 @@ describe('projectsService', () => {
       // MEMBER default set is non-empty.
       expect(out.effectivePermissions.length).toBeGreaterThan(0);
     });
+
+    it('defaults missing permission override arrays when returning a project', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          {
+            id: 'p1',
+            name: 'Acme',
+            ownerUserId: 'u1',
+            createdAt: new Date('2026-01-01'),
+            role: Role.MEMBER,
+            extraPermissions: null,
+            revokedPermissions: null,
+          },
+        ]),
+      );
+
+      const out = await service.getProjectForUser('p1', 'u1');
+
+      expect(out.effectivePermissions).toStrictEqual(
+        expect.arrayContaining([Permission.PROJECT_VIEW]),
+      );
+    });
+
+    it('forbids members whose project view permission is revoked', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          {
+            id: 'p1',
+            name: 'Acme',
+            ownerUserId: 'u1',
+            createdAt: new Date('2026-01-01'),
+            role: Role.MEMBER,
+            extraPermissions: [],
+            revokedPermissions: [Permission.PROJECT_VIEW],
+          },
+        ]),
+      );
+
+      await expect(service.getProjectForUser('p1', 'u1')).rejects.toThrow(
+        `Missing permission: ${Permission.PROJECT_VIEW}`,
+      );
+    });
   });
 
   describe('updateProject', () => {
@@ -134,6 +186,17 @@ describe('projectsService', () => {
       expect(db.update).toHaveBeenCalledTimes(1);
       expect(db.set).toHaveBeenCalledWith({ name: 'Nuevo' });
       expect(out.name).toBe('Nuevo');
+    });
+
+    it('throws not found when the update returns no row', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ projectId: 'p1', userId: 'u1', role: Role.OWNER }]))
+        .mockReturnValueOnce(db as unknown as never);
+      db.returning.mockResolvedValueOnce([]);
+
+      await expect(service.updateProject('p1', 'u1', { name: 'New' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('rejects an empty project name', async () => {
@@ -319,6 +382,142 @@ describe('projectsService', () => {
         expect.objectContaining({ kind: 'INVITE', title: 'Nuevo usuario invitado' }),
       ]);
     });
+
+    it('builds a site dashboard when there are no audit runs yet', async () => {
+      const site = {
+        id: 'site-1',
+        active: true,
+        createdAt: new Date('2026-05-01T00:00:00.000Z'),
+        domain: 'one.test',
+        name: 'One',
+      };
+
+      db.where
+        .mockReturnValueOnce(thenable([projectRow]))
+        .mockReturnValueOnce(thenable([site]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([{ total: undefined }]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]));
+
+      const out = await service.getDashboard('p1', 'u1');
+
+      expect(out.summary).toStrictEqual({
+        activeProjects: 1,
+        totalAudits: 0,
+        averageScore: null,
+        criticalIssues: 0,
+        regressions: 0,
+        activeAutomations: 0,
+      });
+      expect(out.recentProjects).toStrictEqual([
+        expect.objectContaining({ id: 'site-1', latestAuditAt: null, latestScore: null }),
+      ]);
+      expect(out.recentAudits).toStrictEqual([]);
+      expect(out.trend).toStrictEqual([]);
+    });
+
+    it('uses dashboard fallback labels and counts when related rows are missing', async () => {
+      const site = {
+        id: 'site-1',
+        active: true,
+        createdAt: new Date('2026-05-01T00:00:00.000Z'),
+        domain: 'one.test',
+        name: 'One',
+      };
+
+      db.where
+        .mockReturnValueOnce(thenable([projectRow]))
+        .mockReturnValueOnce(thenable([site]))
+        .mockReturnValueOnce(thenable([{ total: 1 }]))
+        .mockReturnValueOnce(thenable([{}]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'run-1',
+              siteId: 'site-1',
+              score: 80,
+              status: AuditStatus.COMPLETED,
+              createdAt: new Date('2026-05-08T10:00:00.000Z'),
+            },
+          ]),
+        )
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'run-missing-site',
+              siteId: 'missing-site',
+              status: AuditStatus.COMPLETED,
+              createdAt: new Date('2026-05-08T11:00:00.000Z'),
+            },
+          ]),
+        )
+        .mockReturnValueOnce(
+          thenable([
+            {
+              createdAt: new Date('2026-05-08T09:00:00.000Z'),
+              finishedAt: null,
+              score: null,
+              siteId: 'site-1',
+            },
+            {
+              createdAt: new Date('2026-05-08T10:00:00.000Z'),
+              finishedAt: null,
+              score: 77,
+              siteId: 'missing-site',
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([{ total: undefined }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'comparison-missing-site',
+              siteId: 'missing-site',
+              regressionsCount: 1,
+              createdAt: new Date('2026-05-08T12:00:00.000Z'),
+            },
+          ]),
+        )
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]))
+        .mockReturnValueOnce(thenable([]));
+
+      const out = await service.getDashboard('p1', 'u1');
+
+      expect(out.summary).toMatchObject({
+        activeAutomations: 0,
+        criticalIssues: 0,
+        regressions: 0,
+        totalAudits: 0,
+      });
+      expect(out.recentAudits).toStrictEqual([
+        expect.objectContaining({
+          id: 'run-missing-site',
+          issuesCount: 0,
+          projectName: 'Proyecto',
+        }),
+      ]);
+      expect(out.trend).toStrictEqual([
+        expect.objectContaining({
+          score: 77,
+          siteDomain: '',
+          siteName: 'Dominio',
+        }),
+      ]);
+      expect(out.activity).toStrictEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            body: 'Proyecto · 1 regresiones',
+            kind: 'REGRESSION',
+          }),
+        ]),
+      );
+    });
   });
 
   describe('listMembers', () => {
@@ -351,6 +550,32 @@ describe('projectsService', () => {
         }),
       ]);
       expect(out[0]?.effectivePermissions).not.toContain(Permission.AUDIT_RUN);
+    });
+
+    it('defaults missing member override arrays before computing effective permissions', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ projectId: 'p1', userId: 'u-owner', role: Role.OWNER }]))
+        .mockReturnValueOnce(
+          thenable([
+            {
+              userId: 'u-member',
+              role: Role.MEMBER,
+              extraPermissions: null,
+              revokedPermissions: null,
+              createdAt: new Date('2026-01-01T00:00:00.000Z'),
+              email: 'member@example.com',
+              name: 'Member',
+            },
+          ]),
+        );
+
+      const out = await service.listMembers('p1', 'u-owner');
+
+      expect(out[0]).toMatchObject({
+        extraPermissions: [],
+        revokedPermissions: [],
+        effectivePermissions: expect.arrayContaining([Permission.PROJECT_VIEW]),
+      });
     });
   });
 
@@ -443,6 +668,18 @@ describe('projectsService', () => {
     });
   });
 
+  describe('validateOverrides', () => {
+    it('accepts owners without overrides and rejects unknown permissions', () => {
+      expect(() => service.validateOverrides(Role.OWNER, [], [])).not.toThrow();
+      expect(() => service.validateOverrides(Role.OWNER, [Permission.PROJECT_VIEW], [])).toThrow(
+        'OWNER cannot have permission overrides',
+      );
+      expect(() =>
+        service.validateOverrides(Role.VIEWER, ['NOT_A_PERMISSION' as Permission], []),
+      ).toThrow('Unknown permission');
+    });
+  });
+
   describe('addMember', () => {
     it('inserts onConflictDoNothing then returns the resulting membership', async () => {
       // 1) insert.values.onConflictDoNothing — already mocked to resolve
@@ -524,6 +761,64 @@ describe('projectsService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it('rejects missing target members', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ projectId: 'p1', userId: 'u-owner', role: Role.OWNER }]))
+        .mockReturnValueOnce(thenable([]));
+
+      await expect(
+        service.updateMemberPermissions('p1', 'u-missing', 'u-owner', {}),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('updates overrides without resetting them when the role is unchanged', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ projectId: 'p1', userId: 'u-owner', role: Role.OWNER }]))
+        .mockReturnValueOnce(thenable([{ projectId: 'p1', userId: 'u-member', role: Role.MEMBER }]))
+        .mockResolvedValueOnce(undefined)
+        .mockReturnValueOnce(
+          thenable([
+            {
+              projectId: 'p1',
+              userId: 'u-member',
+              role: Role.MEMBER,
+              extraPermissions: [Permission.EXPORT_CREATE],
+              revokedPermissions: [Permission.AUDIT_RUN],
+            },
+          ]),
+        );
+
+      const out = await service.updateMemberPermissions('p1', 'u-member', 'u-owner', {
+        extraPermissions: [Permission.EXPORT_CREATE],
+        revokedPermissions: [Permission.AUDIT_RUN],
+      });
+
+      expect(db.set).toHaveBeenCalledWith({
+        extraPermissions: [Permission.EXPORT_CREATE],
+        revokedPermissions: [Permission.AUDIT_RUN],
+        role: Role.MEMBER,
+      });
+      expect(out?.extraPermissions).toStrictEqual([Permission.EXPORT_CREATE]);
+    });
+
+    it('defaults omitted overrides to empty arrays when role remains unchanged', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ projectId: 'p1', userId: 'u-owner', role: Role.OWNER }]))
+        .mockReturnValueOnce(thenable([{ projectId: 'p1', userId: 'u-member', role: Role.MEMBER }]))
+        .mockResolvedValueOnce(undefined)
+        .mockReturnValueOnce(
+          thenable([{ projectId: 'p1', userId: 'u-member', role: Role.MEMBER }]),
+        );
+
+      await service.updateMemberPermissions('p1', 'u-member', 'u-owner', {});
+
+      expect(db.set).toHaveBeenCalledWith({
+        extraPermissions: [],
+        revokedPermissions: [],
+        role: Role.MEMBER,
+      });
+    });
+
     it('rejects revoked permissions that are not part of the role defaults', async () => {
       db.where
         .mockReturnValueOnce(thenable([{ projectId: 'p1', userId: 'u-owner', role: Role.OWNER }]))
@@ -537,6 +832,34 @@ describe('projectsService', () => {
         }),
       ).rejects.toThrow('cannot revoke');
       expect(db.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('assertPermission', () => {
+    it('throws when the user is not a project member', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await expect(
+        service.assertPermission('p1', 'u-stranger', Permission.PROJECT_VIEW),
+      ).rejects.toThrow('Not a project member');
+    });
+
+    it('throws when the effective permission set is missing the required permission', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          {
+            projectId: 'p1',
+            userId: 'u-member',
+            role: Role.MEMBER,
+            extraPermissions: [],
+            revokedPermissions: [Permission.PROJECT_DELETE],
+          },
+        ]),
+      );
+
+      await expect(
+        service.assertPermission('p1', 'u-member', Permission.PROJECT_DELETE),
+      ).rejects.toThrow(`Missing permission: ${Permission.PROJECT_DELETE}`);
     });
   });
 });

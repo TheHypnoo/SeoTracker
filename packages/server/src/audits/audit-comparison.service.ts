@@ -371,7 +371,7 @@ export class AuditComparisonService {
         delta,
         issueCategory: right?.issueCategory ?? left?.issueCategory ?? null,
         issueCode: right?.issueCode ?? left?.issueCode ?? null,
-        meta: right?.meta ?? left?.meta ?? {},
+        meta: resolveComparisonMeta(right?.meta, left?.meta),
         severity: right?.severity ?? left?.severity ?? null,
         title: right?.title ?? left?.title ?? 'Cambio en incidencias',
       });
@@ -420,4 +420,11 @@ export class AuditComparisonService {
       },
     };
   }
+}
+
+function resolveComparisonMeta(
+  rightMeta: Record<string, unknown> | null | undefined,
+  leftMeta: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  return rightMeta ?? leftMeta ?? {};
 }

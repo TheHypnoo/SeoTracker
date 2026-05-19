@@ -496,8 +496,8 @@ export class SeoActionPlanService {
   }) {
     const scoreLine =
       input.scoreDelta === null
-        ? `Score actual: ${input.run.score ?? 'N/D'}/100`
-        : `Score actual: ${input.run.score ?? 'N/D'}/100 (${formatDelta(input.scoreDelta)})`;
+        ? `Score actual: ${formatAuditScore(input.run.score)}/100`
+        : `Score actual: ${formatAuditScore(input.run.score)}/100 (${formatDelta(input.scoreDelta)})`;
     const nextActions = input.actions
       .slice(0, 3)
       .map((action, index) => `${index + 1}. ${action.title}: ${action.recommendedAction}`)
@@ -542,7 +542,7 @@ export function buildRemediationPrompt(input: {
     `- Dominio: ${input.site.domain}`,
     `- Proyecto: ${input.site.name}`,
     `- Auditoría: ${input.run.id}`,
-    `- Score actual: ${input.run.score ?? 'N/D'}/100`,
+    `- Score actual: ${formatAuditScore(input.run.score)}/100`,
     `- Incidencia: ${input.title} (${input.issueCode})`,
     `- Severidad: ${input.severity}`,
     `- Categoría: ${input.categoryLabel}`,
@@ -637,4 +637,8 @@ function estimateImpactPoints(severity: Severity, affectedPages: number): number
 
 function formatDelta(delta: number): string {
   return `${delta > 0 ? '+' : ''}${delta} pts`;
+}
+
+function formatAuditScore(score: number | null): string | number {
+  return score ?? 'N/D';
 }

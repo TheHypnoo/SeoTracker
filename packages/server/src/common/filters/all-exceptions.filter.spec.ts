@@ -4,11 +4,16 @@ import type { ArgumentsHost } from '@nestjs/common';
 
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
-function makeHost(opts: { url?: string; requestId?: string; method?: string }) {
+function makeHost(opts: {
+  url?: string;
+  requestId?: string;
+  method?: string;
+  headerRequestId?: string;
+}) {
   const req = {
     url: opts.url ?? '/api/v1/x',
     method: opts.method ?? 'GET',
-    headers: {},
+    headers: opts.headerRequestId ? { 'x-request-id': opts.headerRequestId } : {},
     requestId: opts.requestId,
   };
   const res = {
@@ -102,6 +107,36 @@ describe('allExceptionsFilter', () => {
 
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 409, message: 'email taken' }),
+    );
+  });
+
+  it('uses request id from headers when the request field is absent', () => {
+    const { host, res } = makeHost({ headerRequestId: 'header-req-1' });
+
+    filter.catch(new BadRequestException({ message: ['one', 'two'] }), host);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: ['one', 'two'], requestId: 'header-req-1' }),
+    );
+  });
+
+  it('falls back to the full HttpException response for non-string message arrays', () => {
+    const { host, res } = makeHost({});
+    const body = { message: ['ok', 123], statusCode: 400 };
+
+    filter.catch(new HttpException(body, 400), host);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: body }));
+  });
+
+  it('logs non-Error throwables with no request id placeholder', () => {
+    const { host, res } = makeHost({ method: 'POST', url: '/boom' });
+
+    filter.catch('plain failure', host);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Internal server error', statusCode: 500 }),
     );
   });
 });

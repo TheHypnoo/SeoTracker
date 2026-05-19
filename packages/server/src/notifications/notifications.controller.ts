@@ -20,7 +20,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UUID_V4_PIPE } from '../common/pipes/uuid-v4.pipe';
 import { NotificationsService } from './notifications.service';
 
-class ListNotificationsQueryDto {
+export class ListNotificationsQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -35,7 +35,7 @@ class ListNotificationsQueryDto {
   offset?: number;
 }
 
-class MarkNotificationsReadDto {
+export class MarkNotificationsReadDto {
   @IsArray()
   @ArrayNotEmpty()
   @ArrayMaxSize(100)
@@ -43,10 +43,10 @@ class MarkNotificationsReadDto {
   ids!: string[];
 }
 
-class ListEmailDeliveriesQueryDto extends ListNotificationsQueryDto {
+export class ListEmailDeliveriesQueryDto extends ListNotificationsQueryDto {
   @IsOptional()
   @IsEnum(EmailDeliveryStatus)
-  status?: EmailDeliveryStatus;
+  status?: unknown;
 }
 
 @ApiTags('notifications')
@@ -88,7 +88,7 @@ export class NotificationsController {
       projectId,
       user.sub,
       resolvePagination(query, { limit: 25, offset: 0 }),
-      { status: query.status },
+      { status: query.status as EmailDeliveryStatus | undefined },
     );
   }
 

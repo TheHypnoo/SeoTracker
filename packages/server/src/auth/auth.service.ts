@@ -23,8 +23,6 @@ import { hashToken, randomToken, safeEqual } from '../common/utils/security';
 import { USER_REGISTERED_EVENT, type UserRegisteredEvent } from '../projects/onboarding.service';
 import { UsersService } from '../users/users.service';
 
-const ACCESS_TOKEN_TTL = '15m';
-
 /**
  * Authentication service.
  *
@@ -352,7 +350,7 @@ export class AuthService {
       { sub: user.id, email: user.email },
       {
         secret: this.configService.get('JWT_ACCESS_SECRET', { infer: true }),
-        expiresIn: this.configService.get('JWT_ACCESS_TTL', { infer: true }) || ACCESS_TOKEN_TTL,
+        expiresIn: this.configService.get('JWT_ACCESS_TTL', { infer: true }),
       },
     );
 

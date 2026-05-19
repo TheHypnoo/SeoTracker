@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import {
   AuditStatus,
   AuditTrigger,
+  IndexabilityStatus,
   IssueCode,
   IssueState,
   Severity,
@@ -24,16 +25,20 @@ function query<T>(rows: T[]) {
   return builder;
 }
 
-describe('auditReadingService', () => {
-  const sitesService = {
-    getById: jest.fn().mockResolvedValue({
-      domain: 'example.com',
-      id: 'site-1',
-      name: 'Example',
-    }),
-  };
-  const projectsService = { assertMember: jest.fn() };
+const sitesService = {
+  getById: jest.fn().mockResolvedValue({
+    domain: 'example.com',
+    id: 'site-1',
+    name: 'Example',
+  }),
+};
+const projectsService = { assertMember: jest.fn() };
 
+function makeService(db: { select: jest.Mock }) {
+  return new AuditReadingService(db as never, sitesService as never, projectsService as never);
+}
+
+describe('auditReadingService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -54,14 +59,9 @@ describe('auditReadingService', () => {
         .mockReturnValueOnce(query([{ auditRunId: 'run-1', total: 3 }]))
         .mockReturnValueOnce(query([{ auditRunId: 'run-1', total: 1 }])),
     };
-    const service = new AuditReadingService(
-      db as never,
-      sitesService as never,
-      projectsService as never,
-    );
 
     await expect(
-      service.listProjectRuns('site-1', 'user-1', {
+      makeService(db).listProjectRuns('site-1', 'user-1', {
         from: '2026-05-01',
         pagination: { limit: 10, offset: 0 },
         status: AuditStatus.COMPLETED,
@@ -77,6 +77,36 @@ describe('auditReadingService', () => {
     expect(sitesService.getById).toHaveBeenCalledWith('site-1', 'user-1');
   });
 
+  it('returns empty site audit runs with default pagination and no aggregate queries', async () => {
+    const db = {
+      select: jest.fn().mockReturnValueOnce(query([])).mockReturnValueOnce(query([])),
+    };
+
+    await expect(makeService(db).listProjectRuns('site-1', 'user-1')).resolves.toStrictEqual({
+      items: [],
+      limit: 50,
+      offset: 0,
+      total: 0,
+    });
+    expect(db.select).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores invalid date filters for site audit runs', async () => {
+    const db = {
+      select: jest
+        .fn()
+        .mockReturnValueOnce(query([{ total: 0 }]))
+        .mockReturnValueOnce(query([])),
+    };
+
+    await expect(
+      makeService(db).listProjectRuns('site-1', 'user-1', {
+        from: 'not-a-date',
+        to: 'still-not-a-date',
+      }),
+    ).resolves.toMatchObject({ items: [], total: 0 });
+  });
+
   it('lists project audit runs with site labels and aggregate counts', async () => {
     const run = { id: 'run-1', siteId: 'site-1', status: AuditStatus.COMPLETED };
     const db = {
@@ -87,14 +117,9 @@ describe('auditReadingService', () => {
         .mockReturnValueOnce(query([{ auditRunId: 'run-1', total: 2 }]))
         .mockReturnValueOnce(query([{ auditRunId: 'run-1', total: 1 }])),
     };
-    const service = new AuditReadingService(
-      db as never,
-      sitesService as never,
-      projectsService as never,
-    );
 
     await expect(
-      service.listAuditsForProject('project-1', 'user-1', {
+      makeService(db).listAuditsForProject('project-1', 'user-1', {
         pagination: { limit: 5, offset: 5 },
         siteId: 'site-1',
         status: AuditStatus.COMPLETED,
@@ -113,6 +138,30 @@ describe('auditReadingService', () => {
       total: 1,
     });
     expect(projectsService.assertMember).toHaveBeenCalledWith('project-1', 'user-1');
+  });
+
+  it('returns empty project audit runs with default pagination and no aggregate queries', async () => {
+    const db = {
+      select: jest.fn().mockReturnValueOnce(query([])).mockReturnValueOnce(query([])),
+    };
+
+    await expect(
+      makeService(db).listAuditsForProject('project-1', 'user-1'),
+    ).resolves.toStrictEqual({
+      items: [],
+      limit: 50,
+      offset: 0,
+      total: 0,
+    });
+    expect(db.select).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws when audit details are missing', async () => {
+    const db = { select: jest.fn().mockReturnValueOnce(query([])) };
+
+    await expect(makeService(db).getAuditRun('missing', 'user-1')).rejects.toThrow(
+      'Audit not found',
+    );
   });
 
   it('returns audit details with metrics, pages, severity counts and score delta', async () => {
@@ -139,13 +188,8 @@ describe('auditReadingService', () => {
         .mockReturnValueOnce(query([{ severity: Severity.CRITICAL, total: 1 }]))
         .mockReturnValueOnce(query([{ score: 70 }])),
     };
-    const service = new AuditReadingService(
-      db as never,
-      sitesService as never,
-      projectsService as never,
-    );
 
-    await expect(service.getAuditRun('run-1', 'user-1')).resolves.toMatchObject({
+    await expect(makeService(db).getAuditRun('run-1', 'user-1')).resolves.toMatchObject({
       failureReason: null,
       issuesCount: 1,
       previousScore: 70,
@@ -153,6 +197,48 @@ describe('auditReadingService', () => {
       severityCounts: { [Severity.CRITICAL]: 1 },
       site: { domain: 'example.com', id: 'site-1', name: 'Example' },
     });
+  });
+
+  it('returns failed audit details with failure reason and null delta fallback', async () => {
+    const run = {
+      categoryScores: {},
+      createdAt: new Date('2026-05-08T10:00:00.000Z'),
+      finishedAt: null,
+      httpStatus: 500,
+      id: 'run-1',
+      responseMs: null,
+      score: null,
+      scoreBreakdown: {},
+      siteId: 'site-1',
+      startedAt: new Date('2026-05-08T10:00:00.000Z'),
+      status: AuditStatus.FAILED,
+      trigger: AuditTrigger.MANUAL,
+    };
+    const db = {
+      select: jest
+        .fn()
+        .mockReturnValueOnce(query([run]))
+        .mockReturnValueOnce(query([]))
+        .mockReturnValueOnce(query([]))
+        .mockReturnValueOnce(query([]))
+        .mockReturnValueOnce(query([{ payload: { reason: 'crawler failed' } }]))
+        .mockReturnValueOnce(query([])),
+    };
+
+    await expect(makeService(db).getAuditRun('run-1', 'user-1')).resolves.toMatchObject({
+      failureReason: 'crawler failed',
+      issuesCount: 0,
+      previousScore: null,
+      scoreDelta: null,
+    });
+  });
+
+  it('throws when audit issues run is missing', async () => {
+    const db = { select: jest.fn().mockReturnValueOnce(query([])) };
+
+    await expect(makeService(db).getAuditIssues('missing', 'user-1')).rejects.toThrow(
+      'Audit not found',
+    );
   });
 
   it('returns audit issues enriched with project issue state', async () => {
@@ -182,14 +268,9 @@ describe('auditReadingService', () => {
           ]),
         ),
     };
-    const service = new AuditReadingService(
-      db as never,
-      sitesService as never,
-      projectsService as never,
-    );
 
     await expect(
-      service.getAuditIssues('run-1', 'user-1', { limit: 10, offset: 0 }),
+      makeService(db).getAuditIssues('run-1', 'user-1', { limit: 10, offset: 0 }),
     ).resolves.toStrictEqual({
       items: [
         {
@@ -203,6 +284,33 @@ describe('auditReadingService', () => {
       limit: 10,
       offset: 0,
       total: 1,
+    });
+  });
+
+  it('returns audit issues without state rows using default pagination', async () => {
+    const issue = { id: 'issue-1', issueCode: IssueCode.MISSING_TITLE, resourceUrl: null };
+    const db = {
+      select: jest
+        .fn()
+        .mockReturnValueOnce(query([{ siteId: 'site-1' }]))
+        .mockReturnValueOnce(query([]))
+        .mockReturnValueOnce(query([issue]))
+        .mockReturnValueOnce(query([])),
+    };
+
+    await expect(makeService(db).getAuditIssues('run-1', 'user-1')).resolves.toStrictEqual({
+      items: [
+        {
+          ...issue,
+          firstSeenAt: null,
+          lastSeenAt: null,
+          projectIssueId: null,
+          state: null,
+        },
+      ],
+      limit: 50,
+      offset: 0,
+      total: 0,
     });
   });
 
@@ -227,17 +335,85 @@ describe('auditReadingService', () => {
         ]),
       ),
     };
-    const service = new AuditReadingService(
-      db as never,
-      sitesService as never,
-      projectsService as never,
-    );
 
-    await expect(service.getProjectTrends('site-1', 'user-1', 2)).resolves.toMatchObject({
+    await expect(makeService(db).getProjectTrends('site-1', 'user-1', 2)).resolves.toMatchObject({
       points: [
         { id: 'older', score: 70, scoreDelta: null },
         { id: 'newer', score: 80, scoreDelta: 10 },
       ],
+    });
+  });
+
+  it('uses default trend limit and finishedAt timestamp when available', async () => {
+    const finishedAt = new Date('2026-05-08T11:00:00.000Z');
+    const db = {
+      select: jest.fn().mockReturnValueOnce(
+        query([
+          {
+            categoryScores: {},
+            createdAt: new Date('2026-05-08T10:00:00.000Z'),
+            finishedAt,
+            id: 'run-1',
+            score: null,
+          },
+        ]),
+      ),
+    };
+
+    await expect(makeService(db).getProjectTrends('site-1', 'user-1')).resolves.toStrictEqual({
+      points: [
+        {
+          categoryScores: {},
+          id: 'run-1',
+          score: null,
+          scoreDelta: null,
+          timestamp: finishedAt.toISOString(),
+        },
+      ],
+    });
+  });
+
+  it('throws when audit indexability run is missing', async () => {
+    const db = { select: jest.fn().mockReturnValueOnce(query([])) };
+
+    await expect(makeService(db).getAuditIndexability('missing', 'user-1')).rejects.toThrow(
+      'Audit not found',
+    );
+  });
+
+  it('returns audit indexability with filters and pagination', async () => {
+    const inspection = { id: 'url-1', source: 'sitemap' };
+    const db = {
+      select: jest
+        .fn()
+        .mockReturnValueOnce(query([{ siteId: 'site-1' }]))
+        .mockReturnValueOnce(query([{ total: 1 }]))
+        .mockReturnValueOnce(query([inspection])),
+    };
+
+    await expect(
+      makeService(db).getAuditIndexability('run-1', 'user-1', {
+        indexabilityStatus: IndexabilityStatus.UNKNOWN,
+        pagination: { limit: 2, offset: 4 },
+        source: 'sitemap',
+      }),
+    ).resolves.toStrictEqual({ items: [inspection], limit: 2, offset: 4, total: 1 });
+  });
+
+  it('returns audit indexability with default filters and empty total fallback', async () => {
+    const db = {
+      select: jest
+        .fn()
+        .mockReturnValueOnce(query([{ siteId: 'site-1' }]))
+        .mockReturnValueOnce(query([]))
+        .mockReturnValueOnce(query([])),
+    };
+
+    await expect(makeService(db).getAuditIndexability('run-1', 'user-1')).resolves.toStrictEqual({
+      items: [],
+      limit: 50,
+      offset: 0,
+      total: 0,
     });
   });
 });

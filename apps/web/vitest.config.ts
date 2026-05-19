@@ -21,10 +21,10 @@ export default defineConfig({
       ],
       // Anti-regression thresholds: a hair below current numbers.
       thresholds: {
-        statements: 75,
-        branches: 65,
-        functions: 80,
-        lines: 75,
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
       },
     },
   },

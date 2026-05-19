@@ -118,6 +118,71 @@ describe('auditsProcessor', () => {
     );
   });
 
+  it('ignores missing and retryable failed jobs', () => {
+    const processor = new AuditsProcessor(
+      auditsService as never,
+      configService as never,
+      jobFailuresService as never,
+      metricsService as never,
+    );
+    processor.onModuleInit();
+    const worker = mockWorkerInstances[0];
+
+    worker.handlers.failed(null, new Error('missing'));
+    worker.handlers.failed({ attemptsMade: 1, opts: { attempts: 3 } }, new Error('retryable'));
+
+    expect(jobFailuresService.record).not.toHaveBeenCalled();
+  });
+
+  it('records terminal failures with fallback values', () => {
+    const processor = new AuditsProcessor(
+      auditsService as never,
+      configService as never,
+      jobFailuresService as never,
+      metricsService as never,
+    );
+    processor.onModuleInit();
+
+    mockWorkerInstances[0].handlers.failed(
+      { attemptsMade: 1, data: undefined, opts: {} },
+      null as never,
+    );
+
+    expect(jobFailuresService.record).toHaveBeenCalledWith({
+      attempts: 1,
+      jobId: undefined,
+      jobName: undefined,
+      payload: {},
+      queueName: AUDIT_QUEUE_NAME,
+      reason: 'Unknown error',
+      stack: null,
+    });
+  });
+
+  it('awaits an in-flight close and tolerates worker close errors', async () => {
+    const idleProcessor = new AuditsProcessor(
+      auditsService as never,
+      configService as never,
+      jobFailuresService as never,
+      metricsService as never,
+    );
+    await idleProcessor.onModuleDestroy();
+
+    const processor = new AuditsProcessor(
+      auditsService as never,
+      configService as never,
+      jobFailuresService as never,
+      metricsService as never,
+    );
+    processor.onModuleInit();
+    mockWorkerInstances[0].close.mockRejectedValueOnce('close failed');
+
+    await processor.onModuleDestroy();
+    await processor.onModuleDestroy();
+
+    expect(mockWorkerInstances[0].close).toHaveBeenCalledTimes(1);
+  });
+
   it('records terminal BullMQ failures and closes the worker on shutdown', async () => {
     const processor = new AuditsProcessor(
       auditsService as never,

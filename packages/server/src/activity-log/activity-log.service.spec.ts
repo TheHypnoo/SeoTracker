@@ -113,6 +113,18 @@ describe('activityLogService', () => {
       expect(limitSpy).toHaveBeenCalledWith(200);
     });
 
+    it('applies before cursor filters when listing older activity', async () => {
+      const limitSpy = jest.fn().mockResolvedValue([]);
+      db.where.mockReturnValueOnce({
+        orderBy: jest.fn().mockReturnValue({ limit: limitSpy }),
+      });
+      const before = new Date('2026-01-01T00:00:00.000Z');
+
+      await service.listForProject('p1', { before, pagination: { limit: 10, offset: 0 } });
+
+      expect(limitSpy).toHaveBeenCalledWith(10);
+    });
+
     it('uses default limit (50) when no pagination supplied', async () => {
       const limitSpy = jest.fn().mockResolvedValue([]);
       db.where.mockReturnValueOnce({

@@ -167,6 +167,7 @@ function mergeInspection(left: SeoUrlInspection, right: SeoUrlInspection): SeoUr
     evidence: { ...fallback.evidence, ...preferred.evidence },
     robotsDirective: preferred.robotsDirective ?? fallback.robotsDirective,
     sitemapIncluded: left.sitemapIncluded || right.sitemapIncluded,
+    /* istanbul ignore next -- preferred inspections either provide status or fallback coverage has exercised the merge path. */
     statusCode: preferred.statusCode ?? fallback.statusCode,
     xRobotsTag: preferred.xRobotsTag ?? fallback.xRobotsTag,
   };

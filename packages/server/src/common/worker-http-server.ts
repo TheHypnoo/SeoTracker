@@ -9,25 +9,9 @@ import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import { MetricsService } from '../metrics/metrics.service';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
+import { withTimeout } from './utils/with-timeout';
 
 const READINESS_TIMEOUT_MS = 3000;
-
-async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(`${label} timed out after ${READINESS_TIMEOUT_MS}ms`)),
-      READINESS_TIMEOUT_MS,
-    );
-  });
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timer) {
-      clearTimeout(timer);
-    }
-  }
-}
 
 /**
  * Minimal HTTP server for non-HTTP Nest contexts (workers, scheduler).
@@ -49,6 +33,7 @@ export async function startWorkerHttpServer(
   const redis = app.get<IORedis>(REDIS_CONNECTION);
 
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    /* istanbul ignore next -- Node HTTP requests always provide a URL for inbound requests. */
     const url = req.url ?? '/';
     if (req.method !== 'GET') {
       res.writeHead(405).end();
@@ -64,8 +49,8 @@ export async function startWorkerHttpServer(
 
     if (url === '/health/readiness') {
       const [dbResult, redisResult] = await Promise.allSettled([
-        withTimeout(db.execute(sql`select 1`), 'database'),
-        withTimeout(redis.ping(), 'redis'),
+        withTimeout(db.execute(sql`select 1`), 'database', READINESS_TIMEOUT_MS),
+        withTimeout(redis.ping(), 'redis', READINESS_TIMEOUT_MS),
       ]);
       const dbOk = dbResult.status === 'fulfilled';
       const redisOk = redisResult.status === 'fulfilled';

@@ -318,6 +318,13 @@ describe('authService', () => {
       await expect(service.getSession('jwt')).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
+    it('throws when the session user no longer exists', async () => {
+      jwt.verifyAsync.mockResolvedValueOnce({ sub: 'u', email: 'a@b.c', jti: 'j' });
+      db.limit.mockResolvedValueOnce([{ id: 'tok-row' }]).mockResolvedValueOnce([]);
+
+      await expect(service.getSession('jwt')).rejects.toThrow('User not found');
+    });
+
     it('returns the user on a valid, non-revoked token (NO rotation)', async () => {
       jwt.verifyAsync.mockResolvedValueOnce({ sub: 'u', email: 'a@b.c', jti: 'j' });
       db.limit
@@ -360,6 +367,22 @@ describe('authService', () => {
 
       expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
       expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('does not clear domain cookies when cookie domain is blank', async () => {
+      const previousGet = config.get.getMockImplementation();
+      config.get.mockImplementation((key: string) =>
+        key === 'COOKIE_DOMAIN' ? '   ' : previousGet?.(key),
+      );
+      const res = makeResponse();
+
+      await service.logout(undefined, undefined, undefined, res as never);
+
+      expect(res.clearCookie).toHaveBeenCalledTimes(2);
+      expect(res.clearCookie).not.toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ domain: expect.any(String) }),
+      );
     });
 
     it('clears both host-only and configured-domain cookies for production domains', async () => {

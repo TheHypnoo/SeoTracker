@@ -7,10 +7,13 @@ import { SitesController } from './sites.controller';
 import { SitesService } from './sites.service';
 
 const USER = { sub: 'u-1' };
+const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('sitesController', () => {
   let controller: SitesController;
   let service: Record<string, jest.Mock>;
+  let crawlConfigService: Record<string, jest.Mock>;
+  let publicBadgeAdminService: Record<string, jest.Mock>;
 
   beforeEach(async () => {
     service = {
@@ -24,17 +27,20 @@ describe('sitesController', () => {
       getSchedule: jest.fn().mockResolvedValue('schedule'),
     };
 
+    crawlConfigService = { getForUser: jest.fn(), update: jest.fn() };
+    publicBadgeAdminService = { getForUser: jest.fn(), update: jest.fn() };
+
     const moduleRef = await Test.createTestingModule({
       controllers: [SitesController],
       providers: [
         { provide: SitesService, useValue: service },
         {
           provide: CrawlConfigService,
-          useValue: { getForUser: jest.fn(), update: jest.fn() },
+          useValue: crawlConfigService,
         },
         {
           provide: PublicBadgeAdminService,
-          useValue: { getForUser: jest.fn(), update: jest.fn() },
+          useValue: publicBadgeAdminService,
         },
       ],
     }).compile();
@@ -42,10 +48,15 @@ describe('sitesController', () => {
   });
 
   it('create delegates to sitesService.create', () => {
-    void controller.create(USER, { projectId: 'p1', name: 'n', domain: 'x.test' } as never);
+    void controller.create(USER, {
+      projectId: PROJECT_ID,
+      name: 'Main site',
+      domain: 'x.test',
+      timezone: 'Europe/Madrid',
+    } as never);
     expect(service.create).toHaveBeenCalledWith(
       'u-1',
-      expect.objectContaining({ projectId: 'p1' }),
+      expect.objectContaining({ projectId: PROJECT_ID }),
     );
   });
 
@@ -77,5 +88,19 @@ describe('sitesController', () => {
     void controller.getSchedule(USER, 's1');
     expect(service.upsertSchedule).toHaveBeenCalledWith('s1', 'u-1', { frequency: 'DAILY' });
     expect(service.getSchedule).toHaveBeenCalledWith('s1', 'u-1');
+  });
+
+  it('crawl config endpoints delegate', () => {
+    void controller.getCrawlConfig(USER, 's1');
+    void controller.updateCrawlConfig(USER, 's1', { maxPages: 10 } as never);
+    expect(crawlConfigService.getForUser).toHaveBeenCalledWith('s1', 'u-1');
+    expect(crawlConfigService.update).toHaveBeenCalledWith('s1', 'u-1', { maxPages: 10 });
+  });
+
+  it('public badge endpoints delegate', () => {
+    void controller.getPublicBadge(USER, 's1');
+    void controller.updatePublicBadge(USER, 's1', { enabled: true } as never);
+    expect(publicBadgeAdminService.getForUser).toHaveBeenCalledWith('s1', 'u-1');
+    expect(publicBadgeAdminService.update).toHaveBeenCalledWith('s1', 'u-1', { enabled: true });
   });
 });

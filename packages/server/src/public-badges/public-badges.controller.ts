@@ -22,8 +22,8 @@ export class PublicBadgesController {
   @Header('Cross-Origin-Resource-Policy', 'cross-origin')
   @Header('X-Content-Type-Options', 'nosniff')
   @ApiOperation({ summary: 'SVG badge público (sin auth, opt-in por site)' })
-  async svg(@Param('siteId') siteId: string): Promise<string> {
-    const { svg } = await this.service.renderSvg(siteId);
+  async svg(@Param('siteId') siteId: unknown) {
+    const { svg } = await this.service.renderSvg(siteId as string);
     return svg;
   }
 }

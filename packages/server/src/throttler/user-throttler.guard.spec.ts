@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import type { Request } from 'express';
 
-import { resolveThrottleTracker } from './user-throttler.guard';
+import { resolveThrottleTracker, UserOrIpThrottlerGuard } from './user-throttler.guard';
 
 function bearer(sub: string) {
   const payload = Buffer.from(JSON.stringify({ sub })).toString('base64url');
@@ -68,5 +68,49 @@ describe('resolveThrottleTracker', () => {
         }),
       ),
     ).toBe('ip:198.51.100.20');
+  });
+
+  it('falls back for empty bearer tokens, empty payload segments and invalid payload JSON', () => {
+    expect(resolveThrottleTracker(request({ headers: { authorization: 'Bearer    ' } }))).toBe(
+      'ip:203.0.113.10',
+    );
+    expect(resolveThrottleTracker(request({ headers: { authorization: 'Bearer h..s' } }))).toBe(
+      'ip:203.0.113.10',
+    );
+    expect(
+      resolveThrottleTracker(request({ headers: { authorization: 'Bearer h.bm90LWpzb24.s' } })),
+    ).toBe('ip:203.0.113.10');
+  });
+
+  it('uses unknown when neither request ip nor socket remote address exists', () => {
+    expect(resolveThrottleTracker(request({ ip: undefined, socket: undefined }))).toBe(
+      'ip:unknown',
+    );
+  });
+
+  it('normalizes empty route candidates to slash for auth route checks', () => {
+    expect(
+      resolveThrottleTracker(request({ method: 'POST', path: '/', originalUrl: '', url: '' })),
+    ).toBe('ip:203.0.113.10');
+  });
+
+  it('delegates the Nest throttler guard tracker to the resolver', async () => {
+    class ExposedGuard extends UserOrIpThrottlerGuard {
+      public track(req: Request) {
+        return this.getTracker(req);
+      }
+    }
+
+    await expect(
+      new ExposedGuard().track(request({ headers: { authorization: bearer('guard-user') } })),
+    ).resolves.toBe('user:guard-user');
+  });
+
+  it('handles requests without method and path-like values without query separators', () => {
+    expect(
+      resolveThrottleTracker(
+        request({ method: undefined, path: '/api/v1/projects', url: '/plain' }),
+      ),
+    ).toBe('ip:203.0.113.10');
   });
 });

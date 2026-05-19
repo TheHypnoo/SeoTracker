@@ -139,6 +139,29 @@ describe('analyzeHomepageHtml', () => {
       });
       expect(codes(out)).toContain(IssueCode.MISSING_META_DESCRIPTION);
     });
+
+    it('flags short and long meta descriptions', () => {
+      const short = analyzeHomepageHtml({
+        $: load(
+          '<html><head><title>A title that is long enough to pass</title><meta name="description" content="too short"></head></html>',
+        ),
+        response: htmlResponse(),
+        html: '',
+        homepageUrl: 'https://example.test/',
+      });
+      expect(codes(short)).toContain(IssueCode.META_DESCRIPTION_TOO_SHORT);
+
+      const longDescription = 'a'.repeat(170);
+      const long = analyzeHomepageHtml({
+        $: load(
+          `<html><head><title>A title that is long enough to pass</title><meta name="description" content="${longDescription}"></head></html>`,
+        ),
+        response: htmlResponse(),
+        html: '',
+        homepageUrl: 'https://example.test/',
+      });
+      expect(codes(long)).toContain(IssueCode.META_DESCRIPTION_TOO_LONG);
+    });
   });
 
   describe('headings', () => {
@@ -160,6 +183,16 @@ describe('analyzeHomepageHtml', () => {
         homepageUrl: 'https://example.test/',
       });
       expect(codes(out)).toContain(IssueCode.MULTIPLE_H1);
+    });
+
+    it('flags heading hierarchy skips', () => {
+      const out = analyzeHomepageHtml({
+        $: load('<html><body><h1>Intro</h1><h3>Skipped level</h3></body></html>'),
+        response: htmlResponse(),
+        html: '',
+        homepageUrl: 'https://example.test/',
+      });
+      expect(codes(out)).toContain(IssueCode.HEADING_HIERARCHY_SKIP);
     });
   });
 
@@ -278,6 +311,51 @@ describe('analyzeHomepageHtml', () => {
       });
       expect(codes(out)).toContain(IssueCode.NO_LAZY_IMAGES);
     });
+
+    it('flags images without alternative text', () => {
+      const out = analyzeHomepageHtml({
+        $: load('<html><body><img src="/missing-alt.png"></body></html>'),
+        response: htmlResponse(),
+        html: '',
+        homepageUrl: 'https://example.test/',
+      });
+      expect(codes(out)).toContain(IssueCode.IMAGE_WITHOUT_ALT);
+    });
+  });
+
+  describe('dom and required document metadata', () => {
+    it('flags oversized DOMs, missing viewport, and missing lang', () => {
+      const divs = Array.from({ length: 1505 }, (_, index) => `<div>${index}</div>`).join('');
+      const out = analyzeHomepageHtml({
+        $: load(`<html><body>${divs}</body></html>`),
+        response: htmlResponse(),
+        html: '',
+        homepageUrl: 'https://example.test/',
+      });
+      expect(codes(out)).toStrictEqual(
+        expect.arrayContaining([
+          IssueCode.DOM_TOO_LARGE,
+          IssueCode.MISSING_VIEWPORT,
+          IssueCode.MISSING_LANG,
+        ]),
+      );
+    });
+
+    it('uses the x-robots-tag header as the noindex source when meta robots is absent', () => {
+      const out = analyzeHomepageHtml({
+        $: load('<html><head></head><body></body></html>'),
+        response: htmlResponse('https://example.test/', {
+          headers: { 'x-robots-tag': 'noindex' },
+        }),
+        html: '',
+        homepageUrl: 'https://example.test/',
+      });
+      expect(
+        out.issues.find((issue) => issue.issueCode === IssueCode.META_NOINDEX)?.meta,
+      ).toMatchObject({
+        source: 'x-robots-tag',
+      });
+    });
   });
 
   describe('aggregated metrics', () => {
@@ -305,5 +383,47 @@ describe('analyzeHomepageHtml', () => {
         ]),
       );
     });
+  });
+
+  it('does not report optional metadata issues when homepage tags are complete and valid', () => {
+    const description = 'A'.repeat(130);
+    const response = new Response('', {
+      headers: {
+        'strict-transport-security': 'max-age=31536000',
+        'content-encoding': 'br',
+      },
+    });
+    const out = analyzeHomepageHtml({
+      $: load(`
+        <html lang="en">
+          <head>
+            <title>Useful public homepage title text</title>
+            <meta name="description" content="${description}">
+            <meta name="viewport" content="width=device-width">
+            <link rel="canonical" href="https://example.test/">
+            <meta property="og:title" content="Title">
+            <meta property="og:description" content="Description">
+            <meta property="og:image" content="https://example.test/og.png">
+            <meta name="twitter:card" content="summary_large_image">
+            <script type="application/ld+json">   </script>
+            <script type="application/ld+json">{"@type":"WebSite"}</script>
+          </head>
+          <body><h1>Heading</h1><img src="/hero.png" alt="Hero" loading="lazy"></body>
+        </html>
+      `),
+      response,
+      html: '<html></html>',
+      homepageUrl: 'https://example.test/',
+    });
+
+    expect(codes(out)).not.toStrictEqual(
+      expect.arrayContaining([
+        IssueCode.CANONICAL_MISMATCH,
+        IssueCode.META_DESCRIPTION_TOO_LONG,
+        IssueCode.MISSING_OPEN_GRAPH,
+        IssueCode.MISSING_TWITTER_CARD,
+        IssueCode.INVALID_STRUCTURED_DATA,
+      ]),
+    );
   });
 });

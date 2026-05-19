@@ -90,11 +90,22 @@
       "!**/index.ts"
     ],
     "coverageDirectory": "../coverage",
+    "coverageThreshold": {
+      "global": {
+        "branches": 90,
+        "functions": 100,
+        "lines": 99,
+        "statements": 99
+      }
+    },
     "moduleFileExtensions": [
       "js",
       "json",
       "ts"
     ],
+    "moduleNameMapper": {
+      "^@seotracker/shared-types$": "<rootDir>/../../../packages/shared-types/src/index.ts"
+    },
     "rootDir": "src",
     "setupFilesAfterEnv": [
       "<rootDir>/../test/jest.setup.ts"

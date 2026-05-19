@@ -6,8 +6,8 @@ import { Queue } from 'bullmq';
 import { Pool } from 'pg';
 import request from 'supertest';
 
-import { AppModule } from '../src/app.module';
 import { configureApiApp } from '../src/configure-api-app';
+import { runDatabaseMigrations } from '../src/run-migrations';
 
 const TEST_DATABASE_URL =
   process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/seotracker_test';
@@ -33,6 +33,8 @@ process.env.TRUST_PROXY ??= '1';
 process.env.SMTP_HOST ??= 'localhost';
 process.env.SMTP_PORT ??= '1025';
 process.env.SMTP_SECURE ??= 'false';
+
+jest.setTimeout(30_000);
 
 function expectCookie(response: request.Response, cookieName: string) {
   const setCookie = response.headers['set-cookie'];
@@ -67,6 +69,26 @@ async function cleanDatabase() {
   }
 }
 
+async function ensureTestDatabase() {
+  const databaseUrl = new URL(TEST_DATABASE_URL);
+  const databaseName = databaseUrl.pathname.slice(1);
+  if (!databaseName) {
+    throw new Error('TEST_DATABASE_URL must include a database name');
+  }
+  databaseUrl.pathname = '/postgres';
+  const pool = new Pool({ connectionString: databaseUrl.toString() });
+  try {
+    const { rowCount } = await pool.query('select 1 from pg_database where datname = $1', [
+      databaseName,
+    ]);
+    if (rowCount === 0) {
+      await pool.query(`create database "${databaseName.replaceAll('"', '""')}"`);
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
 async function cleanQueues() {
   await Promise.all(
     QUEUE_NAMES.map(async (name) => {
@@ -84,9 +106,12 @@ describe('auth to audit API flow (e2e)', () => {
   let app: NestExpressApplication;
 
   beforeAll(async () => {
+    await ensureTestDatabase();
     await cleanQueues();
     await cleanDatabase();
 
+    const { AppModule } =
+      jest.requireActual<typeof import('../src/app.module')>('../src/app.module');
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -94,10 +119,12 @@ describe('auth to audit API flow (e2e)', () => {
     app = moduleFixture.createNestApplication<NestExpressApplication>();
     configureApiApp(app);
     await app.init();
+    await runDatabaseMigrations(app);
+    await cleanDatabase();
   });
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
     await cleanQueues();
     await cleanDatabase();
   });

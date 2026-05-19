@@ -14,6 +14,7 @@ describe('auditsService', () => {
     listProjectComparisons: jest.fn(),
   };
   const readingService = {
+    getAuditIndexability: jest.fn(),
     getAuditIssues: jest.fn(),
     getAuditRun: jest.fn(),
     getProjectTrends: jest.fn(),
@@ -65,6 +66,7 @@ describe('auditsService', () => {
     service.listAuditsForProject('project-1', 'user-1');
     service.getAuditRun('audit-1', 'user-1');
     service.getAuditIssues('audit-1', 'user-1', { limit: 10, offset: 0 });
+    service.getAuditIndexability('audit-1', 'user-1', { source: 'sitemap' });
     service.getProjectTrends('site-1', 'user-1', 5);
 
     expect(readingService.listProjectRuns).toHaveBeenCalledWith('site-1', 'user-1', {
@@ -80,7 +82,9 @@ describe('auditsService', () => {
       limit: 10,
       offset: 0,
     });
-    expect(readingService.getProjectTrends).toHaveBeenCalledWith('site-1', 'user-1', 5);
+    expect(readingService.getAuditIndexability).toHaveBeenCalledWith('audit-1', 'user-1', {
+      source: 'sitemap',
+    });
   });
 
   it('delegates action plan operations to action plan service', () => {

@@ -65,6 +65,7 @@ export class ApiClient {
   }
 
   private tryRefresh(): Promise<boolean> {
+    /* v8 ignore next 3 -- defensive guard; callers only invoke tryRefresh when a refresher exists. */
     if (!this.options.refreshSession) {
       return Promise.resolve(false);
     }

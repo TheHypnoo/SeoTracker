@@ -69,7 +69,9 @@ export function detectHeadingSkips($: Cheerio): Array<{ from: number; to: number
   const headings = $('h1, h2, h3, h4, h5, h6').toArray();
   let previous = 0;
   for (const node of headings) {
-    const level = Number((node as { tagName?: string }).tagName?.slice(1) ?? 0);
+    const tagName = (node as { tagName?: string }).tagName;
+    if (!tagName) continue;
+    const level = Number(tagName.slice(1));
     if (!level) continue;
     if (previous > 0 && level > previous + 1) {
       skips.push({ from: previous, to: level });
@@ -167,16 +169,16 @@ export function extractArticleMetadata($: Cheerio): ArticleMetadata {
         if (!author) {
           const a = r.author;
           if (typeof a === 'string') author = a;
-          else if (a && typeof a === 'object') {
-            const name = (a as Record<string, unknown>).name;
-            if (typeof name === 'string') author = name;
-          } else if (Array.isArray(a) && a.length > 0) {
+          else if (Array.isArray(a) && a.length > 0) {
             const first = a[0];
             if (typeof first === 'string') author = first;
             else if (first && typeof first === 'object') {
               const name = (first as Record<string, unknown>).name;
               if (typeof name === 'string') author = name;
             }
+          } else if (a && typeof a === 'object') {
+            const name = (a as Record<string, unknown>).name;
+            if (typeof name === 'string') author = name;
           }
         }
       }

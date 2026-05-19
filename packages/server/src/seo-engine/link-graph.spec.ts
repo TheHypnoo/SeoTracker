@@ -89,6 +89,7 @@ describe('buildLinkGraph', () => {
       sitemapUrls: [
         'https://example.test/from-sitemap',
         'https://other.test/external-from-sitemap',
+        'not a valid url',
       ],
       maxLinks: 100,
       maxPages: 5,
@@ -173,5 +174,42 @@ describe('buildLinkGraph', () => {
     expect(out.depth1Selected.length + out.remainingInternal.length).toBeGreaterThanOrEqual(
       out.internalLinks.length,
     );
+  });
+
+  it('skips empty, malformed, non-http and duplicate links', () => {
+    const html = `
+      <a href="   ">empty</a>
+      <a href="http://[::1">bad</a>
+      <a href="ftp://example.test/file">ftp</a>
+      <a href="/one">one</a>
+      <a href="/one">duplicate</a>
+    `;
+    const out = buildLinkGraph({
+      $: load(html),
+      homepageUrl: 'https://example.test/',
+      effectiveHomepageUrl: 'https://example.test/',
+      sitemapUrls: [],
+      maxLinks: 100,
+      maxPages: 5,
+      maxDepth: 1,
+    });
+
+    expect(out.internalLinks).toStrictEqual(['https://example.test/one']);
+    expect(out.externalLinks).toStrictEqual([]);
+  });
+
+  it('deduplicates crawl candidates after removing tracking params', () => {
+    const out = buildLinkGraph({
+      $: load('<a href="/landing?utm_source=ad">tracked</a>'),
+      homepageUrl: 'https://example.test/',
+      effectiveHomepageUrl: 'https://example.test/',
+      sitemapUrls: ['https://example.test/landing'],
+      maxLinks: 100,
+      maxPages: 5,
+      maxDepth: 1,
+    });
+
+    expect(out.crawlCandidateCount).toBe(1);
+    expect(out.depth1Selected).toStrictEqual(['https://example.test/landing']);
   });
 });

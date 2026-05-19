@@ -44,8 +44,7 @@ export class QueueService {
     @Inject(EXPORT_QUEUE) private readonly exportQueue: Queue<ExportJobData>,
     @Inject(OUTBOUND_DELIVERIES_QUEUE)
     private readonly outboundQueue: Queue<OutboundDeliveryJobData>,
-    @Inject(EMAIL_DELIVERIES_QUEUE)
-    private readonly emailQueue: Queue<EmailDeliveryJobData>,
+    @Inject(EMAIL_DELIVERIES_QUEUE) private readonly emailQueue: Queue<EmailDeliveryJobData>,
     private readonly configService: ConfigService<Env, true>,
   ) {}
 

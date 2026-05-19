@@ -96,6 +96,49 @@ describe('crawlConfigService', () => {
       expect(out.maxConcurrentPages).toBe(5); // default
       expect(out.userAgent).toBe('CustomBot/1.0');
     });
+
+    it('uses every persisted override when present', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          {
+            siteId: 's1',
+            maxPages: 200,
+            maxDepth: 4,
+            maxConcurrentPages: 10,
+            requestDelayMs: 500,
+            respectCrawlDelay: false,
+            userAgent: null,
+          },
+        ]),
+      );
+
+      await expect(service.resolve('s1')).resolves.toStrictEqual({
+        maxPages: 200,
+        maxDepth: 4,
+        maxConcurrentPages: 10,
+        requestDelayMs: 500,
+        respectCrawlDelay: false,
+        userAgent: null,
+      });
+    });
+
+    it('falls back to default max pages when the row stores null', async () => {
+      db.where.mockReturnValueOnce(
+        thenable([
+          {
+            siteId: 's1',
+            maxPages: null,
+            maxDepth: 3,
+            maxConcurrentPages: 6,
+            requestDelayMs: 100,
+            respectCrawlDelay: true,
+            userAgent: 'Crawler/1.0',
+          },
+        ]),
+      );
+
+      await expect(service.resolve('s1')).resolves.toMatchObject({ maxPages: 50 });
+    });
   });
 
   describe('getForUser', () => {
@@ -130,6 +173,59 @@ describe('crawlConfigService', () => {
       );
     });
 
+    it('persists all optional fields when supplied', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await service.update('s1', 'u1', {
+        maxPages: 25,
+        maxDepth: 3,
+        maxConcurrentPages: 4,
+        requestDelayMs: 100,
+        respectCrawlDelay: false,
+        userAgent: 'Crawler/1.0',
+      });
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          siteId: 's1',
+          maxPages: 25,
+          maxDepth: 3,
+          maxConcurrentPages: 4,
+          requestDelayMs: 100,
+          respectCrawlDelay: false,
+          userAgent: 'Crawler/1.0',
+        }),
+      );
+      expect(emit).toHaveBeenCalledWith(
+        'activity.recorded',
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            changes: expect.arrayContaining([
+              'maxPages',
+              'maxDepth',
+              'maxConcurrentPages',
+              'requestDelayMs',
+              'respectCrawlDelay',
+              'userAgent',
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('omits undefined maxPages and requestDelayMs from the upsert patch', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await service.update('s1', 'u1', { maxDepth: 2 });
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          maxPages: expect.anything(),
+          requestDelayMs: expect.anything(),
+        }),
+      );
+    });
+
     it('rejects values exceeding hard caps', async () => {
       await expect(service.update('s1', 'u1', { maxPages: 99999 })).rejects.toThrow(
         /maxPages must be an integer in/,
@@ -139,6 +235,12 @@ describe('crawlConfigService', () => {
     it('rejects negative values', async () => {
       await expect(service.update('s1', 'u1', { requestDelayMs: -5 })).rejects.toThrow(
         /requestDelayMs must be an integer in/,
+      );
+    });
+
+    it('rejects non-integer numeric values', async () => {
+      await expect(service.update('s1', 'u1', { maxDepth: 1.5 })).rejects.toThrow(
+        /maxDepth must be an integer in/,
       );
     });
   });

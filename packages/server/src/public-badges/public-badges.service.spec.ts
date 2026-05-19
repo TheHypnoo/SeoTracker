@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 
 import { DRIZZLE } from '../database/database.constants';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
-import { PublicBadgesService } from './public-badges.service';
+import { buildSvg, PublicBadgesService } from './public-badges.service';
 
 function expectSvgToContainAll(svg: string, fragments: string[]) {
   for (const fragment of fragments) {
@@ -171,5 +171,27 @@ describe('publicBadgesService', () => {
       redis.del.mockRejectedValueOnce(new Error('redis delete down'));
       await expect(service.invalidate('s1')).resolves.toBeUndefined();
     });
+
+    it('does not fail when legacy redis delete calls fail', async () => {
+      redis.del
+        .mockResolvedValueOnce(1)
+        .mockRejectedValueOnce(new Error('legacy redis delete down'))
+        .mockRejectedValueOnce(new Error('legacy redis delete down'));
+
+      await expect(service.invalidate('s1')).resolves.toBeUndefined();
+    });
+  });
+});
+
+describe('buildSvg', () => {
+  it('escapes every XML-sensitive character in the rendered value', () => {
+    const svg = buildSvg('ok', `&<>"'` as never);
+    expect(svg).toContain('&amp;&lt;&gt;&quot;&apos;/100');
+  });
+
+  it('uses the neutral tone when an ok badge has no score', () => {
+    const svg = buildSvg('ok');
+    expect(svg).toContain('>0/100<');
+    expect(svg).toContain('#64748b');
   });
 });

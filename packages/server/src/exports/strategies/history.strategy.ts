@@ -10,7 +10,6 @@ import type { CsvBuilderStrategy, CsvData, ExportRecord } from './csv-strategy.i
 @Injectable()
 export class HistoryCsvStrategy implements CsvBuilderStrategy {
   readonly kind = ExportKind.HISTORY;
-
   constructor(@Inject(DRIZZLE) private readonly db: Db) {}
 
   async build(exportRecord: ExportRecord): Promise<CsvData> {

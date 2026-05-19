@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { plainToInstance } from 'class-transformer';
 import { EmailDeliveryStatus } from '@seotracker/shared-types';
 
-import { NotificationsController } from './notifications.controller';
+import {
+  ListEmailDeliveriesQueryDto,
+  ListNotificationsQueryDto,
+  NotificationsController,
+} from './notifications.controller';
 
 describe('notificationsController', () => {
   const notificationsService = {
@@ -14,6 +19,22 @@ describe('notificationsController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('transforms numeric query DTO fields', () => {
+    const listQuery = plainToInstance(ListNotificationsQueryDto, { limit: '10', offset: '5' });
+    const deliveriesQuery = plainToInstance(ListEmailDeliveriesQueryDto, {
+      limit: '15',
+      offset: '20',
+      status: EmailDeliveryStatus.SENT,
+    });
+
+    expect(listQuery).toMatchObject({ limit: 10, offset: 5 });
+    expect(deliveriesQuery).toMatchObject({
+      limit: 15,
+      offset: 20,
+      status: EmailDeliveryStatus.SENT,
+    });
   });
 
   it('lists notifications with resolved pagination defaults', () => {

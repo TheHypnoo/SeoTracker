@@ -127,4 +127,137 @@ describe('usersService', () => {
       userId: 'user-1',
     });
   });
+
+  it('finds users by id', async () => {
+    const db = {
+      select: jest.fn().mockReturnValue(selectLimitRows([{ id: 'user-1' }])),
+    };
+    const service = new UsersService(db as never);
+
+    await expect(service.findById('user-1')).resolves.toStrictEqual([{ id: 'user-1' }]);
+  });
+
+  it('does not rewrite preferences when the stored active project is already valid', async () => {
+    const db = {
+      insert: jest.fn(),
+      select: jest
+        .fn()
+        .mockReturnValueOnce(
+          selectLimitRows([
+            {
+              activeProjectId: 'project-1',
+              emailOnAuditCompleted: false,
+              emailOnAuditRegression: false,
+              emailOnCriticalIssues: false,
+              userId: 'user-1',
+            },
+          ]),
+        )
+        .mockReturnValueOnce(selectOrderRows([{ projectId: 'project-1' }]))
+        .mockReturnValueOnce({
+          from: jest.fn().mockReturnValue({
+            where: jest.fn().mockResolvedValue([{ projectId: 'project-1' }]),
+          }),
+        }),
+    };
+    const service = new UsersService(db as never);
+
+    await expect(service.getPreferences('user-1')).resolves.toStrictEqual({
+      activeProjectId: 'project-1',
+      emailOnAuditCompleted: false,
+      emailOnAuditRegression: false,
+      emailOnCriticalIssues: false,
+      userId: 'user-1',
+    });
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('falls back to null when no project membership exists', async () => {
+    const db = {
+      insert: jest.fn().mockReturnValue(insertReturning()),
+      select: jest
+        .fn()
+        .mockReturnValueOnce(selectLimitRows([]))
+        .mockReturnValueOnce(selectLimitRows([])),
+    };
+    const service = new UsersService(db as never);
+
+    await expect(service.getPreferences('user-1')).resolves.toMatchObject({
+      activeProjectId: null,
+    });
+  });
+
+  it('throws when preference upsert does not return a row', async () => {
+    const db = {
+      insert: jest.fn().mockReturnValue(insertReturning([])),
+      select: jest
+        .fn()
+        .mockReturnValueOnce(selectLimitRows([]))
+        .mockReturnValueOnce(selectLimitRows([{ id: 'project-1' }])),
+    };
+    const service = new UsersService(db as never);
+
+    await expect(service.updatePreferences('user-1', {})).rejects.toThrow(
+      'User preferences upsert did not return a row',
+    );
+  });
+
+  it('falls back when a requested project is not in the membership list', async () => {
+    const db = {
+      insert: jest.fn().mockReturnValue(
+        insertReturning([
+          {
+            activeProjectId: 'project-1',
+            emailOnAuditCompleted: true,
+            emailOnAuditRegression: true,
+            emailOnCriticalIssues: true,
+            userId: 'user-1',
+          },
+        ]),
+      ),
+      select: jest
+        .fn()
+        .mockReturnValueOnce(selectLimitRows([]))
+        .mockReturnValueOnce(selectLimitRows([{ id: 'project-1' }]))
+        .mockReturnValueOnce(selectOrderRows([{ projectId: 'project-1' }]))
+        .mockReturnValueOnce({
+          from: jest.fn().mockReturnValue({
+            where: jest.fn().mockResolvedValue([{ projectId: 'project-1' }]),
+          }),
+        })
+        .mockReturnValueOnce(selectLimitRows([{ id: 'project-1' }])),
+    };
+    const service = new UsersService(db as never);
+
+    await expect(
+      service.updatePreferences('user-1', { activeProjectId: 'project-2' }),
+    ).resolves.toMatchObject({ activeProjectId: 'project-1' });
+  });
+
+  it('falls back immediately when the requested project has no membership seed row', async () => {
+    const db = {
+      insert: jest.fn().mockReturnValue(
+        insertReturning([
+          {
+            activeProjectId: null,
+            emailOnAuditCompleted: true,
+            emailOnAuditRegression: true,
+            emailOnCriticalIssues: true,
+            userId: 'user-1',
+          },
+        ]),
+      ),
+      select: jest
+        .fn()
+        .mockReturnValueOnce(selectLimitRows([]))
+        .mockReturnValueOnce(selectLimitRows([]))
+        .mockReturnValueOnce(selectOrderRows([]))
+        .mockReturnValueOnce(selectLimitRows([])),
+    };
+    const service = new UsersService(db as never);
+
+    await expect(
+      service.updatePreferences('user-1', { activeProjectId: 'project-2' }),
+    ).resolves.toMatchObject({ activeProjectId: null });
+  });
 });

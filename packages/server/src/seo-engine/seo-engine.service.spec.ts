@@ -146,6 +146,69 @@ describe('seoEngineService', () => {
     expectCoordinatedAnalysis(result);
   });
 
+  it('folds blog issues and config-derived crawl limits into the audit result', async () => {
+    jest.mocked(safeFetch).mockResolvedValueOnce(
+      new Response('<html><head></head><body>post</body></html>', {
+        headers: { 'content-type': 'text/html', 'x-robots-tag': 'noindex' },
+        status: 200,
+      }),
+    );
+    jest.mocked(runBlogChecks).mockReturnValueOnce([
+      {
+        category: 'ON_PAGE' as never,
+        issueCode: IssueCode.THIN_CONTENT,
+        message: 'Thin content',
+        severity: Severity.LOW,
+      },
+    ]);
+    const service = new SeoEngineService(configService as never);
+
+    const result = await service.analyzeDomain('example.com');
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ issueCode: IssueCode.THIN_CONTENT }),
+    );
+    expect(crawlPages).toHaveBeenCalledWith(expect.objectContaining({ maxDepth: 2, maxPages: 3 }));
+    expect(result.pages[0]).toMatchObject({ xRobotsTag: 'noindex' });
+  });
+
+  it('returns a generic unreachable issue when homepage fetch fails without SSRF blocking', async () => {
+    jest.mocked(safeFetch).mockRejectedValueOnce(new Error('network down'));
+    const service = new SeoEngineService(configService as never);
+
+    const result = await service.analyzeDomain('example.com');
+
+    expect(result.issues).toStrictEqual([
+      expect.objectContaining({
+        issueCode: IssueCode.DOMAIN_UNREACHABLE,
+        message: 'Domain unreachable: example.com',
+      }),
+    ]);
+  });
+
+  it('uses fallbacks for missing response URL and headers', async () => {
+    jest.mocked(safeFetch).mockResolvedValueOnce({
+      headers: { get: jest.fn(() => null) },
+      status: 200,
+      text: jest
+        .fn()
+        .mockResolvedValue(
+          '<html><head><link rel="canonical" href="/canonical"></head><body></body></html>',
+        ),
+      url: '',
+    } as never);
+    const service = new SeoEngineService(configService as never);
+
+    const result = await service.analyzeDomain('example.com');
+
+    expect(result.pages[0]).toMatchObject({
+      canonicalUrl: 'https://example.com/canonical',
+      contentType: undefined,
+      robotsDirective: undefined,
+      xRobotsTag: undefined,
+    });
+  });
+
   it('returns a critical unreachable issue when the homepage fetch is blocked', async () => {
     jest.mocked(safeFetch).mockRejectedValueOnce(new SsrfBlockedError('blocked'));
     const service = new SeoEngineService(configService as never);

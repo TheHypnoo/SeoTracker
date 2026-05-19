@@ -36,10 +36,11 @@ export class ExportsController {
     @Param('siteId', UUID_V4_PIPE) siteId: string,
     @Query() query: ListSiteExportsQueryDto,
   ) {
+    const { limit, offset } = query;
     return this.exportsService.listForProject(
       siteId,
       user.sub,
-      resolvePagination({ limit: query.limit, offset: query.offset }, { limit: 50, offset: 0 }),
+      resolvePagination({ limit, offset }, { limit: 50, offset: 0 }),
     );
   }
 
@@ -50,10 +51,11 @@ export class ExportsController {
     @Param('projectId', UUID_V4_PIPE) projectId: string,
     @Query() query: ListSiteExportsQueryDto,
   ) {
+    const { limit, offset } = query;
     return this.exportsService.listForProjectScope(
       projectId,
       user.sub,
-      resolvePagination({ limit: query.limit, offset: query.offset }, { limit: 50, offset: 0 }),
+      resolvePagination({ limit, offset }, { limit: 50, offset: 0 }),
     );
   }
 

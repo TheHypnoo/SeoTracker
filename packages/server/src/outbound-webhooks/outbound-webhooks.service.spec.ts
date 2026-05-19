@@ -123,6 +123,17 @@ describe('outboundWebhooksService', () => {
     global.fetch = originalFetch;
   });
 
+  it('can be constructed directly with service dependencies', () => {
+    expect(
+      new OutboundWebhooksService(
+        db as never,
+        queue as never,
+        projects as never,
+        systemLogs as never,
+      ),
+    ).toBeInstanceOf(OutboundWebhooksService);
+  });
+
   describe('list', () => {
     it('checks read permission and returns project webhooks ordered newest first', async () => {
       const rows = [{ id: 'w1' }, { id: 'w2' }];
@@ -242,6 +253,44 @@ describe('outboundWebhooksService', () => {
         }),
       );
     });
+
+    it('omits optional update fields when they are not provided', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'w1', projectId: 'p1' }]))
+        .mockReturnValueOnce(thenable([{ id: 'w1', enabled: true }]));
+
+      await service.update('p1', 'w1', 'u-owner', {});
+
+      expect(db.set).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          events: expect.anything(),
+          headerName: expect.anything(),
+          headerValue: expect.anything(),
+          name: expect.anything(),
+          url: expect.anything(),
+        }),
+      );
+    });
+
+    it('trims URL, clears optional header value, and updates events', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'w1', projectId: 'p1' }]))
+        .mockReturnValueOnce(thenable([{ id: 'w1', url: 'https://fresh.test' }]));
+
+      await service.update('p1', 'w1', 'u-owner', {
+        url: ' https://fresh.test ',
+        headerValue: '   ',
+        events: [OutboundEvent.AUDIT_FAILED],
+      });
+
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          events: [OutboundEvent.AUDIT_FAILED],
+          headerValue: null,
+          url: 'https://fresh.test',
+        }),
+      );
+    });
   });
 
   describe('remove', () => {
@@ -283,6 +332,18 @@ describe('outboundWebhooksService', () => {
       await service.listDeliveries('p1', 'w1', 'u-owner', { limit: 999 });
 
       expect(limitSpy).toHaveBeenCalledWith(100);
+    });
+
+    it('uses the default delivery limit when no options are passed', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'w1', projectId: 'p1' }]))
+        .mockReturnValueOnce(db as unknown as never);
+      const limitSpy = jest.fn().mockResolvedValue([]);
+      db.orderBy.mockReturnValue({ limit: limitSpy });
+
+      await service.listDeliveries('p1', 'w1', 'u-owner');
+
+      expect(limitSpy).toHaveBeenCalledWith(25);
     });
   });
 
@@ -498,6 +559,49 @@ describe('outboundWebhooksService', () => {
       expectSuccessfulDelivery(fetchMock, db, createdAt);
     });
 
+    it('aborts outbound fetches after the delivery timeout', async () => {
+      jest.useFakeTimers();
+      let signal: AbortSignal | undefined;
+      const fetchMock = jest.fn((_url: string, init: RequestInit) => {
+        signal = init.signal as AbortSignal;
+        return new Promise<never>(() => {});
+      });
+      global.fetch = fetchMock as never;
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'd-timeout',
+              outboundWebhookId: 'w1',
+              event: OutboundEvent.AUDIT_COMPLETED,
+              payload: {},
+              status: OutboundDeliveryStatus.PENDING,
+              attemptCount: 0,
+              createdAt: new Date('2026-05-08T10:00:00.000Z'),
+            },
+          ]),
+        )
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'w1',
+              enabled: true,
+              secret: 'shared-secret',
+              url: 'https://receiver.test/hooks',
+              headerName: null,
+              headerValue: null,
+            },
+          ]),
+        );
+
+      void service.processDelivery('d-timeout');
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(10_000);
+
+      jest.useRealTimers();
+      expect(signal?.aborted).toBe(true);
+    });
+
     it('persists HTTP failures before the BullMQ retry error is rethrown', async () => {
       const fetchMock = jest.fn().mockResolvedValue({
         ok: false,
@@ -546,9 +650,119 @@ describe('outboundWebhooksService', () => {
         }),
       ]);
     });
+
+    it('truncates response bodies and tolerates response.text failures', async () => {
+      const longBody = 'x'.repeat(2_100);
+      const fetchMock = jest
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+          text: jest.fn().mockResolvedValue(longBody),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: jest.fn().mockRejectedValue(new Error('no body')),
+        });
+      global.fetch = fetchMock as never;
+      const delivery = {
+        id: 'd1',
+        outboundWebhookId: 'w1',
+        event: OutboundEvent.AUDIT_COMPLETED,
+        payload: {},
+        status: OutboundDeliveryStatus.PENDING,
+        attemptCount: null,
+        createdAt: new Date('2026-05-08T10:00:00.000Z'),
+      };
+      const webhook = {
+        id: 'w1',
+        enabled: true,
+        secret: 'shared-secret',
+        url: 'https://receiver.test/hooks',
+        headerName: null,
+        headerValue: null,
+      };
+      db.where
+        .mockReturnValueOnce(thenable([delivery]))
+        .mockReturnValueOnce(thenable([webhook]))
+        .mockResolvedValueOnce(undefined)
+        .mockReturnValueOnce(thenable([{ ...delivery, id: 'd2', attemptCount: 4 }]))
+        .mockReturnValueOnce(thenable([webhook]));
+
+      await service.processDelivery('d1');
+      await service.processDelivery('d2');
+
+      expect(db.set.mock.calls).toContainEqual([
+        expect.objectContaining({
+          attemptCount: 1,
+          responseBody: `${longBody.slice(0, 2000)}…`,
+          status: OutboundDeliveryStatus.SUCCESS,
+        }),
+      ]);
+      expect(db.set.mock.calls).toContainEqual([
+        expect.objectContaining({
+          attemptCount: 5,
+          responseBody: '',
+          status: OutboundDeliveryStatus.SUCCESS,
+        }),
+      ]);
+    });
+
+    it('persists fetch failures from non-Error throwables', async () => {
+      jest.useFakeTimers();
+      const fetchMock = jest.fn().mockRejectedValue('network down');
+      global.fetch = fetchMock as never;
+      db.where
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'd1',
+              outboundWebhookId: 'w1',
+              event: OutboundEvent.AUDIT_COMPLETED,
+              payload: {},
+              status: OutboundDeliveryStatus.PENDING,
+              attemptCount: 1,
+              createdAt: new Date('2026-05-08T10:00:00.000Z'),
+            },
+          ]),
+        )
+        .mockReturnValueOnce(
+          thenable([
+            {
+              id: 'w1',
+              enabled: true,
+              secret: 'shared-secret',
+              url: 'https://receiver.test/hooks',
+              headerName: 'x-api-key',
+              headerValue: null,
+            },
+          ]),
+        );
+
+      await expect(service.processDelivery('d1')).rejects.toBe('network down');
+      jest.useRealTimers();
+
+      expect(db.set).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          attemptCount: 2,
+          errorMessage: 'network down',
+          status: OutboundDeliveryStatus.FAILED,
+        }),
+      );
+    });
   });
 
   describe('reconcilePendingDeliveries', () => {
+    it('uses default reconciliation options when none are provided', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await expect(service.reconcilePendingDeliveries()).resolves.toStrictEqual({
+        checked: 0,
+        requeued: 0,
+      });
+    });
+
     it('re-enqueues stale pending deliveries and logs per-delivery failures', async () => {
       db.where.mockReturnValueOnce(
         thenable([
