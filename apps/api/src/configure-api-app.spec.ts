@@ -59,7 +59,7 @@ function makeApp(nodeEnv: 'development' | 'production') {
     enableCors: jest.fn(),
     enableShutdownHooks: jest.fn(),
     get: jest.fn(() => config),
-    set: jest.fn((key: string) => calls.push(`set:${key}`)),
+    set: jest.fn((key: string, _value?: unknown) => calls.push(`set:${key}`)),
     setGlobalPrefix: jest.fn(),
     use: jest.fn(),
     useGlobalFilters: jest.fn(),
@@ -89,8 +89,13 @@ describe('configureApiApp', () => {
     expect(app.useGlobalPipes).toHaveBeenCalledTimes(1);
     expect(app.useGlobalFilters).toHaveBeenCalledTimes(1);
     expect(app.enableShutdownHooks).toHaveBeenCalledTimes(1);
-    expect(SwaggerModule.createDocument).toHaveBeenCalledWith(app, { title: 'built' });
-    expect(SwaggerModule.setup).toHaveBeenCalledWith('docs', app, { openapi: '3.0.0' });
+    expect(SwaggerModule.createDocument).toHaveBeenCalledWith(
+      app as never,
+      {
+        title: 'built',
+      } as never,
+    );
+    expect(SwaggerModule.setup).toHaveBeenCalledWith('docs', app as never, { openapi: '3.0.0' });
   });
 
   it('skips Swagger in production', () => {

@@ -35,29 +35,31 @@ describe('runDatabaseMigrations', () => {
 
   it('runs migrations from the configured folder when it contains a Drizzle journal', async () => {
     process.env.DATABASE_MIGRATIONS_DIR = '/custom/drizzle';
-    existsSyncMock.mockImplementation((candidatePath) =>
+    existsSyncMock.mockImplementation((candidatePath: unknown) =>
       String(candidatePath).startsWith('/custom/drizzle'),
     );
     const drizzle = { db: true };
-    const app = { get: jest.fn(() => drizzle) };
+    const app = { get: jest.fn((_token: unknown) => drizzle) };
 
     await runDatabaseMigrations(app as never);
 
     expect(existsSyncMock).toHaveBeenCalledWith(resolve('/custom/drizzle', 'meta/_journal.json'));
     expect(app.get).toHaveBeenCalledWith(DRIZZLE);
-    expect(migrateMock).toHaveBeenCalledWith(drizzle, { migrationsFolder: '/custom/drizzle' });
+    expect(migrateMock).toHaveBeenCalledWith(drizzle as never, {
+      migrationsFolder: '/custom/drizzle',
+    });
   });
 
   it('falls back to workspace migration folders', async () => {
     const expected = resolve(process.cwd(), 'apps/api/drizzle');
     existsSyncMock.mockImplementation(
-      (candidatePath) => String(candidatePath) === resolve(expected, 'meta/_journal.json'),
+      (candidatePath: unknown) => String(candidatePath) === resolve(expected, 'meta/_journal.json'),
     );
-    const app = { get: jest.fn(() => 'db') };
+    const app = { get: jest.fn((_token: unknown) => 'db') };
 
     await runDatabaseMigrations(app as never);
 
-    expect(migrateMock).toHaveBeenCalledWith('db', { migrationsFolder: expected });
+    expect(migrateMock).toHaveBeenCalledWith('db' as never, { migrationsFolder: expected });
   });
 
   it('throws a helpful error when no migration journal can be found', async () => {
