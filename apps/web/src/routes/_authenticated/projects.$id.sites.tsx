@@ -13,7 +13,7 @@ import type { PaginatedResponse } from '@seotracker/shared-types';
 
 import { useAuth } from '../../lib/auth-context';
 import { formatDisplayDateTime } from '../../lib/date-format';
-import { createSubmitHandler, firstFormError } from '../../lib/forms';
+import { createSubmitHandler, displayFormError } from '../../lib/forms';
 import { useProject } from '../../lib/project-context';
 import { pollWhileAnyLatestAuditActive } from '../../lib/refetch-intervals';
 import { getTimezoneOptions } from '../../lib/timezones';
@@ -249,10 +249,8 @@ function ProjectProjectsPage() {
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
                 />
-                {firstFormError(field.state.meta.errors) ? (
-                  <p className="mt-2 text-xs text-rose-600">
-                    {firstFormError(field.state.meta.errors)}
-                  </p>
+                {displayFormError(field) ? (
+                  <p className="mt-2 text-xs text-rose-600">{displayFormError(field)}</p>
                 ) : null}
               </div>
             )}
@@ -283,10 +281,8 @@ function ProjectProjectsPage() {
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
                 />
-                {firstFormError(field.state.meta.errors) ? (
-                  <p className="mt-2 text-xs text-rose-600">
-                    {firstFormError(field.state.meta.errors)}
-                  </p>
+                {displayFormError(field) ? (
+                  <p className="mt-2 text-xs text-rose-600">{displayFormError(field)}</p>
                 ) : null}
               </div>
             )}
@@ -330,10 +326,8 @@ function ProjectProjectsPage() {
                       Por defecto se detecta desde el navegador. Solo afecta al cron de auditorías
                       programadas.
                     </p>
-                    {firstFormError(field.state.meta.errors) ? (
-                      <p className="mt-2 text-xs text-rose-600">
-                        {firstFormError(field.state.meta.errors)}
-                      </p>
+                    {displayFormError(field) ? (
+                      <p className="mt-2 text-xs text-rose-600">{displayFormError(field)}</p>
                     ) : null}
                   </div>
                 )}

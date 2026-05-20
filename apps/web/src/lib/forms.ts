@@ -14,6 +14,25 @@ export function firstFormError(errors: unknown[] | undefined) {
   return String(first);
 }
 
+type FieldLike = {
+  state: { meta: { errors: unknown[]; isBlurred?: boolean; isTouched?: boolean } };
+  form?: { state?: { submissionAttempts?: number } };
+};
+
+/**
+ * Returns the first error only after the user has interacted with the field
+ * (blurred it) or attempted to submit the form. Mirrors the UX of the native
+ * `:user-invalid` pseudo-class — no premature errors while typing.
+ */
+export function displayFormError(field: FieldLike) {
+  const submissionAttempted = (field.form?.state?.submissionAttempts ?? 0) > 0;
+  const interacted = Boolean(field.state.meta.isBlurred ?? field.state.meta.isTouched);
+  if (!interacted && !submissionAttempted) {
+    return undefined;
+  }
+  return firstFormError(field.state.meta.errors);
+}
+
 export function createSubmitHandler(handleSubmit: () => void | Promise<void>) {
   return (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

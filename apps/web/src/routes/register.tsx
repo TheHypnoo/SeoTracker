@@ -10,7 +10,7 @@ import { TextInput } from '#/components/text-input';
 import { AuthFooter, AuthPage } from '../components/auth-page';
 import { RedirectIfAuthed } from '../components/redirect-if-authed';
 import { useAuth } from '../lib/auth-context';
-import { firstFormError, useFormSubmitHandler } from '../lib/forms';
+import { displayFormError, useFormSubmitHandler } from '../lib/forms';
 
 export const Route = createFileRoute('/register')({
   beforeLoad: redirectIfAuthed,
@@ -79,7 +79,7 @@ function RegisterPage() {
                       label="Nombre completo"
                       htmlFor="register-name"
                       required
-                      error={firstFormError(field.state.meta.errors)}
+                      error={displayFormError(field)}
                     >
                       <TextInput
                         id="register-name"
@@ -114,7 +114,7 @@ function RegisterPage() {
                       label="Correo electrónico"
                       htmlFor="register-email"
                       required
-                      error={firstFormError(field.state.meta.errors)}
+                      error={displayFormError(field)}
                     >
                       <TextInput
                         id="register-email"
@@ -147,7 +147,7 @@ function RegisterPage() {
                       htmlFor="register-password"
                       required
                       description="Mínimo 10 caracteres. Debe incluir al menos una letra y un número."
-                      error={firstFormError(field.state.meta.errors)}
+                      error={displayFormError(field)}
                     >
                       <TextInput
                         id="register-password"
@@ -174,7 +174,7 @@ function RegisterPage() {
                       label="Confirmar contraseña"
                       htmlFor="register-confirm"
                       required
-                      error={firstFormError(field.state.meta.errors)}
+                      error={displayFormError(field)}
                     >
                       <TextInput
                         id="register-confirm"

@@ -10,7 +10,7 @@ import { TextInput } from '#/components/text-input';
 import { AuthFooter, AuthPage } from '../components/auth-page';
 import { RedirectIfAuthed } from '../components/redirect-if-authed';
 import { useAuth } from '../lib/auth-context';
-import { firstFormError, useFormSubmitHandler } from '../lib/forms';
+import { displayFormError, useFormSubmitHandler } from '../lib/forms';
 
 type LoginSearch = { redirect?: string };
 
@@ -83,7 +83,7 @@ function LoginPage() {
                       label="Correo electrónico"
                       htmlFor="login-email"
                       required
-                      error={firstFormError(field.state.meta.errors)}
+                      error={displayFormError(field)}
                     >
                       <TextInput
                         id="login-email"
@@ -109,7 +109,7 @@ function LoginPage() {
                       label="Contraseña"
                       htmlFor="login-password"
                       required
-                      error={firstFormError(field.state.meta.errors)}
+                      error={displayFormError(field)}
                     >
                       <TextInput
                         id="login-password"

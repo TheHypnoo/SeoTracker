@@ -13,7 +13,7 @@ import { Skeleton } from '#/components/skeleton';
 import { SwitchField } from '#/components/switch-field';
 import { TextInput } from '#/components/text-input';
 import { useAuth } from '../../lib/auth-context';
-import { firstFormError, useFormSubmitHandler } from '../../lib/forms';
+import { displayFormError, useFormSubmitHandler } from '../../lib/forms';
 import { useProject } from '../../lib/project-context';
 
 interface SiteListItem {
@@ -390,12 +390,12 @@ function GeneralSettingsPage() {
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  invalid={Boolean(firstFormError(field.state.meta.errors))}
+                  invalid={Boolean(displayFormError(field))}
                   className="mt-1.5"
                 />
-                {firstFormError(field.state.meta.errors) ? (
+                {displayFormError(field) ? (
                   <p role="alert" className="mt-1 text-xs text-rose-600">
-                    {firstFormError(field.state.meta.errors)}
+                    {displayFormError(field)}
                   </p>
                 ) : null}
               </div>
@@ -469,12 +469,12 @@ function GeneralSettingsPage() {
                     value={field.state.value}
                     onBlur={field.handleBlur}
                     onChange={(event) => field.handleChange(event.target.value)}
-                    invalid={Boolean(firstFormError(field.state.meta.errors))}
+                    invalid={Boolean(displayFormError(field))}
                     className="mt-1.5"
                   />
-                  {firstFormError(field.state.meta.errors) ? (
+                  {displayFormError(field) ? (
                     <p role="alert" className="mt-1 text-xs text-rose-600">
-                      {firstFormError(field.state.meta.errors)}
+                      {displayFormError(field)}
                     </p>
                   ) : null}
                 </div>

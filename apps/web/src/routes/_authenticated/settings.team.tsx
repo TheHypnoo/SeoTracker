@@ -20,7 +20,7 @@ import { RolePermissionsEditor } from '#/components/members/role-permissions-edi
 import { z } from 'zod';
 
 import { useAuth } from '../../lib/auth-context';
-import { createSubmitHandler, firstFormError } from '../../lib/forms';
+import { createSubmitHandler, displayFormError } from '../../lib/forms';
 import { useProject } from '../../lib/project-context';
 import { usePermissions } from '../../lib/use-permissions';
 
@@ -251,10 +251,8 @@ function InvitePanel({
                 onBlur={field.handleBlur}
                 onChange={(event) => field.handleChange(event.target.value)}
               />
-              {firstFormError(field.state.meta.errors) ? (
-                <p className="mt-2 text-xs text-rose-600">
-                  {firstFormError(field.state.meta.errors)}
-                </p>
+              {displayFormError(field) ? (
+                <p className="mt-2 text-xs text-rose-600">{displayFormError(field)}</p>
               ) : null}
             </div>
           )}

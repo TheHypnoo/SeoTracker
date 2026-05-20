@@ -6,7 +6,7 @@ import { useId, useState } from 'react';
 import { Button } from '../button';
 import { Notice } from '../notice';
 import { TextInput } from '../text-input';
-import { createSubmitHandler, firstFormError } from '../../lib/forms';
+import { createSubmitHandler, displayFormError } from '../../lib/forms';
 import { ALL_EVENTS, EVENT_LABELS } from './integrations-types';
 
 export type CreateWebhookInput = {
@@ -96,10 +96,8 @@ export function CreateWebhookForm({ onCreate }: Props) {
                 onBlur={field.handleBlur}
                 onChange={(event) => field.handleChange(event.target.value)}
               />
-              {firstFormError(field.state.meta.errors) ? (
-                <p className="mt-2 text-xs text-rose-600">
-                  {firstFormError(field.state.meta.errors)}
-                </p>
+              {displayFormError(field) ? (
+                <p className="mt-2 text-xs text-rose-600">{displayFormError(field)}</p>
               ) : null}
             </div>
           )}
@@ -137,10 +135,8 @@ export function CreateWebhookForm({ onCreate }: Props) {
                 onBlur={field.handleBlur}
                 onChange={(event) => field.handleChange(event.target.value)}
               />
-              {firstFormError(field.state.meta.errors) ? (
-                <p className="mt-2 text-xs text-rose-600">
-                  {firstFormError(field.state.meta.errors)}
-                </p>
+              {displayFormError(field) ? (
+                <p className="mt-2 text-xs text-rose-600">{displayFormError(field)}</p>
               ) : null}
             </div>
           )}
@@ -237,10 +233,8 @@ export function CreateWebhookForm({ onCreate }: Props) {
                   );
                 })}
               </div>
-              {firstFormError(field.state.meta.errors) ? (
-                <p className="mt-2 text-xs text-rose-600">
-                  {firstFormError(field.state.meta.errors)}
-                </p>
+              {displayFormError(field) ? (
+                <p className="mt-2 text-xs text-rose-600">{displayFormError(field)}</p>
               ) : null}
             </fieldset>
           )}
