@@ -20,7 +20,7 @@ import { RolePermissionsEditor } from '#/components/members/role-permissions-edi
 import { z } from 'zod';
 
 import { useAuth } from '../../lib/auth-context';
-import { createSubmitHandler, firstFormError } from '../../lib/forms';
+import { createSubmitHandler, displayFormError } from '../../lib/forms';
 import { useProject } from '../../lib/project-context';
 import { usePermissions } from '../../lib/use-permissions';
 
@@ -242,22 +242,21 @@ function InvitePanel({
             },
           }}
         >
-          {(field) => (
-            <div>
-              <TextInput
-                placeholder="correo@empresa.com"
-                type="email"
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-              />
-              {firstFormError(field.state.meta.errors) ? (
-                <p className="mt-2 text-xs text-rose-600">
-                  {firstFormError(field.state.meta.errors)}
-                </p>
-              ) : null}
-            </div>
-          )}
+          {(field) => {
+            const fieldError = displayFormError(field);
+            return (
+              <div>
+                <TextInput
+                  placeholder="correo@empresa.com"
+                  type="email"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                />
+                {fieldError ? <p className="mt-2 text-xs text-rose-600">{fieldError}</p> : null}
+              </div>
+            );
+          }}
         </inviteForm.Field>
 
         <RolePermissionsEditor

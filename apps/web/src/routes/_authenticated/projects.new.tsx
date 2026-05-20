@@ -8,7 +8,7 @@ import { Notice } from '#/components/notice';
 import { TextInput } from '#/components/text-input';
 
 import { useAuth } from '../../lib/auth-context';
-import { useFormSubmitHandler } from '../../lib/forms';
+import { displayFormError, useFormSubmitHandler } from '../../lib/forms';
 import { useProject } from '../../lib/project-context';
 
 export const Route = createFileRoute('/_authenticated/projects/new')({
@@ -73,22 +73,25 @@ function NewProjectPage() {
                   : undefined,
           }}
         >
-          {(field) => (
-            <div className="w-full">
-              <TextInput
-                placeholder="Marketing Acme S.L."
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-                invalid={Boolean(field.state.meta.errors[0])}
-              />
-              {field.state.meta.errors[0] ? (
-                <p role="alert" className="mt-2 text-xs text-rose-600">
-                  {String(field.state.meta.errors[0])}
-                </p>
-              ) : null}
-            </div>
-          )}
+          {(field) => {
+            const fieldError = displayFormError(field);
+            return (
+              <div className="w-full">
+                <TextInput
+                  placeholder="Marketing Acme S.L."
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  invalid={Boolean(fieldError)}
+                />
+                {fieldError ? (
+                  <p role="alert" className="mt-2 text-xs text-rose-600">
+                    {fieldError}
+                  </p>
+                ) : null}
+              </div>
+            );
+          }}
         </form.Field>
         <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
           {([canSubmit, isSubmitting]) => (

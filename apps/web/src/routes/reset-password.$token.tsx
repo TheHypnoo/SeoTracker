@@ -10,7 +10,7 @@ import { TextInput } from '#/components/text-input';
 import { AuthFooter, AuthPage, BackToLoginLink } from '../components/auth-page';
 import { RedirectIfAuthed } from '../components/redirect-if-authed';
 import { useAuth } from '../lib/auth-context';
-import { firstFormError, useFormSubmitHandler } from '../lib/forms';
+import { displayFormError, useFormSubmitHandler } from '../lib/forms';
 
 export const Route = createFileRoute('/reset-password/$token')({
   beforeLoad: redirectIfAuthed,
@@ -100,7 +100,7 @@ function ResetPasswordPage() {
                       htmlFor="reset-password"
                       required
                       description="Mínimo 10 caracteres. Debe incluir al menos una letra y un número."
-                      error={firstFormError(field.state.meta.errors)}
+                      error={displayFormError(field)}
                     >
                       <TextInput
                         id="reset-password"
@@ -127,7 +127,7 @@ function ResetPasswordPage() {
                       label="Confirmar contraseña"
                       htmlFor="reset-confirm"
                       required
-                      error={firstFormError(field.state.meta.errors)}
+                      error={displayFormError(field)}
                     >
                       <TextInput
                         id="reset-confirm"

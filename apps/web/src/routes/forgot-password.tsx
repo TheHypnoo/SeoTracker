@@ -11,7 +11,7 @@ import { TextInput } from '#/components/text-input';
 import { AuthFooter, AuthPage, BackToLoginLink } from '../components/auth-page';
 import { RedirectIfAuthed } from '../components/redirect-if-authed';
 import { useAuth } from '../lib/auth-context';
-import { firstFormError, useFormSubmitHandler } from '../lib/forms';
+import { displayFormError, useFormSubmitHandler } from '../lib/forms';
 
 export const Route = createFileRoute('/forgot-password')({
   beforeLoad: redirectIfAuthed,
@@ -66,7 +66,7 @@ function ForgotPasswordPage() {
                       label="Correo electrónico"
                       htmlFor="forgot-email"
                       required
-                      error={firstFormError(field.state.meta.errors)}
+                      error={displayFormError(field)}
                     >
                       <TextInput
                         id="forgot-email"

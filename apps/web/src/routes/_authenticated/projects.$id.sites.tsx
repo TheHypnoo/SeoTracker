@@ -13,7 +13,7 @@ import type { PaginatedResponse } from '@seotracker/shared-types';
 
 import { useAuth } from '../../lib/auth-context';
 import { formatDisplayDateTime } from '../../lib/date-format';
-import { createSubmitHandler, firstFormError } from '../../lib/forms';
+import { createSubmitHandler, displayFormError } from '../../lib/forms';
 import { useProject } from '../../lib/project-context';
 import { pollWhileAnyLatestAuditActive } from '../../lib/refetch-intervals';
 import { getTimezoneOptions } from '../../lib/timezones';
@@ -235,27 +235,26 @@ function ProjectProjectsPage() {
                     : undefined,
             }}
           >
-            {(field) => (
-              <div>
-                <label htmlFor="new-site-name" className="text-sm font-medium text-slate-700">
-                  Nombre del dominio
-                </label>
-                <TextInput
-                  id="new-site-name"
-                  name="name"
-                  className="mt-1.5"
-                  placeholder="Nombre del dominio"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                />
-                {firstFormError(field.state.meta.errors) ? (
-                  <p className="mt-2 text-xs text-rose-600">
-                    {firstFormError(field.state.meta.errors)}
-                  </p>
-                ) : null}
-              </div>
-            )}
+            {(field) => {
+              const fieldError = displayFormError(field);
+              return (
+                <div>
+                  <label htmlFor="new-site-name" className="text-sm font-medium text-slate-700">
+                    Nombre del dominio
+                  </label>
+                  <TextInput
+                    id="new-site-name"
+                    name="name"
+                    className="mt-1.5"
+                    placeholder="Nombre del dominio"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                  />
+                  {fieldError ? <p className="mt-2 text-xs text-rose-600">{fieldError}</p> : null}
+                </div>
+              );
+            }}
           </projectForm.Field>
 
           <projectForm.Field
@@ -269,27 +268,26 @@ function ProjectProjectsPage() {
                     : undefined,
             }}
           >
-            {(field) => (
-              <div>
-                <label htmlFor="new-site-domain" className="text-sm font-medium text-slate-700">
-                  Dominio
-                </label>
-                <TextInput
-                  id="new-site-domain"
-                  name="domain"
-                  className="mt-1.5"
-                  placeholder="example.com"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                />
-                {firstFormError(field.state.meta.errors) ? (
-                  <p className="mt-2 text-xs text-rose-600">
-                    {firstFormError(field.state.meta.errors)}
-                  </p>
-                ) : null}
-              </div>
-            )}
+            {(field) => {
+              const fieldError = displayFormError(field);
+              return (
+                <div>
+                  <label htmlFor="new-site-domain" className="text-sm font-medium text-slate-700">
+                    Dominio
+                  </label>
+                  <TextInput
+                    id="new-site-domain"
+                    name="domain"
+                    className="mt-1.5"
+                    placeholder="example.com"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                  />
+                  {fieldError ? <p className="mt-2 text-xs text-rose-600">{fieldError}</p> : null}
+                </div>
+              );
+            }}
           </projectForm.Field>
 
           <div className="border-t border-slate-200 pt-4">
@@ -309,34 +307,35 @@ function ProjectProjectsPage() {
                     !value.trim() ? 'La zona horaria es obligatoria' : undefined,
                 }}
               >
-                {(field) => (
-                  <div className="mt-3">
-                    <label
-                      htmlFor="site-timezone"
-                      className="block text-xs font-semibold uppercase tracking-wide text-slate-500"
-                    >
-                      Zona horaria (programación de auditorías)
-                    </label>
-                    <div className="mt-1">
-                      <SelectInput
-                        id="site-timezone"
-                        value={field.state.value}
-                        onValueChange={(value) => field.handleChange(value)}
-                        options={timezoneOptions}
-                        placeholder="Selecciona zona horaria"
-                      />
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Por defecto se detecta desde el navegador. Solo afecta al cron de auditorías
-                      programadas.
-                    </p>
-                    {firstFormError(field.state.meta.errors) ? (
-                      <p className="mt-2 text-xs text-rose-600">
-                        {firstFormError(field.state.meta.errors)}
+                {(field) => {
+                  const fieldError = displayFormError(field);
+                  return (
+                    <div className="mt-3">
+                      <label
+                        htmlFor="site-timezone"
+                        className="block text-xs font-semibold uppercase tracking-wide text-slate-500"
+                      >
+                        Zona horaria (programación de auditorías)
+                      </label>
+                      <div className="mt-1">
+                        <SelectInput
+                          id="site-timezone"
+                          value={field.state.value}
+                          onValueChange={(value) => field.handleChange(value)}
+                          options={timezoneOptions}
+                          placeholder="Selecciona zona horaria"
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Por defecto se detecta desde el navegador. Solo afecta al cron de auditorías
+                        programadas.
                       </p>
-                    ) : null}
-                  </div>
-                )}
+                      {fieldError ? (
+                        <p className="mt-2 text-xs text-rose-600">{fieldError}</p>
+                      ) : null}
+                    </div>
+                  );
+                }}
               </projectForm.Field>
             ) : null}
           </div>

@@ -13,7 +13,7 @@ import { Skeleton } from '#/components/skeleton';
 import { SwitchField } from '#/components/switch-field';
 import { TextInput } from '#/components/text-input';
 import { useAuth } from '../../lib/auth-context';
-import { firstFormError, useFormSubmitHandler } from '../../lib/forms';
+import { displayFormError, useFormSubmitHandler } from '../../lib/forms';
 import { useProject } from '../../lib/project-context';
 
 interface SiteListItem {
@@ -380,26 +380,32 @@ function GeneralSettingsPage() {
                     : undefined,
             }}
           >
-            {(field) => (
-              <div>
-                <label htmlFor="rename-project-name" className="text-sm font-medium text-slate-700">
-                  Nombre del proyecto
-                </label>
-                <TextInput
-                  id="rename-project-name"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  invalid={Boolean(firstFormError(field.state.meta.errors))}
-                  className="mt-1.5"
-                />
-                {firstFormError(field.state.meta.errors) ? (
-                  <p role="alert" className="mt-1 text-xs text-rose-600">
-                    {firstFormError(field.state.meta.errors)}
-                  </p>
-                ) : null}
-              </div>
-            )}
+            {(field) => {
+              const fieldError = displayFormError(field);
+              return (
+                <div>
+                  <label
+                    htmlFor="rename-project-name"
+                    className="text-sm font-medium text-slate-700"
+                  >
+                    Nombre del proyecto
+                  </label>
+                  <TextInput
+                    id="rename-project-name"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    invalid={Boolean(fieldError)}
+                    className="mt-1.5"
+                  />
+                  {fieldError ? (
+                    <p role="alert" className="mt-1 text-xs text-rose-600">
+                      {fieldError}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            }}
           </renameForm.Field>
           {renameError ? <Notice tone="danger">{renameError}</Notice> : null}
           <div className="flex justify-end gap-2">
@@ -459,26 +465,32 @@ function GeneralSettingsPage() {
                       : undefined,
               }}
             >
-              {(field) => (
-                <div>
-                  <label htmlFor="rename-site-name" className="text-sm font-medium text-slate-700">
-                    Nombre
-                  </label>
-                  <TextInput
-                    id="rename-site-name"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    invalid={Boolean(firstFormError(field.state.meta.errors))}
-                    className="mt-1.5"
-                  />
-                  {firstFormError(field.state.meta.errors) ? (
-                    <p role="alert" className="mt-1 text-xs text-rose-600">
-                      {firstFormError(field.state.meta.errors)}
-                    </p>
-                  ) : null}
-                </div>
-              )}
+              {(field) => {
+                const fieldError = displayFormError(field);
+                return (
+                  <div>
+                    <label
+                      htmlFor="rename-site-name"
+                      className="text-sm font-medium text-slate-700"
+                    >
+                      Nombre
+                    </label>
+                    <TextInput
+                      id="rename-site-name"
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      invalid={Boolean(fieldError)}
+                      className="mt-1.5"
+                    />
+                    {fieldError ? (
+                      <p role="alert" className="mt-1 text-xs text-rose-600">
+                        {fieldError}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              }}
             </siteRenameForm.Field>
             {siteRenameError ? <Notice tone="danger">{siteRenameError}</Notice> : null}
             <div className="flex justify-end gap-2">

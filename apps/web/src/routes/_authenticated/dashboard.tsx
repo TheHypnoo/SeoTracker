@@ -30,7 +30,7 @@ import {
 
 import { useAuth } from '../../lib/auth-context';
 import { formatDisplayDate, formatDisplayDateTime } from '../../lib/date-format';
-import { useFormSubmitHandler } from '../../lib/forms';
+import { displayFormError, useFormSubmitHandler } from '../../lib/forms';
 import { useProject } from '../../lib/project-context';
 
 export const Route = createFileRoute('/_authenticated/dashboard')({
@@ -122,22 +122,25 @@ function DashboardPage() {
                     : undefined,
             }}
           >
-            {(field) => (
-              <div className="w-full">
-                <TextInput
-                  placeholder="Agencia Acme"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  invalid={Boolean(field.state.meta.errors[0])}
-                />
-                {field.state.meta.errors[0] ? (
-                  <p role="alert" className="mt-2 text-xs text-rose-600">
-                    {String(field.state.meta.errors[0])}
-                  </p>
-                ) : null}
-              </div>
-            )}
+            {(field) => {
+              const fieldError = displayFormError(field);
+              return (
+                <div className="w-full">
+                  <TextInput
+                    placeholder="Agencia Acme"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    invalid={Boolean(fieldError)}
+                  />
+                  {fieldError ? (
+                    <p role="alert" className="mt-2 text-xs text-rose-600">
+                      {fieldError}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            }}
           </projectForm.Field>
           <projectForm.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
             {([canSubmit, isSubmitting]) => (
