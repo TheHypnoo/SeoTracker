@@ -242,20 +242,21 @@ function InvitePanel({
             },
           }}
         >
-          {(field) => (
-            <div>
-              <TextInput
-                placeholder="correo@empresa.com"
-                type="email"
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-              />
-              {displayFormError(field) ? (
-                <p className="mt-2 text-xs text-rose-600">{displayFormError(field)}</p>
-              ) : null}
-            </div>
-          )}
+          {(field) => {
+            const fieldError = displayFormError(field);
+            return (
+              <div>
+                <TextInput
+                  placeholder="correo@empresa.com"
+                  type="email"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                />
+                {fieldError ? <p className="mt-2 text-xs text-rose-600">{fieldError}</p> : null}
+              </div>
+            );
+          }}
         </inviteForm.Field>
 
         <RolePermissionsEditor

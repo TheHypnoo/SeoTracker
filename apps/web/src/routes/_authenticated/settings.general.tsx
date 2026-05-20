@@ -380,26 +380,32 @@ function GeneralSettingsPage() {
                     : undefined,
             }}
           >
-            {(field) => (
-              <div>
-                <label htmlFor="rename-project-name" className="text-sm font-medium text-slate-700">
-                  Nombre del proyecto
-                </label>
-                <TextInput
-                  id="rename-project-name"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  invalid={Boolean(displayFormError(field))}
-                  className="mt-1.5"
-                />
-                {displayFormError(field) ? (
-                  <p role="alert" className="mt-1 text-xs text-rose-600">
-                    {displayFormError(field)}
-                  </p>
-                ) : null}
-              </div>
-            )}
+            {(field) => {
+              const fieldError = displayFormError(field);
+              return (
+                <div>
+                  <label
+                    htmlFor="rename-project-name"
+                    className="text-sm font-medium text-slate-700"
+                  >
+                    Nombre del proyecto
+                  </label>
+                  <TextInput
+                    id="rename-project-name"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    invalid={Boolean(fieldError)}
+                    className="mt-1.5"
+                  />
+                  {fieldError ? (
+                    <p role="alert" className="mt-1 text-xs text-rose-600">
+                      {fieldError}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            }}
           </renameForm.Field>
           {renameError ? <Notice tone="danger">{renameError}</Notice> : null}
           <div className="flex justify-end gap-2">
@@ -459,26 +465,32 @@ function GeneralSettingsPage() {
                       : undefined,
               }}
             >
-              {(field) => (
-                <div>
-                  <label htmlFor="rename-site-name" className="text-sm font-medium text-slate-700">
-                    Nombre
-                  </label>
-                  <TextInput
-                    id="rename-site-name"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    invalid={Boolean(displayFormError(field))}
-                    className="mt-1.5"
-                  />
-                  {displayFormError(field) ? (
-                    <p role="alert" className="mt-1 text-xs text-rose-600">
-                      {displayFormError(field)}
-                    </p>
-                  ) : null}
-                </div>
-              )}
+              {(field) => {
+                const fieldError = displayFormError(field);
+                return (
+                  <div>
+                    <label
+                      htmlFor="rename-site-name"
+                      className="text-sm font-medium text-slate-700"
+                    >
+                      Nombre
+                    </label>
+                    <TextInput
+                      id="rename-site-name"
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      invalid={Boolean(fieldError)}
+                      className="mt-1.5"
+                    />
+                    {fieldError ? (
+                      <p role="alert" className="mt-1 text-xs text-rose-600">
+                        {fieldError}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              }}
             </siteRenameForm.Field>
             {siteRenameError ? <Notice tone="danger">{siteRenameError}</Notice> : null}
             <div className="flex justify-end gap-2">
