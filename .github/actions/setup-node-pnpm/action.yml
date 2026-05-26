@@ -4,7 +4,7 @@ description: Install Node.js, pnpm, and workspace dependencies.
 inputs:
   node-version:
     description: Node.js version to install.
-    default: 26.0.0
+    default: '22'
   pnpm-version:
     description: pnpm version to install.
     default: 11.0.8
