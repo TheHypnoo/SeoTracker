@@ -65,6 +65,16 @@ describe('apiEnvSchema', () => {
     );
   });
 
+  it('rejects JWT_REFRESH_TTL_DAYS above the 90-day cap', () => {
+    expect(() =>
+      envConfig.apiEnvSchema.parse({ ...BASE_ENV, JWT_REFRESH_TTL_DAYS: '120' }),
+    ).toThrow(/Too big/);
+    expect(
+      envConfig.apiEnvSchema.parse({ ...BASE_ENV, JWT_REFRESH_TTL_DAYS: '90' })
+        .JWT_REFRESH_TTL_DAYS,
+    ).toBe(90);
+  });
+
   it('rejects AUDIT_MAX_DEPTH outside [1, 3]', () => {
     expect(() => envConfig.apiEnvSchema.parse({ ...BASE_ENV, AUDIT_MAX_DEPTH: '5' })).toThrow(
       /Too big/,
