@@ -299,6 +299,37 @@ describe('authService', () => {
       expect(jwt.signAsync).toHaveBeenCalledTimes(2);
       expect(res.cookie).toHaveBeenCalledTimes(2);
     });
+
+    it('pins iss/aud/algorithm when signing and verifying tokens', async () => {
+      jwt.verifyAsync.mockResolvedValueOnce({ sub: 'u', email: 'a@b.c', jti: 'j1' });
+      db.limit
+        .mockResolvedValueOnce([{ id: 'j1' }])
+        .mockResolvedValueOnce([{ id: 'u', email: 'a@b.c', name: 'A' }]);
+
+      await service.refresh('refresh-jwt', 'csrf', 'csrf', makeResponse() as never);
+
+      expect(jwt.verifyAsync).toHaveBeenCalledWith(
+        'refresh-jwt',
+        expect.objectContaining({
+          issuer: 'seotracker-api',
+          audience: 'seotracker-api',
+          algorithms: ['HS256'],
+        }),
+      );
+      const signOptions = jwt.signAsync.mock.calls.map((call) => call[1]);
+      expect(signOptions).toStrictEqual([
+        expect.objectContaining({
+          issuer: 'seotracker-api',
+          audience: 'seotracker-api',
+          algorithm: 'HS256',
+        }),
+        expect.objectContaining({
+          issuer: 'seotracker-api',
+          audience: 'seotracker-api',
+          algorithm: 'HS256',
+        }),
+      ]);
+    });
   });
 
   describe('getSession (read-only SSR endpoint)', () => {
