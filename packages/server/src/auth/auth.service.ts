@@ -415,14 +415,20 @@ export class AuthService {
     const csrfCookieName = this.configService.get('CSRF_COOKIE_NAME', {
       infer: true,
     });
+    const secure = this.configService.get('COOKIE_SECURE', { infer: true });
     const domain = this.resolveCookieDomain();
 
-    response.clearCookie(refreshCookieName, { path: '/' });
-    response.clearCookie(csrfCookieName, { path: '/' });
+    // Match the attributes used when setting the cookies. Browsers may refuse
+    // to clear a Secure/SameSite cookie if the deletion Set-Cookie header omits
+    // those attributes, leaving a revoked refresh token alive on the client.
+    const baseOptions = { path: '/', sameSite: 'lax' as const, secure };
+
+    response.clearCookie(refreshCookieName, baseOptions);
+    response.clearCookie(csrfCookieName, baseOptions);
 
     if (domain) {
-      response.clearCookie(refreshCookieName, { path: '/', domain });
-      response.clearCookie(csrfCookieName, { path: '/', domain });
+      response.clearCookie(refreshCookieName, { ...baseOptions, domain });
+      response.clearCookie(csrfCookieName, { ...baseOptions, domain });
     }
   }
 
