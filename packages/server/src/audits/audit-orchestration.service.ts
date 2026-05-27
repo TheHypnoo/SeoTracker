@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ActivityAction, AuditStatus, AuditTrigger, Permission } from '@seotracker/shared-types';
+import { randomUUID } from 'node:crypto';
 import { and, eq, lt } from 'drizzle-orm';
 
 import { ACTIVITY_RECORDED_EVENT, type ActivityEvent } from '../activity-log/activity-log.listener';
@@ -103,18 +104,24 @@ export class AuditOrchestrationService {
   }
 
   async markRunFailed(auditRunId: string, reason: string, error?: unknown) {
-    await this.db
-      .update(auditRuns)
-      .set({
-        status: AuditStatus.FAILED,
-        finishedAt: new Date(),
-      })
-      .where(eq(auditRuns.id, auditRunId));
+    // Update + event must land together. Otherwise a crash between the two
+    // statements leaves the run marked FAILED with no audit_events row, which
+    // breaks the run-history UI and the regression alert pipeline that joins
+    // on auditEvents.
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(auditRuns)
+        .set({
+          status: AuditStatus.FAILED,
+          finishedAt: new Date(),
+        })
+        .where(eq(auditRuns.id, auditRunId));
 
-    await this.db.insert(auditEvents).values({
-      auditRunId,
-      eventType: 'RUN_FAILED',
-      payload: { reason },
+      await tx.insert(auditEvents).values({
+        auditRunId,
+        eventType: 'RUN_FAILED',
+        payload: { reason },
+      });
     });
 
     await this.systemLogsService.error(
@@ -145,9 +152,13 @@ export class AuditOrchestrationService {
     let requeued = 0;
     for (const run of candidates) {
       try {
+        // Append a UUID instead of Date.now(): two reconciles that fire in the
+        // same millisecond would otherwise produce the same jobId and BullMQ
+        // rejects the second as a duplicate, so a whole batch of stale runs
+        // would silently fail to re-enqueue.
         await this.queueService.enqueueAuditRun(
           { auditRunId: run.id, siteId: run.siteId },
-          { jobId: `${run.id}:reconcile:${Date.now()}` },
+          { jobId: `${run.id}:reconcile:${randomUUID()}` },
         );
         requeued += 1;
       } catch (error) {
