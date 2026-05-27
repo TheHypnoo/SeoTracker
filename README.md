@@ -19,7 +19,6 @@ seotracker/
 ├── infra/
 │   ├── docker/        # Dockerfiles + docker-compose dev stack
 │   ├── proxy/         # Reverse-proxy config
-│   ├── render/        # render.yaml
 │   └── railway/       # Railway deploy notes
 ├── scripts/           # Repo-level helper scripts (e.g. git hooks bootstrap)
 ├── .github/workflows/ # CI + dependency review
