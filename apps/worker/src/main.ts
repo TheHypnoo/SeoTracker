@@ -1,3 +1,10 @@
+// Mark this process as the worker BEFORE any module is loaded. Services that
+// must only run inside the worker (notably SchedulingService with its @Cron
+// decorators) read this in onModuleInit and refuse to start otherwise — that
+// prevents accidental double execution if SchedulingModule ever gets pulled
+// into apps/api.
+process.env.SEOTRACKER_RUNTIME_ROLE = 'worker';
+
 import './tracing';
 
 import 'reflect-metadata';

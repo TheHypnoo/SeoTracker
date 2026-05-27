@@ -1,8 +1,13 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { ScheduleFrequency } from '@seotracker/shared-types';
 import { DateTime } from 'luxon';
 
-import { isScheduleDue, SchedulingService } from './scheduling.service';
+import {
+  isScheduleDue,
+  SchedulingService,
+  SEOTRACKER_RUNTIME_ROLE_ENV,
+  WORKER_RUNTIME_ROLE,
+} from './scheduling.service';
 
 function makeDb(schedules: Array<Record<string, unknown>> = []) {
   const updateWhere = jest.fn().mockResolvedValue(undefined);
@@ -74,6 +79,48 @@ function makeService(db = makeDb()) {
     systemLogsService,
   };
 }
+
+describe('schedulingService.onModuleInit (worker-only guard)', () => {
+  const originalRole = readRole();
+
+  function readRole(): string | undefined {
+    return process.env[SEOTRACKER_RUNTIME_ROLE_ENV];
+  }
+
+  function setRole(value: string | undefined) {
+    if (value === undefined) {
+      // oxlint-disable-next-line typescript/no-dynamic-delete -- test reset
+      Reflect.deleteProperty(process.env, SEOTRACKER_RUNTIME_ROLE_ENV);
+      return;
+    }
+    process.env[SEOTRACKER_RUNTIME_ROLE_ENV] = value;
+  }
+
+  afterEach(() => {
+    setRole(originalRole);
+  });
+
+  it('throws when the runtime role env var is unset (e.g. loaded from apps/api by mistake)', () => {
+    setRole(undefined);
+    const { service } = makeService();
+
+    expect(() => service.onModuleInit()).toThrow(/worker process/);
+  });
+
+  it('throws when the runtime role is something other than "worker"', () => {
+    setRole('api');
+    const { service } = makeService();
+
+    expect(() => service.onModuleInit()).toThrow(/worker process/);
+  });
+
+  it('passes when the runtime role is set to the worker constant', () => {
+    setRole(WORKER_RUNTIME_ROLE);
+    const { service } = makeService();
+
+    expect(() => service.onModuleInit()).not.toThrow();
+  });
+});
 
 describe('isScheduleDue', () => {
   const nowUtc = DateTime.fromISO('2026-05-08T10:03:00.000Z', { zone: 'utc' });

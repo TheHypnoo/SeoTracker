@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ScheduleFrequency } from '@seotracker/shared-types';
@@ -57,8 +57,14 @@ export function isScheduleDue(
   return !lastRun || lastRun.toMillis() < scheduledAt.toMillis();
 }
 
+// Env marker the worker bootstrap sets before instantiating WorkerModule.
+// SchedulingService asserts it in onModuleInit so the @Cron decorators never
+// fire twice if SchedulingModule is accidentally imported by apps/api.
+export const SEOTRACKER_RUNTIME_ROLE_ENV = 'SEOTRACKER_RUNTIME_ROLE';
+export const WORKER_RUNTIME_ROLE = 'worker';
+
 @Injectable()
-export class SchedulingService {
+export class SchedulingService implements OnModuleInit {
   private readonly logger = new Logger(SchedulingService.name);
 
   constructor(
@@ -71,6 +77,19 @@ export class SchedulingService {
     private readonly exportsService: ExportsService,
     private readonly outboundWebhooksService: OutboundWebhooksService,
   ) {}
+
+  onModuleInit() {
+    const role = process.env[SEOTRACKER_RUNTIME_ROLE_ENV];
+    if (role !== WORKER_RUNTIME_ROLE) {
+      throw new Error(
+        `SchedulingService must only run in the worker process. ` +
+          `Detected ${SEOTRACKER_RUNTIME_ROLE_ENV}=${role ?? '<unset>'}; ` +
+          `expected "${WORKER_RUNTIME_ROLE}". ` +
+          `If you wired SchedulingModule into apps/api by mistake, remove it — ` +
+          `loading it there would fire every @Cron decorator twice.`,
+      );
+    }
+  }
 
   @Cron(CronExpression.EVERY_MINUTE)
   async runDueSchedules() {

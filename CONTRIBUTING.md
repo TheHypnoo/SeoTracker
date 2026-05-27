@@ -97,6 +97,11 @@ touch packages/server/src/billing/{billing.module,billing.service,billing.contro
 
 # 4. Importar en apps/api/src/app.module.ts
 # Y en apps/worker/src/worker.module.ts si tiene un processor.
+#
+# ⚠️ `SchedulingModule` es exclusivo del worker — sus servicios
+#    asertan al arrancar `SEOTRACKER_RUNTIME_ROLE=worker` y lanzan si
+#    se cargan desde apps/api (evita que `@Cron` dispare dos veces).
+#    Esa variable la pone el bootstrap de `apps/worker/src/main.ts`.
 
 # 5. Si hay endpoint nuevo, asegurar @UseGuards(JwtAuthGuard) por defecto
 #    (los públicos son la excepción, ver ARCHITECTURE.md → "Endpoints públicos")
