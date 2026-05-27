@@ -66,6 +66,16 @@ const commonShape = {
   AUDIT_MAX_PAGES: z.coerce.number().int().positive().default(12),
   AUDIT_MAX_DEPTH: z.coerce.number().int().min(1).max(3).default(2),
   AUDIT_SITEMAP_SAMPLE_MAX: z.coerce.number().int().positive().default(50),
+  // How many <a href> links to keep per page during depth-1 discovery and how
+  // many sitemap documents to fetch in a single audit. Both caps prevent a
+  // single hostile site from blowing up the crawl frontier.
+  AUDIT_MAX_LINKS_PER_PAGE: z.coerce.number().int().positive().default(40),
+  AUDIT_MAX_SITEMAPS_PER_RUN: z.coerce.number().int().positive().default(8),
+  // User-Agent string sent on every outbound fetch. Identify the crawler with
+  // a real, resolvable contact URL so site operators can opt out or reach us.
+  AUDIT_USER_AGENT: z
+    .string()
+    .default('SEOTrackerBot/1.0 (+https://github.com/TheHypnoo/SeoTracker)'),
   EXPORT_STORAGE_DIR: z.string().default('./storage/exports'),
   EXPORT_TTL_HOURS: z.coerce.number().int().positive().default(48),
   // process.env always serialises to a string, so an unset variable in the

@@ -77,12 +77,13 @@ function expectCoordinatedAnalysis(result: Awaited<ReturnType<SeoEngineService['
 describe('seoEngineService', () => {
   const configService = {
     get: jest.fn((key: string) => {
-      const values: Record<string, number> = {
+      const values: Record<string, number | string> = {
         AUDIT_HTTP_TIMEOUT_MS: 1000,
         AUDIT_MAX_DEPTH: 2,
         AUDIT_MAX_LINKS: 10,
         AUDIT_MAX_PAGES: 3,
         AUDIT_SITEMAP_SAMPLE_MAX: 5,
+        AUDIT_USER_AGENT: 'SEOTrackerTestBot/1.0',
       };
       return values[key];
     }),
