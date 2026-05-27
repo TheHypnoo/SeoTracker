@@ -233,7 +233,11 @@ describe('authService', () => {
       await expect(service.refresh(undefined, 'csrf', 'csrf', res as never)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
-      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+        sameSite: 'lax',
+        secure: false,
+      });
     });
 
     it('throws when CSRF header and cookie do not match (timing-safe)', async () => {
@@ -242,7 +246,11 @@ describe('authService', () => {
       await expect(
         service.refresh('refresh-jwt', 'csrf-A', 'csrf-B', res as never),
       ).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+        sameSite: 'lax',
+        secure: false,
+      });
     });
 
     it('throws when the refresh JWT cannot be verified', async () => {
@@ -252,7 +260,11 @@ describe('authService', () => {
       await expect(
         service.refresh('refresh-jwt', 'csrf', 'csrf', res as never),
       ).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+        sameSite: 'lax',
+        secure: false,
+      });
     });
 
     it('throws when the stored token row cannot be located (revoked/expired)', async () => {
@@ -275,7 +287,11 @@ describe('authService', () => {
         'User not found',
       );
       expect(db.update).toHaveBeenCalledTimes(1);
-      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+        sameSite: 'lax',
+        secure: false,
+      });
     });
 
     it('rotates a valid refresh token and issues a fresh session', async () => {
@@ -377,7 +393,11 @@ describe('authService', () => {
       const result = await service.logout('refresh-jwt', 'csrf-A', 'csrf-B', res as never);
 
       expect(result).toStrictEqual({ success: true });
-      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+        sameSite: 'lax',
+        secure: false,
+      });
       // No DB mutation when CSRF is invalid.
       expect(db.update).not.toHaveBeenCalled();
     });
@@ -388,7 +408,11 @@ describe('authService', () => {
       await service.logout('refresh-jwt', 'csrf', 'csrf', res as never);
 
       expect(db.update).toHaveBeenCalledTimes(1);
-      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+        sameSite: 'lax',
+        secure: false,
+      });
     });
 
     it('clears cookies even with no refresh token cookie at all', async () => {
@@ -396,7 +420,11 @@ describe('authService', () => {
 
       await service.logout(undefined, undefined, undefined, res as never);
 
-      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+        sameSite: 'lax',
+        secure: false,
+      });
       expect(db.update).not.toHaveBeenCalled();
     });
 
@@ -427,11 +455,36 @@ describe('authService', () => {
 
       expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
         path: '/',
+        sameSite: 'lax',
+        secure: false,
         domain: 'app.example.com',
       });
       expect(res.clearCookie).toHaveBeenCalledWith('csrf_token', {
         path: '/',
+        sameSite: 'lax',
+        secure: false,
         domain: 'app.example.com',
+      });
+    });
+
+    it('propagates secure=true to clearCookie when COOKIE_SECURE is enabled', async () => {
+      const previousGet = config.get.getMockImplementation();
+      config.get.mockImplementation((key: string) =>
+        key === 'COOKIE_SECURE' ? true : previousGet?.(key),
+      );
+      const res = makeResponse();
+
+      await service.logout(undefined, undefined, undefined, res as never);
+
+      expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+        sameSite: 'lax',
+        secure: true,
+      });
+      expect(res.clearCookie).toHaveBeenCalledWith('csrf_token', {
+        path: '/',
+        sameSite: 'lax',
+        secure: true,
       });
     });
   });
