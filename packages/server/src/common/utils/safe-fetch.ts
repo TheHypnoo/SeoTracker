@@ -91,3 +91,65 @@ export async function safeFetch(input: string, init: SafeFetchOptions = {}): Pro
 
   throw new SsrfBlockedError(`Too many redirects (max ${maxRedirects})`);
 }
+
+export class ResponseTooLargeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ResponseTooLargeError';
+  }
+}
+
+/**
+ * Read a Response body as text but stop at `maxBytes`. Plain `response.text()`
+ * has no upper bound and a hostile server (or a redirect to a multi-GB file)
+ * would OOM the worker. We:
+ *   1. short-circuit on the Content-Length header when it already declares too
+ *      many bytes;
+ *   2. stream the body and abort the reader as soon as the running total
+ *      exceeds the limit.
+ *
+ * Defaults to 5 MiB which comfortably fits the HTML/sitemap pages we audit
+ * but is small enough that a runaway server can't blow up the heap.
+ */
+export async function readBodyWithLimit(
+  response: Response,
+  maxBytes = 5 * 1024 * 1024,
+): Promise<string> {
+  const declared = response.headers.get('content-length');
+  if (declared) {
+    const declaredBytes = Number(declared);
+    if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
+      throw new ResponseTooLargeError(
+        `Response Content-Length ${declaredBytes} exceeds limit of ${maxBytes} bytes`,
+      );
+    }
+  }
+
+  if (!response.body) {
+    return '';
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new ResponseTooLargeError(`Response body exceeded ${maxBytes} bytes`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Reader already released when we cancelled — ignore.
+    }
+  }
+
+  return new TextDecoder('utf-8').decode(Buffer.concat(chunks));
+}

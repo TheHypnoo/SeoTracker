@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 
 import { lookup } from 'node:dns/promises';
 
-import { assertSafeFetchUrl, safeFetch, SsrfBlockedError } from './safe-fetch';
+import {
+  assertSafeFetchUrl,
+  readBodyWithLimit,
+  ResponseTooLargeError,
+  safeFetch,
+  SsrfBlockedError,
+} from './safe-fetch';
 
 jest.mock<typeof import('node:dns/promises')>('node:dns/promises', () => ({
   lookup: jest.fn(),
@@ -141,5 +147,37 @@ describe('safeFetch', () => {
     await expect(safeFetch('https://example.com/', { maxRedirects: 2 })).rejects.toBeInstanceOf(
       SsrfBlockedError,
     );
+  });
+});
+
+describe('readBodyWithLimit', () => {
+  it('returns the full body when it fits under the limit', async () => {
+    const body = 'hello world';
+    const response = new Response(body);
+
+    await expect(readBodyWithLimit(response, 1024)).resolves.toBe(body);
+  });
+
+  it('rejects up front when Content-Length declares too many bytes', async () => {
+    const response = new Response('x'.repeat(10), {
+      headers: { 'content-length': '999999' },
+    });
+
+    await expect(readBodyWithLimit(response, 100)).rejects.toBeInstanceOf(ResponseTooLargeError);
+  });
+
+  it('rejects mid-stream when the body grows past the limit', async () => {
+    // 4 KB body, 1 KB limit — Content-Length is missing so we discover the
+    // overflow only while reading.
+    const body = 'x'.repeat(4 * 1024);
+    const response = new Response(body);
+
+    await expect(readBodyWithLimit(response, 1024)).rejects.toBeInstanceOf(ResponseTooLargeError);
+  });
+
+  it('returns empty string when there is no body', async () => {
+    const response = new Response(null, { status: 204 });
+
+    await expect(readBodyWithLimit(response, 1024)).resolves.toBe('');
   });
 });

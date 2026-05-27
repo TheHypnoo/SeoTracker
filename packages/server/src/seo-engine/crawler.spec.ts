@@ -18,12 +18,17 @@ import {
 } from './crawler';
 
 // Mock safeFetch — every helper in crawler.ts hits the network through it.
-jest.mock<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch', () => ({
-  safeFetch: jest.fn(),
-  SsrfBlockedError: class SsrfBlockedError extends Error {
-    override name = 'SsrfBlockedError';
-  },
-}));
+// We keep readBodyWithLimit and ResponseTooLargeError real so the body-size
+// guard behaves as in production; only the outbound fetch is faked.
+jest.mock<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch', () => {
+  const actual = jest.requireActual<typeof import('../common/utils/safe-fetch')>(
+    '../common/utils/safe-fetch',
+  );
+  return {
+    ...actual,
+    safeFetch: jest.fn(),
+  };
+});
 
 const safeFetch = jest.mocked(jest.requireMock('../common/utils/safe-fetch').safeFetch);
 

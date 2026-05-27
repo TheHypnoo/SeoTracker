@@ -1,13 +1,27 @@
+import { Logger } from '@nestjs/common';
 import { IssueCode, Severity } from '@seotracker/shared-types';
 import { load } from 'cheerio';
 
-import { safeFetch } from '../common/utils/safe-fetch';
+import { readBodyWithLimit, safeFetch } from '../common/utils/safe-fetch';
 import { runBlogChecks } from './content-checks';
 import { extractTextForComparison } from './content-utils';
 import { getIssueCategory } from './scoring';
 import type { SeoIssue, SeoPageResult } from './seo-engine.types';
 import { normalizeForComparison, safeResolveUrl, stripTrackingParams } from './url-utils';
 import { isExpectedNoindexUrl, isSeoCrawlCandidateUrl } from './url-policy';
+
+// Module-level logger so the otherwise-silent fetch/parse failures inside the
+// crawler functions are visible in production logs. These functions used to
+// swallow errors entirely, which turned partial-failure auditing into a black
+// box.
+const logger = new Logger('SeoCrawler');
+
+// Body-size ceilings. robots.txt and probe responses are tiny in practice;
+// sitemaps and HTML pages can legitimately be a few MB. Anything beyond these
+// is almost certainly a misbehaving server or an attack.
+const MAX_ROBOTS_BYTES = 256 * 1024;
+const MAX_SITEMAP_BYTES = 10 * 1024 * 1024;
+const MAX_HTML_BYTES = 5 * 1024 * 1024;
 
 type Cheerio = ReturnType<typeof load>;
 
@@ -39,6 +53,13 @@ const AI_BOTS = new Set([
 
 const MAX_LINKS_PER_PAGE = 40;
 const MAX_SITEMAPS_PER_RUN = 8;
+
+function describeError(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+  return String(error);
+}
 
 export interface RobotsResult {
   exists: boolean;
@@ -79,7 +100,7 @@ export async function fetchRobots(
       return { blockedAiBots: [], disallowsAll: false, exists: false, page, sitemaps: [] };
     }
 
-    const body = await response.text();
+    const body = await readBodyWithLimit(response, MAX_ROBOTS_BYTES);
     const sitemaps: string[] = [];
     let currentAgents: string[] = [];
     let currentGroupHasDirectives = false;
@@ -135,7 +156,8 @@ export async function fetchRobots(
       page,
       sitemaps,
     };
-  } catch {
+  } catch (error) {
+    logger.warn(`fetchRobots failed for ${url}: ${describeError(error)}`);
     return {
       blockedAiBots: [],
       disallowsAll: false,
@@ -166,7 +188,8 @@ export async function checkSoft404(
       url: probedUrl,
     };
     return { isSoft404: response.status === 200, page, probedUrl };
-  } catch {
+  } catch (error) {
+    logger.warn(`checkSoft404 failed for ${probedUrl}: ${describeError(error)}`);
     return { isSoft404: false, probedUrl };
   }
 }
@@ -222,14 +245,15 @@ export async function probeSitemap(
     if (response.status >= 400) {
       return { isSitemap: false, page };
     }
-    const responseText = await response.text();
+    const responseText = await readBodyWithLimit(response, MAX_SITEMAP_BYTES);
     const snippet = responseText.slice(0, 4096).toLowerCase();
     const looksXml =
       snippet.includes('<urlset') ||
       snippet.includes('<sitemapindex') ||
       (snippet.trimStart().startsWith('<?xml') && snippet.includes('sitemap'));
     return { isSitemap: looksXml, page };
-  } catch {
+  } catch (error) {
+    logger.warn(`probeSitemap failed for ${url}: ${describeError(error)}`);
     return {
       isSitemap: false,
       page: { contentType: undefined, responseMs: undefined, statusCode: undefined, url },
@@ -247,7 +271,7 @@ export async function analyzeSitemap(url: string, timeoutMs: number, userAgent: 
     if (response.status >= 400) {
       return { invalid: false, urlCount: null as number | null };
     }
-    const body = await response.text();
+    const body = await readBodyWithLimit(response, MAX_SITEMAP_BYTES);
     if (body.trim().length === 0) {
       return { invalid: true, urlCount: 0 };
     }
@@ -257,7 +281,8 @@ export async function analyzeSitemap(url: string, timeoutMs: number, userAgent: 
     const urlMatches = body.match(/<url\b/gi)?.length ?? 0;
     const sitemapMatches = body.match(/<sitemap\b/gi)?.length ?? 0;
     return { invalid: false, urlCount: urlMatches + sitemapMatches };
-  } catch {
+  } catch (error) {
+    logger.warn(`analyzeSitemap failed for ${url}: ${describeError(error)}`);
     return { invalid: false, urlCount: null as number | null };
   }
 }
@@ -293,8 +318,9 @@ export async function extractSitemapUrls(
       if (response.status >= 400) {
         continue;
       }
-      body = await response.text();
-    } catch {
+      body = await readBodyWithLimit(response, MAX_SITEMAP_BYTES);
+    } catch (error) {
+      logger.warn(`extractSitemapUrls fetch failed for ${current}: ${describeError(error)}`);
       continue;
     }
     const isIndex = /<sitemapindex\b/i.test(body);
@@ -358,7 +384,8 @@ export async function existsUrl(url: string, timeoutMs: number, userAgent: strin
       } satisfies SeoPageResult,
       statusCode: response.status,
     };
-  } catch {
+  } catch (error) {
+    logger.warn(`existsUrl failed for ${url}: ${describeError(error)}`);
     return {
       exists: false,
       page: {
@@ -549,7 +576,7 @@ export async function analyzeInternalPage(
       };
     }
 
-    const html = await response.text();
+    const html = await readBodyWithLimit(response, MAX_HTML_BYTES);
     const $ = load(html);
     const text = extractTextForComparison($);
     const finalUrl = response.url || pageUrl;
@@ -772,7 +799,8 @@ export async function analyzeInternalPage(
       },
       text,
     };
-  } catch {
+  } catch (error) {
+    logger.warn(`analyzeInternalPage failed for ${pageUrl}: ${describeError(error)}`);
     return {
       issues: pageIssues,
       page: { contentType, responseMs, source: 'crawl', statusCode, url: pageUrl, xRobotsTag },
