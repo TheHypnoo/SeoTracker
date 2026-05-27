@@ -18,7 +18,9 @@ import type { SeoAuditResult, SeoIssue, SeoMetric, SeoPageResult } from './seo-e
 import { discoverSiteMetadata } from './sitemap-discovery';
 import { safeResolveUrl } from './url-utils';
 
-const USER_AGENT = 'SEOTrackerBot/1.0 (+https://seotracker.local)';
+// User-Agent comes from env (AUDIT_USER_AGENT) so it can point at a real
+// contact URL per deployment instead of the unresolvable seotracker.local
+// placeholder some servers reject as a bot heuristic.
 
 /**
  * Top-level SEO audit orchestrator.
@@ -55,7 +57,11 @@ export class SeoEngineService {
     const maxDepth: number =
       overrides?.maxDepth ?? (this.configService.get('AUDIT_MAX_DEPTH', { infer: true }) as number);
     const sitemapSampleMax = this.configService.get('AUDIT_SITEMAP_SAMPLE_MAX', { infer: true });
-    void overrides?.userAgent; // reserved for future per-site UA override
+    const configuredUserAgent = this.configService.get('AUDIT_USER_AGENT', { infer: true });
+    const userAgent: string =
+      overrides?.userAgent ??
+      configuredUserAgent ??
+      'SEOTrackerBot/1.0 (+https://github.com/TheHypnoo/SeoTracker)';
 
     const issues: SeoIssue[] = [];
     const metrics: SeoMetric[] = [];
@@ -68,7 +74,7 @@ export class SeoEngineService {
     try {
       const startedAt = performance.now();
       response = await safeFetch(homepageUrl, {
-        headers: { 'User-Agent': USER_AGENT },
+        headers: { 'User-Agent': userAgent },
         signal: AbortSignal.timeout(timeoutMs),
       });
       responseMs = Math.round(performance.now() - startedAt);
@@ -141,7 +147,7 @@ export class SeoEngineService {
       $,
       hasFaviconLink,
       timeoutMs,
-      userAgent: USER_AGENT,
+      userAgent,
       sitemapSampleMax,
     });
     issues.push(...discovery.issues);
@@ -169,7 +175,7 @@ export class SeoEngineService {
       maxDepth,
       maxPages,
       timeoutMs,
-      userAgent: USER_AGENT,
+      userAgent,
     });
     issues.push(...crawl.issues);
     metrics.push(...crawl.metrics);

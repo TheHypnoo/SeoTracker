@@ -37,8 +37,12 @@ const AI_BOTS = new Set([
   'omgili',
 ]);
 
-const MAX_LINKS_PER_PAGE = 40;
-const MAX_SITEMAPS_PER_RUN = 8;
+// Tunable via env (AUDIT_MAX_LINKS_PER_PAGE, AUDIT_MAX_SITEMAPS_PER_RUN). The
+// crawler module is shared with non-Nest contexts so we read the env directly
+// instead of going through ConfigService; values are validated upstream by
+// env.schema.ts and clamped here in case the module is loaded without it.
+const MAX_LINKS_PER_PAGE = Math.max(1, Number(process.env.AUDIT_MAX_LINKS_PER_PAGE) || 40);
+const MAX_SITEMAPS_PER_RUN = Math.max(1, Number(process.env.AUDIT_MAX_SITEMAPS_PER_RUN) || 8);
 
 export interface RobotsResult {
   exists: boolean;
@@ -542,7 +546,14 @@ export async function analyzeInternalPage(
         page: { contentType, responseMs, source: 'crawl', statusCode, url: pageUrl, xRobotsTag },
       };
     }
-    if (contentType && !contentType.includes('text/html')) {
+    // Accept both classic text/html and the strict-mode application/xhtml+xml
+    // — the latter is what well-formed XHTML5 sites serve and rejecting it
+    // misclassifies valid pages as non-HTML.
+    if (
+      contentType &&
+      !contentType.includes('text/html') &&
+      !contentType.includes('application/xhtml+xml')
+    ) {
       return {
         issues: pageIssues,
         page: { contentType, responseMs, source: 'crawl', statusCode, url: pageUrl, xRobotsTag },
