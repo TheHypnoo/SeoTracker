@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { SwaggerModule } from '@nestjs/swagger';
 
-import { configureApiApp } from './configure-api-app';
+import { configureApiApp, parseCorsOrigin } from './configure-api-app';
 
 jest.mock('@seotracker/server', () => ({ AllExceptionsFilter: jest.fn() }), { virtual: true });
 
@@ -106,5 +106,39 @@ describe('configureApiApp', () => {
 
     expect(SwaggerModule.createDocument).not.toHaveBeenCalled();
     expect(SwaggerModule.setup).not.toHaveBeenCalled();
+  });
+
+  it('strips path and query from APP_URL when configuring CORS', () => {
+    const { app, calls } = makeApp('development');
+    const config = app.get();
+    jest.mocked(config.get).mockImplementation((key: string) => {
+      if (key === 'APP_URL') return 'https://app.test/extra/path?ignored=1';
+      if (key === 'NODE_ENV') return 'development';
+      if (key === 'TRUST_PROXY') return 2;
+      return undefined;
+    });
+
+    configureApiApp(app as never);
+
+    expect(app.enableCors).toHaveBeenCalledWith({
+      credentials: true,
+      origin: 'https://app.test',
+    });
+    expect(calls).toStrictEqual(['set:trust proxy']);
+  });
+});
+
+describe('parseCorsOrigin', () => {
+  it('returns scheme + host + port and drops the path', () => {
+    expect(parseCorsOrigin('https://app.test/foo/bar?x=1')).toBe('https://app.test');
+    expect(parseCorsOrigin('http://localhost:3000/')).toBe('http://localhost:3000');
+  });
+
+  it('rejects wildcard hosts', () => {
+    expect(() => parseCorsOrigin('https://*.app.test')).toThrow(/wildcard host/);
+  });
+
+  it('rejects unparseable URLs', () => {
+    expect(() => parseCorsOrigin('not-a-url')).toThrow(/valid URL/);
   });
 });

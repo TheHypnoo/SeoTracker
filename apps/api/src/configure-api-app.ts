@@ -20,9 +20,15 @@ export function configureApiApp(app: NestExpressApplication) {
   app.use(express.json({ limit: '100kb' }));
   app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
+  // Parse APP_URL into a URL and use only its origin component (scheme +
+  // host + port). Zod already validates the env value, but passing the raw
+  // string would also forward any path/query, and a misconfigured value
+  // would silently widen CORS. Reject wildcards explicitly.
+  const appOrigin = parseCorsOrigin(configService.get('APP_URL', { infer: true }));
+
   app.enableCors({
     credentials: true,
-    origin: configService.get('APP_URL', { infer: true }),
+    origin: appOrigin,
   });
 
   app.use(cookieParser());
@@ -37,6 +43,7 @@ export function configureApiApp(app: NestExpressApplication) {
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableShutdownHooks();
 
+  // (Swagger docs only in non-production.)
   if (!isProduction) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('SEOTracker API')
@@ -47,4 +54,19 @@ export function configureApiApp(app: NestExpressApplication) {
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('docs', app, document);
   }
+}
+
+export function parseCorsOrigin(rawAppUrl: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawAppUrl);
+  } catch {
+    throw new Error(`APP_URL is not a valid URL: ${rawAppUrl}`);
+  }
+
+  if (parsed.hostname.includes('*')) {
+    throw new Error(`APP_URL must not contain a wildcard host: ${rawAppUrl}`);
+  }
+
+  return parsed.origin;
 }
