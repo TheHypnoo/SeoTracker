@@ -40,5 +40,8 @@
     "pre-commit": "pnpm format:check && pnpm lint",
     "pre-push": "pnpm verify"
   },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "packageManager": "pnpm@11.0.8"
 }
