@@ -28,10 +28,11 @@ type DbMock = {
   returning: jest.Mock;
   update: jest.Mock;
   set: jest.Mock;
+  transaction: jest.Mock;
 };
 
 function makeDb(): DbMock {
-  return {
+  const db: DbMock = {
     select: jest.fn().mockReturnThis(),
     from: jest.fn().mockReturnThis(),
     where: jest.fn(),
@@ -40,7 +41,12 @@ function makeDb(): DbMock {
     returning: jest.fn(),
     update: jest.fn().mockReturnThis(),
     set: jest.fn().mockReturnThis(),
+    transaction: jest.fn(),
   };
+  // Default: pass the same db proxy as the tx handle so existing fluent
+  // chains keep working inside transaction callbacks.
+  db.transaction.mockImplementation((cb: (tx: DbMock) => Promise<unknown>) => cb(db));
+  return db;
 }
 
 describe('auditOrchestrationService', () => {
@@ -165,6 +171,12 @@ describe('auditOrchestrationService', () => {
         'run-x',
       );
     });
+
+    it('wraps the run update + event insert in a single transaction', async () => {
+      await service.markRunFailed('run-x', 'analysis crashed');
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('reconcileQueuedRuns', () => {
@@ -190,6 +202,14 @@ describe('auditOrchestrationService', () => {
         { auditRunId: 'run-2', siteId: 'site-2' },
         expect.objectContaining({ jobId: expect.stringContaining('run-2:reconcile:') }),
       );
+
+      // Regression for the Date.now() collision: two reconciles for the same
+      // run id in the same millisecond used to produce identical jobIds and
+      // BullMQ would reject the second as a duplicate. With a UUID suffix the
+      // ids must differ.
+      const firstJobId = queue.enqueueAuditRun.mock.calls[0]?.[1]?.jobId as string;
+      const secondJobId = queue.enqueueAuditRun.mock.calls[1]?.[1]?.jobId as string;
+      expect(firstJobId).not.toBe(secondJobId);
     });
 
     it('logs per-run reconcile failures and keeps processing remaining candidates', async () => {
