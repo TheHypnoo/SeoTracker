@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsBoolean, IsFQDN, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 export class CreateSiteDto {
   @ApiProperty()
@@ -12,7 +12,10 @@ export class CreateSiteDto {
   name!: string;
 
   @ApiProperty({ example: 'example.com' })
-  @IsString()
+  // IsFQDN rejects URLs ("https://...") and IPs while accepting both apex and
+  // subdomain forms ("example.com", "blog.example.com"). The service still
+  // normalises the value with normalizeDomain() afterwards.
+  @IsFQDN()
   domain!: string;
 
   @ApiProperty({ example: 'Europe/Madrid' })
