@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class UpdateAlertRuleDto {
   @ApiPropertyOptional()
@@ -15,7 +15,10 @@ export class UpdateAlertRuleDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
+  // Score is 0-100; cap the threshold so misconfigured rules can't ask for
+  // an impossible drop.
   @Min(1)
+  @Max(100)
   scoreDropThreshold?: number;
 
   @ApiPropertyOptional()

@@ -1,5 +1,5 @@
 import { AuditStatus, AuditTrigger } from '@seotracker/shared-types';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsISO8601, IsOptional } from 'class-validator';
 
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -13,10 +13,10 @@ export class ListSiteAuditsQueryDto extends PaginationQueryDto {
   trigger?: AuditTrigger;
 
   @IsOptional()
-  @IsString()
+  @IsISO8601()
   from?: string;
 
   @IsOptional()
-  @IsString()
+  @IsISO8601()
   to?: string;
 }
