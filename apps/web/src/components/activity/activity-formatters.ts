@@ -33,9 +33,9 @@ const ACTION_LABELS: Record<ActivityAction, string> = {
 };
 
 const ROLE_LABELS: Record<Role, string> = {
-  [Role.OWNER]: 'Owner',
-  [Role.MEMBER]: 'Member',
-  [Role.VIEWER]: 'Viewer',
+  [Role.OWNER]: 'Propietario',
+  [Role.MEMBER]: 'Miembro',
+  [Role.VIEWER]: 'Lector',
 };
 
 const TONE_BY_ACTION: Record<string, 'neutral' | 'positive' | 'warning' | 'danger'> = {
