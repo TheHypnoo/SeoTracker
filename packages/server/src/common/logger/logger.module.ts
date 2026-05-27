@@ -15,6 +15,7 @@ const baseOptions = {
     paths: [
       'req.headers.authorization',
       'req.headers.cookie',
+      'req.headers["x-csrf-token"]',
       'req.body.password',
       'req.body.token',
       '*.password',
@@ -22,6 +23,9 @@ const baseOptions = {
       '*.token',
       '*.tokenHash',
       '*.secret',
+      '*.csrfToken',
+      '*.refreshToken',
+      '*.accessToken',
     ],
     remove: false,
   },

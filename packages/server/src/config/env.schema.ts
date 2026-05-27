@@ -31,7 +31,9 @@ const commonShape = {
       message: 'JWT_REFRESH_SECRET still uses the placeholder value from .env.example',
     }),
   JWT_ACCESS_TTL: z.string().default('15m'),
-  JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  // Upper bound chosen to keep a stolen refresh token's usability window
+  // bounded even if it leaks. Anything longer should be reviewed.
+  JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().max(90).default(30),
   COOKIE_DOMAIN: z.string().default('localhost'),
   COOKIE_SECURE: z
     .preprocess((value) => {
