@@ -154,6 +154,39 @@ export class AuditProcessingService {
         site: { domain: site.domain, name: site.name },
       });
 
+      // Apply ignored-issue filtering BEFORE the main persist so the audit row
+      // is written with the final, user-visible score in a single transaction.
+      // Previously this ran as a second db.transaction after the run was
+      // already marked COMPLETED — if that second tx failed, the audit kept
+      // an unfiltered score until the next run.
+      const ignoredFingerprints = await this.projectIssuesService.getIgnoredFingerprints(site.id);
+      let effectiveScore = analysis.score;
+      let effectiveCategoryScores = analysis.categoryScores;
+      let effectiveScoreBreakdown = analysis.scoreBreakdown;
+      let effectivePages = analysis.pages;
+      if (ignoredFingerprints.size > 0) {
+        const filtered = analysis.issues.filter((issue) => {
+          const key = `${issue.issueCode}::${ProjectIssuesService.fingerprintResource(
+            issue.resourceUrl,
+          )}`;
+          return !ignoredFingerprints.has(key);
+        });
+        const homepageUrl = analysis.pages[0]?.url ?? `https://${site.normalizedDomain}`;
+        const rescored = scoreAudit(filtered, analysis.pages, homepageUrl);
+        effectiveScore = rescored.score;
+        effectiveCategoryScores = rescored.categoryScores;
+        effectiveScoreBreakdown = rescored.breakdown;
+        effectivePages = analysis.pages.map((page) => ({
+          ...page,
+          score: rescored.pageScores.get(page.url) ?? page.score,
+        }));
+        // Keep analysis.* in sync so the downstream notification/webhook
+        // payloads quote the same numbers we just persisted.
+        analysis.score = rescored.score;
+        analysis.categoryScores = rescored.categoryScores;
+        analysis.scoreBreakdown = rescored.breakdown;
+      }
+
       await this.db.transaction(async (tx) => {
         await tx
           .update(auditRuns)
@@ -162,15 +195,15 @@ export class AuditProcessingService {
             finishedAt: new Date(),
             httpStatus: analysis.httpStatus,
             responseMs: analysis.responseMs,
-            score: analysis.score,
-            categoryScores: analysis.categoryScores,
-            scoreBreakdown: analysis.scoreBreakdown,
+            score: effectiveScore,
+            categoryScores: effectiveCategoryScores,
+            scoreBreakdown: effectiveScoreBreakdown,
           })
           .where(eq(auditRuns.id, run.id));
 
-        if (analysis.pages.length) {
+        if (effectivePages.length) {
           await tx.insert(auditPages).values(
-            analysis.pages.map((page) => ({
+            effectivePages.map((page) => ({
               auditRunId: run.id,
               url: page.url,
               statusCode: page.statusCode,
@@ -268,54 +301,6 @@ export class AuditProcessingService {
           AuditProcessingService.name,
           'Failed to reconcile site issues after audit run',
           { auditRunId: run.id, siteId: site.id, error: String(reconcileError) },
-        );
-      }
-
-      try {
-        const ignoredFingerprints = await this.projectIssuesService.getIgnoredFingerprints(site.id);
-        if (ignoredFingerprints.size > 0) {
-          const filtered = analysis.issues.filter((issue) => {
-            const key = `${issue.issueCode}::${ProjectIssuesService.fingerprintResource(
-              issue.resourceUrl,
-            )}`;
-            return !ignoredFingerprints.has(key);
-          });
-          const homepageUrl = analysis.pages[0]?.url ?? `https://${site.normalizedDomain}`;
-          const rescored = scoreAudit(filtered, analysis.pages, homepageUrl);
-
-          await this.db.transaction(async (tx) => {
-            await tx
-              .update(auditRuns)
-              .set({
-                score: rescored.score,
-                categoryScores: rescored.categoryScores,
-                scoreBreakdown: rescored.breakdown,
-              })
-              .where(eq(auditRuns.id, run.id));
-
-            for (const page of analysis.pages) {
-              const newScore = rescored.pageScores.get(page.url);
-              if (typeof newScore === 'number') {
-                await tx
-                  .update(auditPages)
-                  .set({ score: newScore })
-                  .where(and(eq(auditPages.auditRunId, run.id), eq(auditPages.url, page.url)));
-              }
-            }
-          });
-
-          analysis.score = rescored.score;
-          analysis.categoryScores = rescored.categoryScores;
-          analysis.scoreBreakdown = rescored.breakdown;
-        }
-      } catch (rescoreError) {
-        this.logger.error(
-          `Failed to rescore after ignoring issues for run ${run.id}: ${String(rescoreError)}`,
-        );
-        await this.systemLogsService.warn(
-          AuditProcessingService.name,
-          'Failed to rescore audit run after ignoring issues',
-          { auditRunId: run.id, siteId: site.id, error: String(rescoreError) },
         );
       }
 

@@ -325,7 +325,9 @@ describe('auditProcessingService', () => {
 
       await service.processQueuedRun('r1', 5);
 
-      expect(db.transaction).toHaveBeenCalledTimes(2);
+      // The rescore (ignored-issue filtering) is now folded into the same
+      // transaction as the initial persist — one tx total.
+      expect(db.transaction).toHaveBeenCalledTimes(1);
       expect(alerts.evaluateRegression).toHaveBeenCalledWith(
         expect.objectContaining({ id: 's1', projectId: 'p1' }),
         expect.objectContaining({ id: 'comparison-1', scoreDelta: -12 }),
@@ -470,7 +472,8 @@ describe('auditProcessingService', () => {
 
       await service.processQueuedRun('r1', 5);
 
-      expect(db.transaction).toHaveBeenCalledTimes(2);
+      // Rescore is folded into the main persist tx; one tx total.
+      expect(db.transaction).toHaveBeenCalledTimes(1);
       expect(outbound.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           event: OutboundEvent.AUDIT_COMPLETED,
@@ -570,7 +573,12 @@ describe('auditProcessingService', () => {
       expect(orchestration.markRunFailed).not.toHaveBeenCalled();
     });
 
-    it('surfaces rescore failure to system_logs.warn (does not abort run)', async () => {
+    it('rescore is folded into the main persist tx — a failing getIgnoredFingerprints now fails the run', async () => {
+      // Pre-refactor behaviour: rescore ran AFTER the main commit in its own
+      // transaction, so a failure there was caught and the run stayed
+      // COMPLETED with an unfiltered score. Post-refactor the ignored-issue
+      // filter happens BEFORE the persist tx — a failure surfaces as the run
+      // being marked FAILED, which is the stricter (and correct) semantics.
       db.where
         .mockReturnValueOnce(
           thenable([{ id: 'r1', siteId: 's1', status: AuditStatus.QUEUED, trigger: 'MANUAL' }]),
@@ -587,55 +595,18 @@ describe('auditProcessingService', () => {
             },
           ]),
         );
-      db.where.mockReturnValue(undefined as unknown as never);
-      db.transaction.mockImplementation(async (cb: (t: unknown) => Promise<unknown>) =>
-        cb({
-          update: jest.fn().mockReturnValue({
-            set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) }),
-          }),
-          insert: jest.fn().mockReturnValue({
-            values: jest.fn().mockResolvedValue(undefined),
-          }),
-        }),
-      );
 
-      // Reconcile happy.
-      projectIssues.reconcileAfterRun.mockResolvedValueOnce(undefined);
-      // Trigger the rescore branch by returning a non-empty Set.
-      projectIssues.getIgnoredFingerprints.mockResolvedValueOnce(new Set(['TITLE::']));
-      // Force the rescore inner block to throw at the FIRST DB transaction call
-      // (the rescore transaction) — chain it via mockImplementationOnce.
-      let txCalls = 0;
-      db.transaction.mockImplementation(async (cb: (t: unknown) => Promise<unknown>) => {
-        txCalls += 1;
-        if (txCalls === 1) {
-          return cb({
-            update: jest.fn().mockReturnValue({
-              set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) }),
-            }),
-            insert: jest.fn().mockReturnValue({
-              values: jest.fn().mockResolvedValue(undefined),
-            }),
-          });
-        }
-        // Second transaction (rescore) explodes.
-        throw new Error('rescore broke');
-      });
+      projectIssues.getIgnoredFingerprints.mockRejectedValueOnce(
+        new Error('ignored-fingerprints lookup broke'),
+      );
 
       await service.processQueuedRun('r1', 5);
 
-      expect(systemLogs.warn).toHaveBeenCalledWith(
-        'AuditProcessingService',
-        expect.stringContaining('rescore'),
-        expect.objectContaining({
-          auditRunId: 'r1',
-          siteId: 's1',
-          error: expect.stringContaining('rescore broke'),
-        }),
+      expect(orchestration.markRunFailed).toHaveBeenCalledWith(
+        'r1',
+        expect.stringContaining('ignored-fingerprints lookup broke'),
+        expect.any(Error),
       );
-      // Run still completes externally.
-      const events = outbound.dispatch.mock.calls.map((c) => c[0]?.event);
-      expect(events).toContain('audit.completed');
     });
   });
 });
