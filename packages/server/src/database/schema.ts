@@ -285,6 +285,9 @@ export const projectInvites = pgTable(
     unique('project_invites_token_hash_uk').on(table.tokenHash),
     index('project_invites_project_idx').on(table.projectId),
     index('project_invites_email_idx').on(table.email),
+    // Backs the "recent invites for this project" listing which filters by
+    // projectId and orders by createdAt desc.
+    index('project_invites_project_created_idx').on(table.projectId, table.createdAt.desc()),
   ],
 );
 
@@ -618,6 +621,9 @@ export const auditComparisons = pgTable(
   (table) => [
     unique('audit_comparisons_runs_uk').on(table.baselineAuditRunId, table.targetAuditRunId),
     index('audit_comparisons_site_idx').on(table.siteId),
+    // Backs "latest comparisons" listings that filter by siteId and order
+    // by createdAt desc.
+    index('audit_comparisons_site_created_idx').on(table.siteId, table.createdAt.desc()),
   ],
 );
 
@@ -695,6 +701,9 @@ export const notifications = pgTable(
   (table) => [
     index('notifications_user_idx').on(table.userId),
     index('notifications_read_idx').on(table.readAt),
+    // Backs the paginated inbox listing which filters by userId and orders
+    // by createdAt desc.
+    index('notifications_user_created_idx').on(table.userId, table.createdAt.desc()),
   ],
 );
 
