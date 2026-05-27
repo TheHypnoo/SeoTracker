@@ -42,16 +42,16 @@ Cada app importa de `packages/server`, donde vive todo el código compartido (m�
 
 ## Layout del monorepo
 
-| Path                                                                                     | Descripción                                                                                                     |
-| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| [apps/api](apps/api)                                                                     | Entrypoint HTTP. NestJS 11 + Express. Sólo monta módulos y bootstrap; toda la lógica está en `packages/server`. |
-| [apps/worker](apps/worker)                                                               | Workers BullMQ + cron de auditorías programadas, reconciliación de email/colas y lock distribuido en Redis.     |
-| [apps/web](apps/web)                                                                     | Frontend SPA + SSR. TanStack Start (Vite + Nitro) + React 19 + Tailwind v4.                                     |
-| [packages/server](packages/server)                                                       | Runtime compartido del backend. Todo el dominio. ~30k LOC.                                                      |
-| [packages/shared-types](packages/shared-types)                                           | Enums + tipos comunes back/front (`AuditStatus`, `Severity`, `OutboundEvent`, etc.).                            |
-| [packages/config-typescript](packages/config-typescript)                                 | tsconfigs base (`base.json`, `nest.json`, `web.json`).                                                          |
-| [infra/docker](infra/docker)                                                             | Dockerfiles + `docker-compose.yml` para stack local.                                                            |
-| [infra/proxy](infra/proxy), [infra/render](infra/render), [infra/railway](infra/railway) | Reverse proxy + manifests de despliegue.                                                                        |
+| Path                                                       | Descripción                                                                                                     |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| [apps/api](apps/api)                                       | Entrypoint HTTP. NestJS 11 + Express. Sólo monta módulos y bootstrap; toda la lógica está en `packages/server`. |
+| [apps/worker](apps/worker)                                 | Workers BullMQ + cron de auditorías programadas, reconciliación de email/colas y lock distribuido en Redis.     |
+| [apps/web](apps/web)                                       | Frontend SPA + SSR. TanStack Start (Vite + Nitro) + React 19 + Tailwind v4.                                     |
+| [packages/server](packages/server)                         | Runtime compartido del backend. Todo el dominio. ~30k LOC.                                                      |
+| [packages/shared-types](packages/shared-types)             | Enums + tipos comunes back/front (`AuditStatus`, `Severity`, `OutboundEvent`, etc.).                            |
+| [packages/config-typescript](packages/config-typescript)   | tsconfigs base (`base.json`, `nest.json`, `web.json`).                                                          |
+| [infra/docker](infra/docker)                               | Dockerfiles + `docker-compose.yml` para stack local.                                                            |
+| [infra/proxy](infra/proxy), [infra/railway](infra/railway) | Reverse proxy + manifests de despliegue (Railway).                                                              |
 
 ---
 
