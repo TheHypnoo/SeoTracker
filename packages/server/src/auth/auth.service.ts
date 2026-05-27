@@ -22,6 +22,7 @@ import { passwordResetTokens, refreshTokens, users } from '../database/schema';
 import { hashToken, randomToken, safeEqual } from '../common/utils/security';
 import { USER_REGISTERED_EVENT, type UserRegisteredEvent } from '../projects/onboarding.service';
 import { UsersService } from '../users/users.service';
+import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from './jwt.constants';
 
 /**
  * Authentication service.
@@ -130,6 +131,9 @@ export class AuthService {
     try {
       payload = await this.jwtService.verifyAsync(refreshToken, {
         secret: this.configService.get('JWT_REFRESH_SECRET', { infer: true }),
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        algorithms: [JWT_ALGORITHM],
       });
     } catch {
       this.clearSessionCookies(response);
@@ -189,6 +193,9 @@ export class AuthService {
     try {
       payload = await this.jwtService.verifyAsync(refreshToken, {
         secret: this.configService.get('JWT_REFRESH_SECRET', { infer: true }),
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        algorithms: [JWT_ALGORITHM],
       });
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
@@ -351,6 +358,9 @@ export class AuthService {
       {
         secret: this.configService.get('JWT_ACCESS_SECRET', { infer: true }),
         expiresIn: this.configService.get('JWT_ACCESS_TTL', { infer: true }),
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        algorithm: JWT_ALGORITHM,
       },
     );
 
@@ -359,6 +369,9 @@ export class AuthService {
       {
         secret: this.configService.get('JWT_REFRESH_SECRET', { infer: true }),
         expiresIn: `${this.configService.get('JWT_REFRESH_TTL_DAYS', { infer: true })}d`,
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        algorithm: JWT_ALGORITHM,
       },
     );
 
