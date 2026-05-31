@@ -181,7 +181,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                         if (p.id !== project.activeProjectId) {
                           await project.setActiveProject(p.id);
                         }
-                        navigate({ to: '/dashboard' });
+                        await navigate({ to: '/dashboard' });
                       })}
                     />
                   ))}
