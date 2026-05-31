@@ -70,6 +70,11 @@ const INDEXABILITY_STATUSES: IndexabilityStatus[] = [
 ];
 const INDEXABILITY_SOURCES = ['homepage', 'crawl', 'sitemap', 'head', 'probe'] as const;
 type AuditTab = 'action-plan' | 'technical';
+
+const AUDIT_TABS: Array<{ id: AuditTab; label: string }> = [
+  { id: 'action-plan', label: 'Plan de acción' },
+  { id: 'technical', label: 'Diagnóstico técnico' },
+];
 type IndexabilityStatus =
   | 'INDEXABLE'
   | 'NOINDEX'
@@ -764,13 +769,9 @@ function IssuePagination({
 }
 
 function AuditTabs({ value, onChange }: { value: AuditTab; onChange: (value: AuditTab) => void }) {
-  const tabs: Array<{ id: AuditTab; label: string }> = [
-    { id: 'action-plan', label: 'Plan de acción' },
-    { id: 'technical', label: 'Diagnóstico técnico' },
-  ];
   return (
     <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-      {tabs.map((tab) => {
+      {AUDIT_TABS.map((tab) => {
         const active = value === tab.id;
         return (
           <button

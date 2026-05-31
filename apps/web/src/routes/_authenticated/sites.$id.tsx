@@ -828,8 +828,9 @@ function AlertsCard({
             />
             {alertState.notifyOnScoreDrop ? (
               <div className="ml-1 flex items-center gap-2 text-xs text-slate-600">
-                <span>Umbral:</span>
+                <label htmlFor="score-drop-threshold">Umbral:</label>
                 <input
+                  id="score-drop-threshold"
                   type="number"
                   min={1}
                   max={100}

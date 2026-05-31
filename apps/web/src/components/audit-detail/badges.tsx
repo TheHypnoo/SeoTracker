@@ -5,30 +5,46 @@ import { SEVERITY_INFO } from '../../lib/issue-codes';
 import { httpStatusPillTone, scoreTone, severityStyle } from './audit-detail-formatters';
 import type { Severity } from './audit-detail-types';
 
+type InlineStatTone = 'neutral' | 'warning' | 'danger' | 'success';
+
+const STATUS_BADGE_MAP: Record<string, { label: string; cls: string; icon: ReactNode }> = {
+  COMPLETED: {
+    label: 'Completada',
+    cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    icon: <CheckCircle2 size={12} aria-hidden="true" />,
+  },
+  RUNNING: {
+    label: 'En curso',
+    cls: 'bg-sky-50 text-sky-700 border-sky-200',
+    icon: <Loader2 size={12} className="animate-spin" aria-hidden="true" />,
+  },
+  QUEUED: {
+    label: 'En cola',
+    cls: 'bg-amber-50 text-amber-700 border-amber-200',
+    icon: <Clock size={12} aria-hidden="true" />,
+  },
+  FAILED: {
+    label: 'Falló',
+    cls: 'bg-rose-50 text-rose-700 border-rose-200',
+    icon: <XCircle size={12} aria-hidden="true" />,
+  },
+};
+
+const TRIGGER_LABELS: Record<string, string> = {
+  MANUAL: 'Manual',
+  SCHEDULED: 'Programada',
+  WEBHOOK: 'Webhook',
+};
+
+const INLINE_STAT_TONE_CLASS: Record<InlineStatTone, string> = {
+  neutral: 'text-slate-900',
+  warning: 'text-amber-600',
+  danger: 'text-rose-600',
+  success: 'text-emerald-600',
+};
+
 export function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string; icon: ReactNode }> = {
-    COMPLETED: {
-      label: 'Completada',
-      cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      icon: <CheckCircle2 size={12} aria-hidden="true" />,
-    },
-    RUNNING: {
-      label: 'En curso',
-      cls: 'bg-sky-50 text-sky-700 border-sky-200',
-      icon: <Loader2 size={12} className="animate-spin" aria-hidden="true" />,
-    },
-    QUEUED: {
-      label: 'En cola',
-      cls: 'bg-amber-50 text-amber-700 border-amber-200',
-      icon: <Clock size={12} aria-hidden="true" />,
-    },
-    FAILED: {
-      label: 'Falló',
-      cls: 'bg-rose-50 text-rose-700 border-rose-200',
-      icon: <XCircle size={12} aria-hidden="true" />,
-    },
-  };
-  const item = map[status] ?? {
+  const item = STATUS_BADGE_MAP[status] ?? {
     label: status,
     cls: 'bg-slate-50 text-slate-700 border-slate-200',
     icon: <AlertTriangle size={12} aria-hidden="true" />,
@@ -44,14 +60,9 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 export function TriggerBadge({ trigger }: { trigger: string }) {
-  const labels: Record<string, string> = {
-    MANUAL: 'Manual',
-    SCHEDULED: 'Programada',
-    WEBHOOK: 'Webhook',
-  };
   return (
     <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-      {labels[trigger] ?? trigger}
+      {TRIGGER_LABELS[trigger] ?? trigger}
     </span>
   );
 }
@@ -70,8 +81,6 @@ export function SeverityChip({ severity }: { severity: Severity }) {
   );
 }
 
-type InlineStatTone = 'neutral' | 'warning' | 'danger' | 'success';
-
 export function InlineStat({
   label,
   value,
@@ -81,18 +90,14 @@ export function InlineStat({
   value: string;
   tone?: InlineStatTone;
 }) {
-  const toneMap: Record<InlineStatTone, string> = {
-    neutral: 'text-slate-900',
-    warning: 'text-amber-600',
-    danger: 'text-rose-600',
-    success: 'text-emerald-600',
-  };
   return (
     <div>
       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
         {label}
       </div>
-      <div className={`mt-1 text-xl font-bold tabular-nums ${toneMap[tone]}`}>{value}</div>
+      <div className={`mt-1 text-xl font-bold tabular-nums ${INLINE_STAT_TONE_CLASS[tone]}`}>
+        {value}
+      </div>
     </div>
   );
 }
