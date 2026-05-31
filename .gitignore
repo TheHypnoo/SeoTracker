@@ -33,6 +33,9 @@ apps/api/storage/**
 apps/jobs/storage/**
 !apps/jobs/storage/
 !apps/jobs/storage/.gitkeep
+apps/worker/storage/**
+!apps/worker/storage/
+!apps/worker/storage/.gitkeep
 
 # local-only documentation (not published)
 docs/
