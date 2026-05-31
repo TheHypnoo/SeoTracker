@@ -11,6 +11,12 @@ type TrendPoint = {
   siteName?: string;
 };
 
+const TREND_STAT_TONE_CLASS: Record<'slate' | 'emerald' | 'rose', string> = {
+  slate: 'text-slate-900',
+  emerald: 'text-emerald-600',
+  rose: 'text-rose-600',
+};
+
 export function TrendChart({ points }: { points: TrendPoint[] }) {
   const [mode, setMode] = useState<'global' | 'domains'>('global');
   const domainCount = useMemo(
@@ -97,15 +103,10 @@ export function TrendStat({
   value: number;
   tone: 'slate' | 'emerald' | 'rose';
 }) {
-  const toneMap: Record<typeof tone, string> = {
-    slate: 'text-slate-900',
-    emerald: 'text-emerald-600',
-    rose: 'text-rose-600',
-  };
   return (
     <div>
       <p className="text-[0.65rem] font-semibold tracking-wide text-slate-500 uppercase">{label}</p>
-      <p className={`mt-0.5 text-xl font-black ${toneMap[tone]}`}>{value}</p>
+      <p className={`mt-0.5 text-xl font-black ${TREND_STAT_TONE_CLASS[tone]}`}>{value}</p>
     </div>
   );
 }

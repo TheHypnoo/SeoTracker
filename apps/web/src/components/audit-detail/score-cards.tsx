@@ -4,6 +4,8 @@ import { CATEGORY_LABELS } from '../../lib/issue-codes';
 import { scoreTone, severityLabel, severityStyle } from './audit-detail-formatters';
 import type { AuditRun, Severity } from './audit-detail-types';
 
+const SCORE_SEVERITIES: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+
 export function ScoreCard({
   score,
   previousScore,
@@ -114,7 +116,6 @@ export function ScoreBreakdownPanel({
   baseScore: number | null;
 }) {
   if (!breakdown) return null;
-  const severities: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
   return (
     <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -126,7 +127,7 @@ export function ScoreBreakdownPanel({
         </span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {severities.map((sev) => {
+        {SCORE_SEVERITIES.map((sev) => {
           const entry = breakdown.perSeverity[sev];
           const raw = entry?.rawDeduction ?? 0;
           const capped = entry?.cappedDeduction ?? 0;
@@ -170,7 +171,6 @@ export function SeverityBreakdown({
   counts: Record<Severity, number>;
   total: number;
 }) {
-  const severities: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
   return (
     <div className="mt-6 border-t border-slate-100 pt-5">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -180,7 +180,7 @@ export function SeverityBreakdown({
         <span className="text-xs text-slate-500">{total} totales</span>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {severities.map((severity) => {
+        {SCORE_SEVERITIES.map((severity) => {
           const count = counts[severity] ?? 0;
           const tone = severityStyle(severity);
           const percent = total === 0 ? 0 : Math.round((count / total) * 100);

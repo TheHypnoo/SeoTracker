@@ -1,6 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Bell, Menu, Plus, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 import { useAuth } from '../../lib/auth-context';
 import { useProject } from '../../lib/project-context';
@@ -15,13 +15,23 @@ type TopbarProps = {
 
 /** Detect macOS once for the keyboard hint. SSR-safe (defaults to "Ctrl"). */
 function useShortcutHint() {
-  const [hint, setHint] = useState('Ctrl K');
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)) {
-      setHint('⌘ K');
-    }
-  }, []);
-  return hint;
+  return useSyncExternalStore(subscribeShortcutHint, getClientShortcutHint, getServerShortcutHint);
+}
+
+function subscribeShortcutHint() {
+  return function unsubscribeShortcutHint() {
+    return undefined;
+  };
+}
+
+function getClientShortcutHint() {
+  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+    ? '⌘ K'
+    : 'Ctrl K';
+}
+
+function getServerShortcutHint() {
+  return 'Ctrl K';
 }
 
 export function Topbar({ onOpenMobileNav, mobileNavOpen, onOpenPalette }: TopbarProps) {
