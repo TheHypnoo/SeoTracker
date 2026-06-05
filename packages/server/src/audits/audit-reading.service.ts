@@ -4,6 +4,7 @@ import {
   type AuditTrigger,
   type IndexabilityStatus,
   type PaginatedResponse,
+  Permission,
   Severity,
 } from '@seotracker/shared-types';
 import { and, count, desc, eq, gte, inArray, lt, lte } from 'drizzle-orm';
@@ -142,7 +143,7 @@ export class AuditReadingService {
       }
     >
   > {
-    await this.projectsService.assertMember(projectId, userId);
+    await this.projectsService.assertPermission(projectId, userId, Permission.AUDIT_READ);
 
     const { limit, offset } = filters?.pagination ?? { limit: 50, offset: 0 };
 

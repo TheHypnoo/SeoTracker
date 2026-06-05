@@ -5,6 +5,7 @@ import {
   IndexabilityStatus,
   IssueCode,
   IssueState,
+  Permission,
   Severity,
 } from '@seotracker/shared-types';
 
@@ -32,7 +33,7 @@ const sitesService = {
     name: 'Example',
   }),
 };
-const projectsService = { assertMember: jest.fn() };
+const projectsService = { assertMember: jest.fn(), assertPermission: jest.fn() };
 
 function makeService(db: { select: jest.Mock }) {
   return new AuditReadingService(db as never, sitesService as never, projectsService as never);
@@ -137,7 +138,11 @@ describe('auditReadingService', () => {
       ],
       total: 1,
     });
-    expect(projectsService.assertMember).toHaveBeenCalledWith('project-1', 'user-1');
+    expect(projectsService.assertPermission).toHaveBeenCalledWith(
+      'project-1',
+      'user-1',
+      Permission.AUDIT_READ,
+    );
   });
 
   it('returns empty project audit runs with default pagination and no aggregate queries', async () => {
