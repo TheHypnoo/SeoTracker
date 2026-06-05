@@ -28,6 +28,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.WEBHOOK_WRITE]: 'Gestionar webhooks entrantes',
   [Permission.OUTBOUND_READ]: 'Ver integraciones salientes',
   [Permission.OUTBOUND_WRITE]: 'Gestionar integraciones salientes',
+  [Permission.ACTIVITY_READ]: 'Ver registro de actividad',
 };
 
 /** Permissions grouped by area for the UI. Order is meaningful (rendering). */
@@ -37,7 +38,7 @@ export const PERMISSION_GROUPS: Array<{
 }> = [
   {
     title: 'Proyecto',
-    permissions: [Permission.PROJECT_VIEW, Permission.PROJECT_DELETE],
+    permissions: [Permission.PROJECT_VIEW, Permission.ACTIVITY_READ, Permission.PROJECT_DELETE],
   },
   {
     title: 'Miembros',
@@ -80,6 +81,13 @@ export const ROLE_LABELS: Record<Role, string> = {
   [Role.OWNER]: 'Owner',
   [Role.MEMBER]: 'Member',
   [Role.VIEWER]: 'Viewer',
+};
+
+/** One-line description of each role, shown in the role selector cards. */
+export const ROLE_DESCRIPTIONS: Record<Role, string> = {
+  [Role.OWNER]: 'Control total del proyecto, miembros e integraciones.',
+  [Role.MEMBER]: 'Crea y edita dominios, lanza auditorías y gestiona incidencias.',
+  [Role.VIEWER]: 'Solo lectura: ve dominios, auditorías y exportaciones.',
 };
 
 export function isOwnerExclusive(permission: Permission): boolean {

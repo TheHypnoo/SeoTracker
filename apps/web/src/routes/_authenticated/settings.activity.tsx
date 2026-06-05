@@ -1,21 +1,26 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Activity } from 'lucide-react';
+import { Permission } from '@seotracker/shared-types';
+import { Check, Lock, Pencil, Plus, Trash2 } from 'lucide-react';
+import type { ComponentType } from 'react';
 import { z } from 'zod';
 
 import {
   actionLabel,
+  actionTone,
   roleLabel,
   summaryFor,
-  toneClass,
 } from '#/components/activity/activity-formatters';
+import { Card } from '#/components/card';
 import { EmptyState } from '#/components/empty-state';
+import { PageHeader } from '#/components/page-header';
 import { QueryState } from '#/components/query-state';
 import { Skeleton } from '#/components/skeleton';
 import { formatCompactDateTime } from '#/lib/date-format';
 
 import { useAuth } from '../../lib/auth-context';
 import { useProject } from '../../lib/project-context';
+import { usePermissions } from '../../lib/use-permissions';
 
 const searchSchema = z.object({
   projectId: z.string().optional(),
@@ -36,6 +41,22 @@ type ActivityEntry = {
   userName: string | null;
 };
 
+type Tone = 'neutral' | 'positive' | 'warning' | 'danger';
+
+const TONE_DOT: Record<Tone, string> = {
+  neutral: 'bg-slate-100 text-slate-500',
+  positive: 'bg-emerald-50 text-emerald-600',
+  warning: 'bg-amber-50 text-amber-600',
+  danger: 'bg-rose-50 text-rose-600',
+};
+
+const TONE_ICON: Record<Tone, ComponentType<{ size?: number; className?: string }>> = {
+  neutral: Pencil,
+  positive: Plus,
+  warning: Pencil,
+  danger: Trash2,
+};
+
 export const Route = createFileRoute('/_authenticated/settings/activity')({
   validateSearch: (search) => searchSchema.parse(search),
   component: ActivityPage,
@@ -46,107 +67,139 @@ function ActivityPage() {
   const project = useProject();
   const search = Route.useSearch();
   const projectId = search.projectId ?? project.activeProjectId;
+  const permissions = usePermissions(projectId);
+  const canView = permissions.can(Permission.ACTIVITY_READ);
 
   const activity = useQuery<ActivityEntry[]>({
     queryKey: ['activity', projectId],
     queryFn: () => auth.api.get(`/projects/${projectId}/activity?limit=100`),
-    enabled: Boolean(auth.accessToken && projectId),
+    enabled: Boolean(auth.accessToken && projectId && canView),
     staleTime: 5_000,
   });
 
   return (
     <section className="space-y-6">
-      <div>
-        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-          Configuración &gt; Actividad
-        </div>
-        <h1 className="mt-3 text-5xl font-black tracking-tight text-slate-950">
-          Registro de actividad
-        </h1>
-        <p className="mt-3 max-w-2xl text-sm text-slate-600">
-          Todo lo que ocurre en este proyecto: invitaciones, cambios de permisos, sitios creados o
-          eliminados, auditorías lanzadas, integraciones modificadas, etc. La auditoría se conserva
-          aunque los miembros sean expulsados.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Configuración · Actividad"
+        title="Registro de actividad"
+        description="Pista de auditoría del proyecto: invitaciones, cambios de permisos, dominios creados o eliminados, auditorías lanzadas e integraciones modificadas. El registro se conserva aunque los miembros sean expulsados."
+      />
 
-      {projectId ? (
-        <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
-          <div className="flex items-center gap-3">
-            <Activity size={18} className="text-brand-500" />
-            <h2 className="text-2xl font-black tracking-tight text-slate-950">Eventos recientes</h2>
-          </div>
-          <div className="mt-6">
-            <QueryState
-              status={activity.status}
-              data={activity.data}
-              error={activity.error}
-              onRetry={() => activity.refetch()}
-              isEmpty={(list) => list.length === 0}
-              loading={
-                <ul className="space-y-3">
-                  {['s1', 's2', 's3', 's4'].map((slot) => (
-                    <li key={slot} className="rounded-xl border border-slate-200 px-4 py-4">
-                      <Skeleton className="h-4 w-1/2" />
-                      <Skeleton className="mt-2 h-3 w-1/3" />
-                    </li>
-                  ))}
-                </ul>
-              }
-              empty={
-                <EmptyState
-                  title="Sin actividad todavía"
-                  description="Cuando alguien interactúe con el proyecto verás aquí cada acción."
-                />
-              }
-            >
-              {(list) => (
-                <ol className="space-y-2.5">
-                  {list.map((entry) => {
-                    const summary = summaryFor(entry);
-                    const actorName =
-                      entry.userName?.trim() || entry.userEmail || 'Miembro eliminado';
-                    return (
-                      <li
-                        key={entry.id}
-                        className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3"
-                      >
-                        <span
-                          className={`mt-0.5 inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] ${toneClass(entry.action)}`}
-                        >
-                          {actionLabel(entry.action)}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="font-semibold text-slate-900">{actorName}</span>
-                            <span className="text-xs font-medium text-slate-500">
-                              · {roleLabel(entry.role)}
-                            </span>
-                          </div>
-                          {summary ? (
-                            <div className="mt-0.5 truncate text-xs text-slate-600">{summary}</div>
-                          ) : null}
-                        </div>
-                        <time
-                          dateTime={entry.createdAt}
-                          className="shrink-0 self-center font-mono text-[11px] text-slate-500"
-                          title={entry.createdAt}
-                        >
-                          {formatCompactDateTime(entry.createdAt)}
-                        </time>
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-            </QueryState>
-          </div>
-        </article>
+      {!projectId ? (
+        <Card className="p-6">
+          <EmptyState
+            title="Sin proyecto activo"
+            description="Selecciona un proyecto para ver su registro de actividad."
+          />
+        </Card>
+      ) : permissions.isLoading ? (
+        <Card className="p-6">
+          <ul className="space-y-5">
+            {['s1', 's2', 's3', 's4'].map((slot) => (
+              <li key={slot} className="flex gap-4">
+                <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1">
+                  <Skeleton className="h-4 w-1/3" />
+                  <Skeleton className="mt-2 h-3 w-1/2" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : !canView ? (
+        <Card className="p-6">
+          <EmptyState
+            icon={<Lock size={22} aria-hidden="true" />}
+            title="No tienes acceso al registro de actividad"
+            description="El registro de actividad es una pista de auditoría sensible. Pide al propietario del proyecto que te conceda el permiso «Ver registro de actividad»."
+          />
+        </Card>
       ) : (
-        <article className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
-          No hay un proyecto activo seleccionado.
-        </article>
+        <Card className="p-6">
+          <QueryState
+            status={activity.status}
+            data={activity.data}
+            error={activity.error}
+            onRetry={() => activity.refetch()}
+            isEmpty={(list) => list.length === 0}
+            loading={
+              <ul className="space-y-5">
+                {['s1', 's2', 's3', 's4', 's5'].map((slot) => (
+                  <li key={slot} className="flex gap-4">
+                    <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                    <div className="min-w-0 flex-1">
+                      <Skeleton className="h-4 w-1/3" />
+                      <Skeleton className="mt-2 h-3 w-1/2" />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            }
+            empty={
+              <EmptyState
+                title="Sin actividad todavía"
+                description="Cuando alguien interactúe con el proyecto verás aquí cada acción."
+              />
+            }
+          >
+            {(list) => <ActivityTimeline entries={list} />}
+          </QueryState>
+        </Card>
       )}
     </section>
+  );
+}
+
+function ActivityTimeline({ entries }: { entries: ActivityEntry[] }) {
+  return (
+    <ol className="relative">
+      {entries.map((entry, index) => {
+        const tone = actionTone(entry.action);
+        const Icon = TONE_ICON[tone];
+        const actorName = entry.userName?.trim() || entry.userEmail || 'Miembro eliminado';
+        const summary = summaryFor(entry);
+        const isLast = index === entries.length - 1;
+        return (
+          <li key={entry.id} className="relative flex gap-4 pb-6 last:pb-0">
+            {!isLast ? (
+              <span
+                aria-hidden="true"
+                className="absolute left-[15px] top-9 bottom-0 w-px bg-slate-200"
+              />
+            ) : null}
+            <span
+              className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-4 ring-white ${TONE_DOT[tone]}`}
+            >
+              {tone === 'positive' && entry.action.endsWith('completed') ? (
+                <Check size={14} aria-hidden="true" />
+              ) : (
+                <Icon size={14} aria-hidden="true" />
+              )}
+            </span>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                <p className="text-sm text-slate-900">
+                  <span className="font-semibold">{actorName}</span>
+                  <span className="text-slate-400"> · {roleLabel(entry.role)}</span>
+                </p>
+                <time
+                  dateTime={entry.createdAt}
+                  className="shrink-0 font-mono text-[11px] text-slate-400"
+                  title={entry.createdAt}
+                >
+                  {formatCompactDateTime(entry.createdAt)}
+                </time>
+              </div>
+              <p className="mt-0.5 text-sm font-medium text-slate-700">
+                {actionLabel(entry.action)}
+              </p>
+              {summary ? (
+                <p className="mt-0.5 text-xs leading-5 text-slate-500">{summary}</p>
+              ) : null}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

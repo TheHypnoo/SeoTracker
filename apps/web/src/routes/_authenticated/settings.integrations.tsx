@@ -70,7 +70,7 @@ function IntegrationsSettingsPage() {
         <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
           Configuración &gt; Integraciones
         </div>
-        <h1 className="mt-3 text-5xl font-black tracking-tight text-slate-950">
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
           Integraciones salientes
         </h1>
         <p className="mt-3 max-w-3xl text-sm text-slate-600">
@@ -91,7 +91,7 @@ function IntegrationsSettingsPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
             <div className="flex items-center gap-3">
               <Webhook size={18} className="text-brand-500" />
-              <h2 className="text-2xl font-black tracking-tight text-slate-950">
+              <h2 className="text-xl font-bold tracking-tight text-slate-900">
                 Integraciones configuradas
               </h2>
             </div>
