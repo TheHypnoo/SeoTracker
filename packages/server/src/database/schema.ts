@@ -489,6 +489,8 @@ export const siteSearchConsoleLinks = pgTable(
     // Last time a performance import (manual, scheduled, or backfill) completed for this link.
     // Drives the freshness indicator in the UI and lets the daily cron skip recently-synced sites.
     lastImportedAt: timestamp('last_imported_at', { withTimezone: true }),
+    // Last time a clicks-drop alert fired for this link, used to dedupe alerts to once per window.
+    lastClicksDropAlertAt: timestamp('last_clicks_drop_alert_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

@@ -232,14 +232,18 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     placeholderData: keepPreviousData,
   });
 
+  // Invalidate every derived Search Console query for this site (summary, timeseries, top lists,
+  // opportunities, cannibalization, decay, brand split, tracked keywords) so a manual import
+  // refreshes the whole section, not just the headline metrics.
   const invalidatePerformance = () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['search-console-summary', siteId] }),
-      queryClient.invalidateQueries({ queryKey: ['search-console-top-queries', siteId] }),
-      queryClient.invalidateQueries({ queryKey: ['search-console-top-pages', siteId] }),
-      queryClient.invalidateQueries({ queryKey: ['search-console-top-countries', siteId] }),
-      queryClient.invalidateQueries({ queryKey: ['search-console-top-devices', siteId] }),
-    ]);
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const [name, keySiteId] = query.queryKey as [unknown, unknown];
+        return (
+          typeof name === 'string' && name.startsWith('search-console-') && keySiteId === siteId
+        );
+      },
+    });
 
   const linkProperty = useMutation({
     mutationFn: (searchConsolePropertyId: string) =>

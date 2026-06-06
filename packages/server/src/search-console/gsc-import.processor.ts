@@ -43,7 +43,11 @@ export class GscImportProcessor implements OnModuleInit, OnModuleDestroy {
             `Imported ${result.importedRows} GSC rows for site ${job.data.siteId} ` +
               `(${result.startDate}..${result.endDate}${job.data.backfill ? ', backfill' : ''})`,
           );
-          await this.notifyOnClicksDrop(job.data.siteId);
+          // Skip alerting on backfills: importing months of history would compare unrelated
+          // windows and could fire a spurious drop alert on first connect.
+          if (!job.data.backfill) {
+            await this.notifyOnClicksDrop(job.data.siteId);
+          }
           this.metricsService.bullmqJobsTotal.inc({
             event: 'completed',
             queue: GSC_IMPORT_QUEUE_NAME,

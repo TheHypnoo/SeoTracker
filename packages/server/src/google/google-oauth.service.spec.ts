@@ -41,7 +41,10 @@ function makeService(
   const updateReturning = jest.fn().mockResolvedValue([connectionRow()]);
   const updateWhere = jest.fn().mockReturnValue({ returning: updateReturning });
   const set = jest.fn().mockReturnValue({ where: updateWhere });
+  const deleteWhere = jest.fn().mockResolvedValue(undefined);
+  const deleteFn = jest.fn().mockReturnValue({ where: deleteWhere });
   const db = {
+    delete: deleteFn,
     insert: jest.fn().mockReturnValue({ values }),
     select: jest.fn().mockReturnValue({ from }),
     update: jest.fn().mockReturnValue({ set }),
@@ -82,6 +85,7 @@ function makeService(
 
   return {
     db,
+    deleteWhere,
     insertReturning,
     oauthClient,
     projectsService,
@@ -229,8 +233,8 @@ describe('google oauth service', () => {
     expect(rows[0]).toMatchObject({ googleAccountEmail: 'owner@example.com' });
   });
 
-  it('revokes a connection under outbound write permission', async () => {
-    const { projectsService, service, updateWhere } = makeService();
+  it('revokes a connection and unlinks its properties under outbound write permission', async () => {
+    const { deleteWhere, projectsService, service, updateWhere } = makeService();
 
     await expect(
       service.revokeConnection('project-1', 'connection-1', 'user-1'),
@@ -241,6 +245,8 @@ describe('google oauth service', () => {
       Permission.OUTBOUND_WRITE,
     );
     expect(updateWhere).toHaveBeenCalledTimes(1);
+    // The connection's site links are removed so the worker stops importing through it.
+    expect(deleteWhere).toHaveBeenCalledTimes(1);
   });
 
   it('returns the stored access token without refreshing when it is still valid', async () => {

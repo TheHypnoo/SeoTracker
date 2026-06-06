@@ -136,6 +136,16 @@ describe('gscImportProcessor', () => {
     expect(notificationsService.createForProjectMembers).not.toHaveBeenCalled();
   });
 
+  it('skips the clicks-drop alert entirely on backfill imports', async () => {
+    const processor = makeProcessor();
+    processor.onModuleInit();
+
+    await mockWorkerInstances[0].processor({ data: { siteId: 'site-1', backfill: true } });
+
+    expect(searchConsoleService.getClicksDropAlert).not.toHaveBeenCalled();
+    expect(notificationsService.createForProjectMembers).not.toHaveBeenCalled();
+  });
+
   it('swallows alert evaluation failures so the import still completes', async () => {
     searchConsoleService.getClicksDropAlert.mockRejectedValueOnce(new Error('alert boom'));
     const processor = makeProcessor();

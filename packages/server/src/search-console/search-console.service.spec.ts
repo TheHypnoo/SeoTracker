@@ -800,14 +800,21 @@ describe('search console service', () => {
     expect(rows[0]?.changeRatio).toBeCloseTo(-0.6);
   });
 
-  function setupDropAlert(recentClicks: number, previousClicks: number) {
+  function setupDropAlert(
+    recentClicks: number,
+    previousClicks: number,
+    lastClicksDropAlertAt: Date | null = null,
+  ) {
     const { db, service } = makeService();
     const { link } = linkLookupRows();
     jest
       .mocked(db.limit)
       .mockResolvedValueOnce([{ id: 'site-1', projectId: 'project-1' }] as never)
       .mockResolvedValueOnce([
-        { link, property: { id: 'property-1', projectId: 'project-1' } },
+        {
+          link: { ...link, lastClicksDropAlertAt },
+          property: { id: 'property-1', projectId: 'project-1' },
+        },
       ] as never);
     const builder = { groupBy: db.groupBy, limit: db.limit, orderBy: db.orderBy };
     jest
@@ -816,22 +823,32 @@ describe('search console service', () => {
       .mockReturnValueOnce(builder as never)
       .mockReturnValueOnce([{ clicks: recentClicks }] as never)
       .mockReturnValueOnce([{ clicks: previousClicks }] as never);
-    return service;
+    return { db, service };
   }
 
   it('returns a clicks-drop alert when the week-over-week fall passes the threshold', async () => {
-    const alert = await setupDropAlert(40, 100).getClicksDropAlert('site-1');
+    const { db, service } = setupDropAlert(40, 100);
+
+    const alert = await service.getClicksDropAlert('site-1');
 
     expect(alert).toMatchObject({ previousClicks: 100, projectId: 'project-1', recentClicks: 40 });
     expect(alert?.dropRatio).toBeCloseTo(0.6);
+    // The alert is recorded so the same site is not re-notified within the dedupe window.
+    expect(db.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-alert a site within the dedupe window', async () => {
+    const { service } = setupDropAlert(40, 100, new Date());
+
+    await expect(service.getClicksDropAlert('site-1')).resolves.toBeNull();
   });
 
   it('returns no alert when the clicks drop is within the threshold', async () => {
-    await expect(setupDropAlert(95, 100).getClicksDropAlert('site-1')).resolves.toBeNull();
+    await expect(setupDropAlert(95, 100).service.getClicksDropAlert('site-1')).resolves.toBeNull();
   });
 
   it('returns no alert when the previous week has too few clicks', async () => {
-    await expect(setupDropAlert(2, 10).getClicksDropAlert('site-1')).resolves.toBeNull();
+    await expect(setupDropAlert(2, 10).service.getClicksDropAlert('site-1')).resolves.toBeNull();
   });
 
   it('lists tracked keywords merging aggregated metrics and zero-filling the rest', async () => {

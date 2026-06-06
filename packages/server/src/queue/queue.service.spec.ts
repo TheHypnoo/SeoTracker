@@ -143,19 +143,35 @@ describe('queueService', () => {
   });
 
   describe('enqueueGscImport', () => {
-    it('derives a daily jobId from the site and the configured import attempts', async () => {
+    it('derives a windowed daily jobId from the site and the configured import attempts', async () => {
       const { gscImportQueue, service } = makeService(makeConfig({ GSC_IMPORT_QUEUE_ATTEMPTS: 4 }));
+
+      await service.enqueueGscImport({
+        siteId: 'site-1',
+        startDate: '2026-06-01',
+        endDate: '2026-06-04',
+      });
+
+      expect(gscImportQueue.add).toHaveBeenCalledWith(
+        'import-gsc',
+        expect.objectContaining({ siteId: 'site-1' }),
+        expect.objectContaining({
+          attempts: 4,
+          backoff: { delay: 5_000, type: 'exponential' },
+          jobId: 'site-1:daily:2026-06-01:2026-06-04',
+        }),
+      );
+    });
+
+    it('falls back to an auto window when no dates are supplied', async () => {
+      const { gscImportQueue, service } = makeService();
 
       await service.enqueueGscImport({ siteId: 'site-1' });
 
       expect(gscImportQueue.add).toHaveBeenCalledWith(
         'import-gsc',
         { siteId: 'site-1' },
-        expect.objectContaining({
-          attempts: 4,
-          backoff: { delay: 5_000, type: 'exponential' },
-          jobId: 'site-1:daily',
-        }),
+        expect.objectContaining({ jobId: 'site-1:daily:auto' }),
       );
     });
 
@@ -167,7 +183,7 @@ describe('queueService', () => {
       expect(gscImportQueue.add).toHaveBeenCalledWith(
         'import-gsc',
         { siteId: 'site-1', backfill: true },
-        expect.objectContaining({ jobId: 'site-1:backfill' }),
+        expect.objectContaining({ jobId: 'site-1:backfill:auto' }),
       );
     });
 

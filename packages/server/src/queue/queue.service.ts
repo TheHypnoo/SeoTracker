@@ -110,11 +110,15 @@ export class QueueService {
   }
 
   /**
-   * Enqueues a Search Console import for a site. `jobId` derives from the site plus the import
-   * mode so a rolling daily import and a one-off backfill never collide, while duplicate daily
-   * enqueues for the same site coalesce.
+   * Enqueues a Search Console import for a site. `jobId` derives from the site, the import mode and
+   * the requested window so each day's rolling import is a distinct job. A static per-site id would
+   * be deduplicated by BullMQ against the previous (still-retained) completed/failed job, silently
+   * dropping the next day's import or blocking it for days after a failure.
    */
   enqueueGscImport(payload: GscImportJobData, options?: { delayMs?: number; jobId?: string }) {
+    const mode = payload.backfill ? 'backfill' : 'daily';
+    const window =
+      payload.startDate && payload.endDate ? `${payload.startDate}:${payload.endDate}` : 'auto';
     return this.gscImportQueue.add('import-gsc', payload, {
       attempts: this.configService.get('GSC_IMPORT_QUEUE_ATTEMPTS', { infer: true }),
       backoff: {
@@ -123,7 +127,7 @@ export class QueueService {
       },
       ...(options?.delayMs !== undefined ? { delay: options.delayMs } : {}),
       ...COMMON_REMOVE_OPTS,
-      jobId: options?.jobId ?? `${payload.siteId}:${payload.backfill ? 'backfill' : 'daily'}`,
+      jobId: options?.jobId ?? `${payload.siteId}:${mode}:${window}`,
     });
   }
 

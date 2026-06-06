@@ -7,13 +7,17 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Permission } from '@seotracker/shared-types';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { assertPresent } from '../common/utils/assert';
 import type { Env } from '../config/env.schema';
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
-import { googleOauthConnections } from '../database/schema';
+import {
+  googleOauthConnections,
+  searchConsoleProperties,
+  siteSearchConsoleLinks,
+} from '../database/schema';
 import { ProjectsService } from '../projects/projects.service';
 import { GOOGLE_OAUTH_AUTH_URL, GOOGLE_OAUTH_SCOPE } from './google-oauth.constants';
 import { GoogleOauthClient } from './google-oauth.client';
@@ -169,6 +173,19 @@ export class GoogleOauthService {
           eq(googleOauthConnections.id, connectionId),
           eq(googleOauthConnections.projectId, projectId),
           isNull(googleOauthConnections.revokedAt),
+        ),
+      );
+    // Unlink any sites pointing at this connection's properties so the worker stops importing
+    // through a dead connection. The properties and historical stats stay for a future reconnect.
+    await this.db
+      .delete(siteSearchConsoleLinks)
+      .where(
+        inArray(
+          siteSearchConsoleLinks.searchConsolePropertyId,
+          this.db
+            .select({ id: searchConsoleProperties.id })
+            .from(searchConsoleProperties)
+            .where(eq(searchConsoleProperties.googleConnectionId, connectionId)),
         ),
       );
     return { success: true };

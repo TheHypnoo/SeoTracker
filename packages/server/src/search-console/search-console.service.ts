@@ -1,12 +1,26 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Permission } from '@seotracker/shared-types';
-import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 
 import type { Env } from '../config/env.schema';
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import {
+  googleOauthConnections,
   gscDailyStats,
   searchConsoleProperties,
   sites,
@@ -92,6 +106,8 @@ type TopDimensionInput = {
 // (0.3 = a 30% fall) that triggers a notification to project members.
 const ALERT_MIN_PREVIOUS_CLICKS = 20;
 const ALERT_DROP_THRESHOLD = 0.3;
+// Don't re-alert the same site within this window so a persistent drop isn't notified every day.
+const ALERT_DEDUPE_MS = 6 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class SearchConsoleService {
@@ -137,9 +153,18 @@ export class SearchConsoleService {
   async listProperties(projectId: string, userId: string) {
     await this.projectsService.assertPermission(projectId, userId, Permission.OUTBOUND_READ);
     const rows = await this.db
-      .select()
+      .select(getTableColumns(searchConsoleProperties))
       .from(searchConsoleProperties)
-      .where(eq(searchConsoleProperties.projectId, projectId))
+      .innerJoin(
+        googleOauthConnections,
+        eq(googleOauthConnections.id, searchConsoleProperties.googleConnectionId),
+      )
+      .where(
+        and(
+          eq(searchConsoleProperties.projectId, projectId),
+          isNull(googleOauthConnections.revokedAt),
+        ),
+      )
       .orderBy(asc(searchConsoleProperties.siteUrl));
     return rows.map((row) => this.toResponse(row));
   }
@@ -178,9 +203,18 @@ export class SearchConsoleService {
   async listCandidates(siteId: string, userId: string) {
     const site = await this.getSiteWithPermission(siteId, userId, Permission.SITE_READ);
     const rows = await this.db
-      .select()
+      .select(getTableColumns(searchConsoleProperties))
       .from(searchConsoleProperties)
-      .where(eq(searchConsoleProperties.projectId, site.projectId))
+      .innerJoin(
+        googleOauthConnections,
+        eq(googleOauthConnections.id, searchConsoleProperties.googleConnectionId),
+      )
+      .where(
+        and(
+          eq(searchConsoleProperties.projectId, site.projectId),
+          isNull(googleOauthConnections.revokedAt),
+        ),
+      )
       .orderBy(desc(searchConsoleProperties.lastSyncedAt), asc(searchConsoleProperties.siteUrl));
     const linked = await this.getLinkedProperty(siteId, userId);
 
@@ -884,11 +918,17 @@ export class SearchConsoleService {
 
   /**
    * Compares the most recent 7 days of clicks against the previous 7 for an active link, in system
-   * context (no user). Returns the drop details when clicks fell past the alert threshold so the
-   * import worker can notify project members; returns null otherwise.
+   * context (no user). Returns the drop details when clicks fell past the alert threshold, and
+   * records the alert so the same site is not re-notified within the dedupe window. Returns null
+   * when there is no significant drop or one was already raised recently.
    */
   async getClicksDropAlert(siteId: string) {
     const { link, property } = await this.getActiveLinkBySiteId(siteId);
+    const lastAlertedAt = link.lastClicksDropAlertAt;
+    if (lastAlertedAt && Date.now() - lastAlertedAt.getTime() < ALERT_DEDUPE_MS) {
+      return null;
+    }
+
     const recentEnd = this.daysAgo(2);
     const recentStart = this.daysBefore(recentEnd, 6);
     const previousEnd = this.daysBefore(recentStart, 1);
@@ -906,6 +946,11 @@ export class SearchConsoleService {
     if (dropRatio < ALERT_DROP_THRESHOLD) {
       return null;
     }
+
+    await this.db
+      .update(siteSearchConsoleLinks)
+      .set({ lastClicksDropAlertAt: new Date() })
+      .where(eq(siteSearchConsoleLinks.siteId, link.siteId));
 
     return {
       dropRatio,
@@ -1013,12 +1058,17 @@ export class SearchConsoleService {
 
   private async getPropertyForProject(projectId: string, searchConsolePropertyId: string) {
     const [property] = await this.db
-      .select()
+      .select(getTableColumns(searchConsoleProperties))
       .from(searchConsoleProperties)
+      .innerJoin(
+        googleOauthConnections,
+        eq(googleOauthConnections.id, searchConsoleProperties.googleConnectionId),
+      )
       .where(
         and(
           eq(searchConsoleProperties.id, searchConsolePropertyId),
           eq(searchConsoleProperties.projectId, projectId),
+          isNull(googleOauthConnections.revokedAt),
         ),
       )
       .limit(1);
