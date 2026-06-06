@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { ServiceUnavailableException } from '@nestjs/common';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { DRIZZLE } from '../database/database.constants';
@@ -53,15 +53,22 @@ describe('healthController', () => {
     expect(out.checks).toStrictEqual({ database: 'ok', redis: 'ok' });
   });
 
-  it('readiness reports non-error dependency failures as unknown errors', async () => {
+  it('logs non-error dependency failures as unknown errors without leaking them to the client', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn');
     db.execute.mockRejectedValueOnce('db string failure');
     redis.ping.mockRejectedValueOnce('redis string failure');
 
-    await expect(controller.readiness()).rejects.toMatchObject({
-      response: expect.objectContaining({
-        failures: { database: 'unknown error', redis: 'unknown error' },
-      }),
+    const thrown = await controller.readiness().catch((error: unknown) => error);
+
+    // Raw detail is logged server-side...
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unknown error'));
+    // ...but the public response only exposes ok/fail, never failure strings.
+    expect((thrown as ServiceUnavailableException).getResponse()).toStrictEqual({
+      checks: { database: 'fail', redis: 'fail' },
+      status: 'unavailable',
+      timestamp: expect.any(String),
     });
+    expect((thrown as ServiceUnavailableException).getResponse()).not.toHaveProperty('failures');
   });
 
   it('readiness throws ServiceUnavailableException when DB is down', async () => {

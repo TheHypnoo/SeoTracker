@@ -26,9 +26,11 @@ export class ActivityLogController {
     @Query('limit') limit?: string,
     @Query('before') before?: string,
   ) {
-    // Activity is gated on MEMBERS_READ — same audience that can see the
-    // members list. Viewers can read it; non-members get ForbiddenException.
-    await this.projectsService.assertPermission(projectId, user.sub, Permission.MEMBERS_READ);
+    // Activity is gated on its own ACTIVITY_READ permission. It is an audit
+    // trail (invites, permission changes, deletions) so it is OWNER-only by
+    // default and must be granted explicitly to MEMBER/VIEWER. Callers without
+    // it get a ForbiddenException.
+    await this.projectsService.assertPermission(projectId, user.sub, Permission.ACTIVITY_READ);
 
     const parsedLimit = limit ? Number(limit) : undefined;
     const beforeDate = before ? new Date(before) : undefined;

@@ -8,6 +8,7 @@ import {
   readBodyWithLimit,
   ResponseTooLargeError,
   safeFetch,
+  ssrfGuardLookup,
   SsrfBlockedError,
 } from './safe-fetch';
 
@@ -60,6 +61,18 @@ describe('safeFetch', () => {
 
   it('rejects an initial URL pointing at a private host', async () => {
     await expect(safeFetch('http://169.254.169.254/latest/meta-data')).rejects.toBeInstanceOf(
+      SsrfBlockedError,
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(lookupMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects IPv4-mapped IPv6 literals that target private ranges', async () => {
+    // new URL() normalizes the dotted form to hex (::ffff:7f00:1 == 127.0.0.1,
+    // ::ffff:a9fe:a9fe == 169.254.169.254). These must be blocked before the
+    // isIP() early-return, with no fetch and no DNS lookup.
+    await expect(safeFetch('http://[::ffff:7f00:1]/')).rejects.toBeInstanceOf(SsrfBlockedError);
+    await expect(safeFetch('http://[::ffff:a9fe:a9fe]/latest/meta-data')).rejects.toBeInstanceOf(
       SsrfBlockedError,
     );
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -147,6 +160,51 @@ describe('safeFetch', () => {
     await expect(safeFetch('https://example.com/', { maxRedirects: 2 })).rejects.toBeInstanceOf(
       SsrfBlockedError,
     );
+  });
+});
+
+describe('ssrfGuardLookup', () => {
+  beforeEach(() => {
+    lookupMock.mockReset();
+  });
+
+  it('returns the validated addresses so undici connects to the resolved IP', async () => {
+    lookupMock.mockResolvedValue([
+      { address: '93.184.216.34', family: 4 },
+      { address: '93.184.216.35', family: 4 },
+    ]);
+
+    const addresses = await new Promise<Array<{ address: string; family: number }>>((resolve) => {
+      ssrfGuardLookup('example.com', { all: true }, (_err, result) => resolve(result));
+    });
+
+    expect(addresses).toStrictEqual([
+      { address: '93.184.216.34', family: 4 },
+      { address: '93.184.216.35', family: 4 },
+    ]);
+  });
+
+  it('blocks when the hostname resolves to a private address (defeats DNS rebinding)', async () => {
+    lookupMock.mockResolvedValue([
+      { address: '93.184.216.34', family: 4 },
+      { address: '169.254.169.254', family: 4 },
+    ]);
+
+    const error = await new Promise<Error | null>((resolve) => {
+      ssrfGuardLookup('rebind.example', { all: true }, (err) => resolve(err));
+    });
+
+    expect(error).toBeInstanceOf(SsrfBlockedError);
+  });
+
+  it('propagates DNS resolution failures', async () => {
+    lookupMock.mockRejectedValue(new Error('ENOTFOUND'));
+
+    const error = await new Promise<Error | null>((resolve) => {
+      ssrfGuardLookup('does-not-exist.invalid', { all: true }, (err) => resolve(err));
+    });
+
+    expect(error?.message).toBe('ENOTFOUND');
   });
 });
 

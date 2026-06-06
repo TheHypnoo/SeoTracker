@@ -41,6 +41,7 @@ describe('isPrivateHostname', () => {
     '172.31.255.255',
     '169.254.169.254',
     '169.254.0.1',
+    '100.64.0.1', // carrier-grade NAT
     '0.0.0.0',
     '::1',
     '::ffff:127.0.0.1',
@@ -48,6 +49,14 @@ describe('isPrivateHostname', () => {
     '::ffff:192.168.1.1',
     '::ffff:172.16.0.1',
     '::ffff:169.254.169.254',
+    // IPv4-mapped IPv6 in hex form — what new URL() normalizes the dotted form
+    // into. These previously bypassed the SSRF guard.
+    '::ffff:7f00:1', // 127.0.0.1
+    '::ffff:a00:1', // 10.0.0.1
+    '::ffff:c0a8:101', // 192.168.1.1
+    '::ffff:a9fe:a9fe', // 169.254.169.254 (cloud metadata)
+    '[::ffff:7f00:1]',
+    '[::ffff:a9fe:a9fe]',
     'fe80::1',
     'fc00::1',
     'fd12:3456::1',

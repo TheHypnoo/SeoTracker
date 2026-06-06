@@ -73,6 +73,11 @@ export function toneClass(action: string): string {
   return TONE_CLASS[tone] ?? 'bg-slate-100 text-slate-700 ring-slate-200';
 }
 
+/** Semantic tone for an action — drives the timeline dot/icon colour. */
+export function actionTone(action: string): 'neutral' | 'positive' | 'warning' | 'danger' {
+  return TONE_BY_ACTION[action] ?? 'neutral';
+}
+
 /**
  * Plain-text summary of an entry — short enough for a one-line row.
  * Uses metadata to enrich the action label when it carries useful detail

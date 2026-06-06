@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   FolderKanban,
   Gauge,
+  Globe,
   Rocket,
   TrendingDown,
   Workflow,
@@ -13,8 +14,10 @@ import {
 import { useMemo } from 'react';
 import { Badge } from '#/components/badge';
 import { Button } from '#/components/button';
+import { Card, CardHeader } from '#/components/card';
 import { EmptyState } from '#/components/empty-state';
 import { Notice } from '#/components/notice';
+import { PageHeader } from '#/components/page-header';
 import { TextInput } from '#/components/text-input';
 
 import { activityDot, statusLabel, statusTone } from '#/components/dashboard/dashboard-helpers';
@@ -98,14 +101,14 @@ function DashboardPage() {
   // Onboarding: brand new user with no projects yet.
   if (!project.loading && project.projects.length === 0) {
     return (
-      <section className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
-        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+      <section className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
           Primer paso
         </div>
-        <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-950">
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
           Crea tu primer proyecto
         </h1>
-        <p className="mt-3 max-w-xl text-sm leading-7 text-slate-600">
+        <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
           El dashboard, los dominios y las automatizaciones se organizan dentro de un proyecto. Crea
           uno para empezar a auditar.
         </p>
@@ -169,55 +172,47 @@ function DashboardPage() {
 
   return (
     <section className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-            Proyectos &gt; {project.activeProject?.name ?? 'Proyecto'}
-          </div>
-          <h1 className="mt-3 text-5xl font-black tracking-tight text-slate-950">
-            Panel de Control
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Seguimiento técnico y on-page del proyecto activo.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Link to="/projects/new" className="btn-secondary rounded-xl px-5 py-3">
-            <FolderKanban size={16} aria-hidden="true" />
-            Nuevo proyecto
-          </Link>
-          {project.activeProjectId ? (
-            <Link
-              to="/projects/$id/sites"
-              params={{ id: project.activeProjectId }}
-              className="btn-secondary rounded-xl px-5 py-3"
-            >
+      <PageHeader
+        eyebrow={`Proyecto · ${project.activeProject?.name ?? 'Proyecto'}`}
+        title="Panel de control"
+        description="Seguimiento técnico y on-page del proyecto activo."
+        actions={
+          <>
+            <Link to="/projects/new" className="btn-secondary">
               <FolderKanban size={16} aria-hidden="true" />
-              Nuevo dominio
+              Nuevo proyecto
             </Link>
-          ) : null}
-          <Button
-            type="button"
-            size="lg"
-            onClick={() => {
-              const ids = data?.recentProjects.map((p) => p.id) ?? [];
-              if (ids.length > 0) {
-                quickAudit.mutate(ids);
-              }
-            }}
-            disabled={!data?.recentProjects.length || quickAudit.isPending}
-            loading={quickAudit.isPending}
-          >
-            <Rocket size={16} aria-hidden="true" />
-            {quickAudit.isPending
-              ? 'Lanzando...'
-              : data?.recentProjects.length && data.recentProjects.length > 1
-                ? `Auditar ${data.recentProjects.length} dominios`
-                : 'Nueva auditoría'}
-          </Button>
-        </div>
-      </div>
+            {project.activeProjectId ? (
+              <Link
+                to="/projects/$id/sites"
+                params={{ id: project.activeProjectId }}
+                className="btn-secondary"
+              >
+                <Globe size={16} aria-hidden="true" />
+                Nuevo dominio
+              </Link>
+            ) : null}
+            <Button
+              type="button"
+              onClick={() => {
+                const ids = data?.recentProjects.map((p) => p.id) ?? [];
+                if (ids.length > 0) {
+                  quickAudit.mutate(ids);
+                }
+              }}
+              disabled={!data?.recentProjects.length || quickAudit.isPending}
+              loading={quickAudit.isPending}
+            >
+              <Rocket size={16} aria-hidden="true" />
+              {quickAudit.isPending
+                ? 'Lanzando...'
+                : data?.recentProjects.length && data.recentProjects.length > 1
+                  ? `Auditar ${data.recentProjects.length} dominios`
+                  : 'Nueva auditoría'}
+            </Button>
+          </>
+        }
+      />
 
       {dashboard.isLoading ? <DashboardSkeleton /> : null}
 
@@ -263,18 +258,21 @@ function DashboardPage() {
                     ? '/ 100'
                     : undefined,
                 tone: 'emerald',
+                delta: trendStats ? { value: trendStats.delta, positiveIsGood: true } : undefined,
               },
               {
                 icon: <AlertTriangle size={16} aria-hidden="true" />,
                 label: 'Críticas',
                 value: String(data.summary.criticalIssues),
                 tone: 'rose',
+                hint: data.summary.criticalIssues > 0 ? 'Requieren atención' : 'Todo en orden',
               },
               {
                 icon: <TrendingDown size={16} aria-hidden="true" />,
                 label: 'Regresiones',
                 value: String(data.summary.regressions),
                 tone: 'amber',
+                hint: 'vs. auditoría previa',
               },
               {
                 icon: <Workflow size={16} aria-hidden="true" />,
@@ -286,15 +284,14 @@ function DashboardPage() {
           />
 
           <div className="grid items-start gap-6 xl:grid-cols-[1.8fr_0.9fr]">
-            <article className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
-              <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.12),transparent_65%)]" />
-
-              <div className="relative flex flex-wrap items-start justify-between gap-4">
+            <Card as="article" className="p-6 sm:p-7">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold tracking-wide text-slate-600 uppercase">
-                    <Activity size={12} /> Tendencia · 30 días
+                  <div className="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    <Activity size={13} className="text-slate-400" aria-hidden="true" /> Tendencia ·
+                    30 días
                   </div>
-                  <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-900">
                     Score SEO global
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
@@ -303,19 +300,19 @@ function DashboardPage() {
                 </div>
 
                 {trendStats ? (
-                  <div className="flex items-end gap-5">
+                  <div className="flex items-end gap-4">
                     <div className="text-right">
-                      <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                      <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-slate-500">
                         Último
                       </p>
-                      <p className="text-4xl font-black text-slate-950">{trendStats.last}</p>
+                      <p className="text-3xl font-bold text-slate-900">{trendStats.last}</p>
                     </div>
                     <TrendDeltaBadge delta={trendStats.delta} />
                   </div>
                 ) : null}
               </div>
 
-              <div className="relative mt-6">
+              <div className="mt-6">
                 {data.trend.length >= 2 ? (
                   <TrendChart points={data.trend} />
                 ) : (
@@ -324,37 +321,32 @@ function DashboardPage() {
               </div>
 
               {trendStats ? (
-                <div className="relative mt-5 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
+                <div className="mt-5 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
                   <TrendStat label="Promedio" value={trendStats.avg} tone="slate" />
                   <TrendStat label="Máximo" value={trendStats.highest} tone="emerald" />
                   <TrendStat label="Mínimo" value={trendStats.lowest} tone="rose" />
                 </div>
               ) : null}
-            </article>
+            </Card>
 
-            <article className="relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7 xl:max-h-[30rem]">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold tracking-wide text-slate-600 uppercase">
-                    <Workflow size={12} /> Actividad
-                  </div>
-                  <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-                    Últimos eventos
-                  </h2>
-                </div>
-              </div>
+            <Card as="article" className="flex flex-col p-6 sm:p-7 xl:max-h-[30rem]">
+              <CardHeader
+                icon={<Workflow size={13} aria-hidden="true" />}
+                title="Últimos eventos"
+              />
 
-              <div className="relative mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
                 {data.activity.length === 0 ? (
                   <EmptyState
+                    icon={<Activity size={22} aria-hidden="true" />}
                     title="Sin actividad reciente"
                     description="Las auditorías, invitaciones y alertas aparecerán aquí."
                   />
                 ) : (
                   <ol className="space-y-4">
-                    {data.activity.map((item) => (
+                    {data.activity.map((item, index) => (
                       <li
-                        key={`${item.kind}-${item.createdAt}`}
+                        key={`${item.kind}-${item.createdAt}-${index}`}
                         className="grid grid-cols-[0.875rem_1fr] gap-3"
                       >
                         <span
@@ -373,28 +365,29 @@ function DashboardPage() {
                   </ol>
                 )}
               </div>
-            </article>
+            </Card>
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[0.95fr_1.45fr]">
-            <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                  Dominios recientes
-                </div>
-                {project.activeProjectId ? (
-                  <Link
-                    to="/projects/$id/sites"
-                    params={{ id: project.activeProjectId }}
-                    className="text-sm font-semibold text-brand-500 no-underline hover:underline"
-                  >
-                    Ver todos
-                  </Link>
-                ) : null}
-              </div>
-              <div className="mt-5 space-y-4">
+            <Card as="article" className="p-6">
+              <CardHeader
+                title="Dominios recientes"
+                action={
+                  project.activeProjectId ? (
+                    <Link
+                      to="/projects/$id/sites"
+                      params={{ id: project.activeProjectId }}
+                      className="text-sm font-semibold text-brand-500 no-underline hover:underline"
+                    >
+                      Ver todos
+                    </Link>
+                  ) : null
+                }
+              />
+              <div className="mt-5 space-y-3">
                 {data.recentProjects.length === 0 ? (
                   <EmptyState
+                    icon={<Globe size={22} aria-hidden="true" />}
                     title="Aún no hay dominios"
                     description="Añade un dominio para empezar a auditarlo."
                     action={
@@ -402,7 +395,7 @@ function DashboardPage() {
                         <Link
                           to="/projects/$id/sites"
                           params={{ id: project.activeProjectId }}
-                          className="btn-primary rounded-xl px-4 py-2"
+                          className="btn-primary"
                         >
                           Nuevo dominio
                         </Link>
@@ -415,16 +408,20 @@ function DashboardPage() {
                       key={site.id}
                       to="/sites/$id"
                       params={{ id: site.id }}
-                      className="block rounded-xl border border-slate-200 px-5 py-5 no-underline transition hover:border-brand-200 hover:bg-brand-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+                      className="block rounded-xl border border-slate-200 px-4 py-4 no-underline transition hover:border-brand-200 hover:bg-brand-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-2xl font-bold text-slate-950">{site.name}</div>
-                          <div className="mt-1 font-mono text-sm text-slate-500">{site.domain}</div>
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-semibold text-slate-900">
+                            {site.name}
+                          </div>
+                          <div className="mt-0.5 truncate font-mono text-xs text-slate-500">
+                            {site.domain}
+                          </div>
                         </div>
                         <Badge tone="brand">{site.latestScore ?? '--'}/100</Badge>
                       </div>
-                      <div className="mt-6 text-sm text-slate-500">
+                      <div className="mt-3 text-xs text-slate-500">
                         {site.latestAuditAt
                           ? `Auditado: ${formatDisplayDate(site.latestAuditAt)}`
                           : 'Sin auditorías todavía'}
@@ -433,27 +430,28 @@ function DashboardPage() {
                   ))
                 )}
               </div>
-            </article>
+            </Card>
 
-            <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                  Últimas auditorías
-                </div>
-                {project.activeProjectId ? (
-                  <Link
-                    to="/projects/$id/sites"
-                    params={{ id: project.activeProjectId }}
-                    className="text-sm font-semibold text-brand-500 no-underline hover:underline"
-                  >
-                    Gestionar dominios
-                  </Link>
-                ) : null}
-              </div>
+            <Card as="article" className="p-6">
+              <CardHeader
+                title="Últimas auditorías"
+                action={
+                  project.activeProjectId ? (
+                    <Link
+                      to="/projects/$id/sites"
+                      params={{ id: project.activeProjectId }}
+                      className="text-sm font-semibold text-brand-500 no-underline hover:underline"
+                    >
+                      Gestionar dominios
+                    </Link>
+                  ) : null
+                }
+              />
 
               {data.recentAudits.length === 0 ? (
                 <div className="mt-5">
                   <EmptyState
+                    icon={<Workflow size={22} aria-hidden="true" />}
                     title="Aún no hay auditorías"
                     description="Lanza tu primera auditoría desde un dominio."
                   />
@@ -461,7 +459,7 @@ function DashboardPage() {
               ) : (
                 <div className="mt-5 overflow-x-auto overflow-hidden rounded-xl border border-slate-200">
                   <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-brand-subtle text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    <thead className="bg-slate-50 text-left text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-slate-500">
                       <tr>
                         <th scope="col" className="px-4 py-3">
                           Auditoría
@@ -482,16 +480,16 @@ function DashboardPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {data.recentAudits.map((audit) => (
-                        <tr key={audit.id}>
-                          <td className="px-4 py-4 font-semibold text-brand-500">
+                        <tr key={audit.id} className="transition hover:bg-slate-50/60">
+                          <td className="px-4 py-3.5 font-mono text-xs font-semibold text-brand-500">
                             #{audit.id.slice(0, 8)}
                           </td>
-                          <td className="px-4 py-4 text-slate-800">{audit.projectName}</td>
-                          <td className="px-4 py-4 text-slate-600">
+                          <td className="px-4 py-3.5 text-slate-800">{audit.projectName}</td>
+                          <td className="px-4 py-3.5 text-slate-600">
                             {formatDisplayDateTime(audit.createdAt)}
                           </td>
-                          <td className="px-4 py-4 text-slate-700">{audit.issuesCount}</td>
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-3.5 text-slate-700">{audit.issuesCount}</td>
+                          <td className="px-4 py-3.5">
                             <Badge tone={statusTone(audit.status)}>
                               {statusLabel(audit.status)}
                             </Badge>
@@ -502,7 +500,7 @@ function DashboardPage() {
                   </table>
                 </div>
               )}
-            </article>
+            </Card>
           </div>
         </>
       ) : null}

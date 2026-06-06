@@ -464,8 +464,9 @@ export class ProjectsService {
    *   today) can call this.
    * - OWNER cannot have its role/perms touched here; promote/demote via a
    *   dedicated transfer-ownership flow if ever needed.
-   * - When the role changes, overrides reset to [] so the caller can re-apply
-   *   on top of the new role's defaults — predictable, no surprises.
+   * - Role and overrides are applied together in one call. `extraPermissions`/
+   *   `revokedPermissions` are interpreted relative to the (possibly new) role;
+   *   omitting them falls back to that role's defaults.
    * - extraPermissions cannot include OWNER_EXCLUSIVE permissions.
    * - revokedPermissions can only contain perms the role grants by default.
    */
@@ -495,9 +496,11 @@ export class ProjectsService {
     }
 
     const isRoleChange = input.role !== undefined && input.role !== target.role;
-    // Role change resets overrides — force callers to re-apply on top of new defaults.
-    const baseExtras = isRoleChange ? [] : (input.extraPermissions ?? []);
-    const baseRevoked = isRoleChange ? [] : (input.revokedPermissions ?? []);
+    // Overrides are expressed relative to the *new* role and applied together
+    // with the role change in a single call. Callers that only switch role and
+    // omit overrides fall back to [] (i.e. the new role's defaults).
+    const baseExtras = input.extraPermissions ?? [];
+    const baseRevoked = input.revokedPermissions ?? [];
 
     this.validateOverrides(newRole as Role, baseExtras, baseRevoked);
 

@@ -120,22 +120,35 @@ export type CommonEnv = z.infer<typeof commonEnvSchema>;
 // API-only fields. The worker must NOT validate these — @nestjs/config writes
 // validate() output back into process.env, so listing PORT here would inject
 // PORT=4000 into the worker process and break its JOBS_HTTP_PORT fallback.
-export const apiEnvSchema = z.object({
-  ...commonShape,
-  PORT: z.coerce.number().int().positive().default(4000),
-  CSRF_COOKIE_NAME: z.string().default('csrf_token'),
-  REFRESH_COOKIE_NAME: z.string().default('refresh_token'),
-  WEBHOOK_MAX_SKEW_SECONDS: z.coerce.number().int().positive().default(300),
-  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().positive().default(60),
-  // Number of trusted proxy hops in front of the API. Express uses this to
-  // resolve req.ip / req.protocol from X-Forwarded-* headers. Set to the
-  // exact number — never `true`, since a spoofed X-Forwarded-For would let
-  // attackers bypass IP-based rate limiting.
-  //  - Local dev:            0 (no proxy)
-  //  - Railway only:         1
-  //  - Railway + Cloudflare: 2
-  TRUST_PROXY: z.coerce.number().int().nonnegative().default(0),
-});
+export const apiEnvSchema = z
+  .object({
+    ...commonShape,
+    PORT: z.coerce.number().int().positive().default(4000),
+    CSRF_COOKIE_NAME: z.string().default('csrf_token'),
+    REFRESH_COOKIE_NAME: z.string().default('refresh_token'),
+    WEBHOOK_MAX_SKEW_SECONDS: z.coerce.number().int().positive().default(300),
+    PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().positive().default(60),
+    // Number of trusted proxy hops in front of the API. Express uses this to
+    // resolve req.ip / req.protocol from X-Forwarded-* headers. Set to the
+    // exact number — never `true`, since a spoofed X-Forwarded-For would let
+    // attackers bypass IP-based rate limiting.
+    //  - Local dev:            0 (no proxy)
+    //  - Railway only:         1
+    //  - Railway + Cloudflare: 2
+    TRUST_PROXY: z.coerce.number().int().nonnegative().default(0),
+  })
+  // Fail closed in production: a forgotten COOKIE_SECURE=true would let the
+  // HttpOnly refresh cookie travel over plain HTTP and be sniffed on the wire.
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV === 'production' && !env.COOKIE_SECURE) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'COOKIE_SECURE must be true in production so the refresh-token cookie is never sent over plain HTTP',
+        path: ['COOKIE_SECURE'],
+      });
+    }
+  });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 
 // Worker-only fields. Likewise, the API must not validate these.

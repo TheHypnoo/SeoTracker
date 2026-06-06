@@ -59,6 +59,29 @@ describe('apiEnvSchema', () => {
     expect(env2.COOKIE_SECURE).toBe(false);
   });
 
+  it('rejects COOKIE_SECURE=false in production but allows it elsewhere', () => {
+    expect(() =>
+      envConfig.apiEnvSchema.parse({
+        ...BASE_ENV,
+        NODE_ENV: 'production',
+        COOKIE_SECURE: 'false',
+      }),
+    ).toThrow(/COOKIE_SECURE must be true in production/);
+
+    expect(
+      envConfig.apiEnvSchema.parse({
+        ...BASE_ENV,
+        NODE_ENV: 'production',
+        COOKIE_SECURE: 'true',
+      }).COOKIE_SECURE,
+    ).toBe(true);
+
+    // Non-production is unaffected.
+    expect(
+      envConfig.apiEnvSchema.parse({ ...BASE_ENV, COOKIE_SECURE: 'false' }).COOKIE_SECURE,
+    ).toBe(false);
+  });
+
   it('rejects an invalid DATABASE_URL', () => {
     expect(() => envConfig.apiEnvSchema.parse({ ...BASE_ENV, DATABASE_URL: 'not-a-url' })).toThrow(
       /Invalid URL/,

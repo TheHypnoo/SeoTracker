@@ -4,7 +4,7 @@ import { IssueCode, Severity } from '@seotracker/shared-types';
 import { load } from 'cheerio';
 
 import { normalizeDomain } from '../common/utils/domain';
-import { safeFetch, SsrfBlockedError } from '../common/utils/safe-fetch';
+import { readBodyWithLimit, safeFetch, SsrfBlockedError } from '../common/utils/safe-fetch';
 import { computeCrawlConfidence } from './crawl-confidence';
 import type { Env } from '../config/env.schema';
 import { runBlogChecks } from './content-checks';
@@ -35,6 +35,10 @@ import { safeResolveUrl } from './url-utils';
  *
  * This class is a thin coordinator: fetch homepage, fan out, collect, score.
  */
+// Mirrors MAX_HTML_BYTES in crawler.ts: enough for any real homepage, small
+// enough that a hostile/oversized response can't blow the heap.
+const MAX_HOMEPAGE_HTML_BYTES = 5 * 1024 * 1024;
+
 @Injectable()
 export class SeoEngineService {
   private readonly logger = new Logger(SeoEngineService.name);
@@ -71,6 +75,7 @@ export class SeoEngineService {
     // ── Step 1: fetch the homepage ───────────────────────────────────────
     let response: Response;
     let responseMs: number;
+    let html: string;
     try {
       const startedAt = performance.now();
       response = await safeFetch(homepageUrl, {
@@ -78,6 +83,10 @@ export class SeoEngineService {
         signal: AbortSignal.timeout(timeoutMs),
       });
       responseMs = Math.round(performance.now() - startedAt);
+      // Bound the body: fetch transparently decompresses gzip, so a small
+      // response can expand to GBs (decompression bomb) and OOM the worker.
+      // readBodyWithLimit counts decompressed bytes and aborts past the cap.
+      html = await readBodyWithLimit(response, MAX_HOMEPAGE_HTML_BYTES);
     } catch (error) {
       const reason =
         error instanceof SsrfBlockedError ? 'SSRF guard blocked redirect' : String(error);
@@ -106,7 +115,6 @@ export class SeoEngineService {
 
     const status = response.status;
     const contentType = response.headers.get('content-type') ?? undefined;
-    const html = await response.text();
     const homepagePage: SeoPageResult = {
       contentType,
       responseMs,

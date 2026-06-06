@@ -375,11 +375,17 @@ function ProjectDetailPage() {
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
               Dominio
             </div>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-              {site.data?.name ?? 'Cargando...'}
-            </h1>
+            {site.data?.name ? (
+              <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
+                {site.data.name}
+              </h1>
+            ) : (
+              <Skeleton className="mt-1 h-9 w-56" />
+            )}
             <div className="mt-0.5 font-mono text-sm text-slate-500">
-              {site.data?.domain ?? '—'}
+              {site.data?.domain ?? (
+                <Skeleton as="span" className="inline-block h-4 w-40 align-middle" />
+              )}
             </div>
           </div>
 

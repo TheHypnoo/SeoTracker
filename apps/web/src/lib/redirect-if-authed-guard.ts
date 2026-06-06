@@ -1,5 +1,6 @@
 import { redirect } from '@tanstack/react-router';
 
+import { safeRedirectPath } from './safe-redirect';
 import type { ServerSession } from './session-server';
 
 interface BeforeLoadCtx {
@@ -18,6 +19,6 @@ export function redirectIfAuthed({ context, search }: BeforeLoadCtx) {
   if (!context.session.user) {
     return;
   }
-  const target = typeof search.redirect === 'string' ? search.redirect : '/dashboard';
+  const target = safeRedirectPath(search.redirect);
   throw redirect({ to: target });
 }

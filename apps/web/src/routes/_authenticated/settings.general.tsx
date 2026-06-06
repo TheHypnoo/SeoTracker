@@ -206,9 +206,7 @@ function GeneralSettingsPage() {
         <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
           Configuración &gt; General
         </div>
-        <h1 className="mt-3 text-5xl font-black tracking-tight text-slate-950">
-          Ajustes generales
-        </h1>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">Ajustes generales</h1>
         <p className="mt-3 max-w-2xl text-sm text-slate-600">
           Gestiona el proyecto activo, sus dominios y tus preferencias de notificación.
         </p>

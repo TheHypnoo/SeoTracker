@@ -466,6 +466,9 @@ importers:
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
+      undici:
+        specifier: ^7.25.0
+        version: 7.25.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3

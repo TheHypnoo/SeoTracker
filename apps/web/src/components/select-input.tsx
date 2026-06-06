@@ -62,7 +62,13 @@ function SelectInputInner({
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Positioner side="bottom" align="start" sideOffset={8} className="z-50">
+        <Select.Positioner
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          alignItemWithTrigger={false}
+          className="z-50"
+        >
           <Select.Popup className="max-h-[min(24rem,calc(var(--available-height,18rem)))] min-w-[var(--anchor-width)] overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg outline-none">
             <Select.List className="space-y-1">
               {options.map((option) => (

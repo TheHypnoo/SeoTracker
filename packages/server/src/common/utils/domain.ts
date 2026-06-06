@@ -1,33 +1,48 @@
 import { BadRequestException } from '@nestjs/common';
+import { BlockList, isIP } from 'node:net';
 
-const PRIVATE_HOST_PATTERNS = [
-  /^localhost$/i,
-  /^0\.0\.0\.0$/,
-  /^127\./,
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2\d|3[0-1])\./,
-  // IPv4 link-local + AWS/GCP/Azure metadata endpoint (169.254.169.254)
-  /^169\.254\./,
-  // IPv6 loopback / unspecified
-  /^\[?::1\]?$/i,
-  /^\[?::\]?$/i,
-  // IPv4-mapped IPv6 private ranges
-  /^\[?::ffff:0\.0\.0\.0/i,
-  /^\[?::ffff:127\./i,
-  /^\[?::ffff:10\./i,
-  /^\[?::ffff:192\.168\./i,
-  /^\[?::ffff:172\.(1[6-9]|2\d|3[0-1])\./i,
-  /^\[?::ffff:169\.254\./i,
-  // IPv6 link-local (fe80::/10)
-  /^\[?fe[89ab][0-9a-f]:/i,
-  // IPv6 unique-local (fc00::/7)
-  /^\[?f[cd][0-9a-f]{2}:/i,
-];
+// Authoritative blocklist for SSRF protection. net.BlockList parses each IP
+// numerically, so it cannot be fooled by alternate textual encodings
+// (decimal/hex IPv4, or — critically — IPv4-mapped IPv6 such as
+// `::ffff:7f00:1`, which is what `new URL()` normalizes `::ffff:127.0.0.1`
+// into). A regex-based approach missed those mapped/hex forms and let loopback
+// and the cloud metadata endpoint slip through.
+const blockedRanges = new BlockList();
+// IPv4
+blockedRanges.addAddress('0.0.0.0'); // unspecified
+blockedRanges.addSubnet('127.0.0.0', 8); // loopback
+blockedRanges.addSubnet('10.0.0.0', 8); // private
+blockedRanges.addSubnet('172.16.0.0', 12); // private
+blockedRanges.addSubnet('192.168.0.0', 16); // private
+blockedRanges.addSubnet('169.254.0.0', 16); // link-local + cloud metadata (169.254.169.254)
+blockedRanges.addSubnet('100.64.0.0', 10); // carrier-grade NAT (reaches internal infra in some clouds)
+// IPv6
+blockedRanges.addAddress('::1', 'ipv6'); // loopback
+blockedRanges.addAddress('::', 'ipv6'); // unspecified
+blockedRanges.addSubnet('fe80::', 10, 'ipv6'); // link-local
+blockedRanges.addSubnet('fc00::', 7, 'ipv6'); // unique-local
 
 export function isPrivateHostname(hostname: string): boolean {
-  const normalized = hostname.toLowerCase();
-  return PRIVATE_HOST_PATTERNS.some((regex) => regex.test(normalized));
+  // Strip the IPv6 bracket form (`[::1]`) before classification.
+  const normalized = hostname.toLowerCase().replace(/^\[(.*)\]$/, '$1');
+
+  if (normalized === 'localhost') {
+    return true;
+  }
+
+  const family = isIP(normalized);
+  if (family === 4) {
+    return blockedRanges.check(normalized, 'ipv4');
+  }
+  if (family === 6) {
+    // check() resolves IPv4-mapped IPv6 against the IPv4 rules automatically,
+    // closing the `::ffff:<hex>` bypass.
+    return blockedRanges.check(normalized, 'ipv6');
+  }
+
+  // Not an IP literal (a DNS name). It cannot be classified here; the caller
+  // resolves it and re-checks every resolved address through this function.
+  return false;
 }
 
 export function assertPublicHostname(hostname: string, label = 'hostname') {

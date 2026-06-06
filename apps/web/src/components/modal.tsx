@@ -31,7 +31,7 @@ export function Modal({
         >
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <Dialog.Title className="text-3xl font-black tracking-tight text-slate-950">
+              <Dialog.Title className="text-3xl font-bold tracking-tight text-slate-900">
                 {title}
               </Dialog.Title>
               {description ? (

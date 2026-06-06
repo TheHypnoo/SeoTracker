@@ -4,6 +4,8 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { and, desc, eq, lt, sql } from 'drizzle-orm';
 
 import { assertPresent } from '../common/utils/assert';
+import { assertPublicHttpUrl } from '../common/utils/domain';
+import { readBodyWithLimit, safeFetch } from '../common/utils/safe-fetch';
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import { outboundWebhookDeliveries, outboundWebhooks } from '../database/schema';
@@ -12,6 +14,10 @@ import { SystemLogsService } from '../system-logs/system-logs.service';
 import { ProjectsService } from '../projects/projects.service';
 
 export type OutboundDispatchPayload = Record<string, unknown>;
+
+// We persist at most 2000 chars of the receiver's response, so there is no
+// reason to buffer more than a small slice of it.
+const MAX_WEBHOOK_RESPONSE_BYTES = 64 * 1024;
 
 @Injectable()
 export class OutboundWebhooksService {
@@ -46,6 +52,12 @@ export class OutboundWebhooksService {
   ) {
     await this.projectsService.assertPermission(projectId, actorUserId, Permission.OUTBOUND_WRITE);
 
+    // Reject internal/link-local targets at write time so a webhook can never be
+    // pointed at the cloud metadata endpoint or an internal service (SSRF). The
+    // delivery path additionally goes through safeFetch as defense in depth.
+    const url = input.url.trim();
+    assertPublicHttpUrl(url, 'webhook URL');
+
     const secret = randomBytes(32).toString('hex');
 
     const [row] = await this.db
@@ -53,7 +65,7 @@ export class OutboundWebhooksService {
       .values({
         projectId,
         name: input.name.trim(),
-        url: input.url.trim(),
+        url,
         headerName: input.headerName?.trim() || null,
         headerValue: input.headerValue?.trim() || null,
         secret,
@@ -81,11 +93,17 @@ export class OutboundWebhooksService {
     await this.projectsService.assertPermission(projectId, actorUserId, Permission.OUTBOUND_WRITE);
     await this.getWebhookForProject(projectId, webhookId);
 
+    let nextUrl: string | undefined;
+    if (typeof input.url === 'string') {
+      nextUrl = input.url.trim();
+      assertPublicHttpUrl(nextUrl, 'webhook URL');
+    }
+
     const [updated] = await this.db
       .update(outboundWebhooks)
       .set({
         ...(typeof input.name === 'string' ? { name: input.name.trim() } : {}),
-        ...(typeof input.url === 'string' ? { url: input.url.trim() } : {}),
+        ...(nextUrl !== undefined ? { url: nextUrl } : {}),
         ...(input.headerName !== undefined ? { headerName: input.headerName?.trim() || null } : {}),
         ...(input.headerValue !== undefined
           ? { headerValue: input.headerValue?.trim() || null }
@@ -282,7 +300,10 @@ export class OutboundWebhooksService {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10_000);
-      const response = await fetch(webhook.url, {
+      // safeFetch validates the destination (and every redirect hop) against the
+      // SSRF blocklist and pins the connection to the validated public IP, so a
+      // stored webhook URL can never be used to reach internal services.
+      const response = await safeFetch(webhook.url, {
         method: 'POST',
         headers,
         body,
@@ -290,7 +311,11 @@ export class OutboundWebhooksService {
       });
       clearTimeout(timeoutId);
 
-      const text = await response.text().catch(() => '');
+      // Only the first 2000 chars are persisted, so cap the read well below
+      // that. A hostile receiver returning a huge (or gzip-bombed) body must not
+      // be buffered unbounded into the worker's heap. Oversize/read errors fall
+      // back to an empty body — delivery success is decided by response.ok.
+      const text = await readBodyWithLimit(response, MAX_WEBHOOK_RESPONSE_BYTES).catch(() => '');
       const truncated = text.length > 2000 ? `${text.slice(0, 2000)}…` : text;
 
       if (!response.ok) {

@@ -37,6 +37,7 @@ export enum Permission {
   WEBHOOK_WRITE = 'webhook.write',
   OUTBOUND_READ = 'outbound.read',
   OUTBOUND_WRITE = 'outbound.write',
+  ACTIVITY_READ = 'activity.read',
 }
 
 /** Permissions that can ONLY be held by OWNER. They cannot be granted to MEMBER/VIEWER via overrides. */

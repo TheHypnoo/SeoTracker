@@ -362,7 +362,7 @@ describe('projectsService permissions', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('updates role and resets overrides on role change', async () => {
+    it('applies overrides relative to the new role on role change', async () => {
       db.where
         .mockReturnValueOnce(
           thenable([
@@ -402,7 +402,7 @@ describe('projectsService permissions', () => {
 
       await service.updateMemberPermissions('p1', 'target', 'owner', {
         role: Role.VIEWER,
-        // these are silently dropped because role changed → overrides reset.
+        // Interpreted against the new VIEWER role and persisted in the same call.
         extraPermissions: [Permission.AUDIT_RUN],
         revokedPermissions: [Permission.PROJECT_VIEW],
       });
@@ -410,8 +410,8 @@ describe('projectsService permissions', () => {
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({
           role: Role.VIEWER,
-          extraPermissions: [],
-          revokedPermissions: [],
+          extraPermissions: [Permission.AUDIT_RUN],
+          revokedPermissions: [Permission.PROJECT_VIEW],
         }),
       );
     });

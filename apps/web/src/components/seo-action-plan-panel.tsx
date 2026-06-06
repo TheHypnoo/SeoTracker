@@ -1,7 +1,8 @@
-import { Clipboard, Download, ShieldAlert } from 'lucide-react';
+import { Check, Clipboard, Download, ShieldAlert } from 'lucide-react';
 
 import { Button } from '#/components/button';
 import { Skeleton } from '#/components/skeleton';
+import { useCopyToClipboard } from '#/lib/use-copy-to-clipboard';
 
 type ActionStatus = 'OPEN' | 'IGNORED' | 'FIXED';
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
@@ -99,9 +100,7 @@ export function AuditKeyFindingsPanel({ plan, loading, exportAction }: SeoAction
             <ShieldAlert size={11} aria-hidden="true" />
             Plan
           </div>
-          <h2 className="mt-2 text-lg font-black tracking-tight text-slate-950">
-            Plan de solución
-          </h2>
+          <h2 className="mt-2 text-lg font-bold tracking-tight text-slate-900">Plan de solución</h2>
           <p className="mt-0.5 text-sm text-slate-500">
             Prioridades resumidas. El detalle completo está en incidencias técnicas.
           </p>
@@ -180,15 +179,16 @@ function AuditFindingItem({ action, index }: { action: ActionItem; index: number
 }
 
 function CopyPromptButton({ prompt }: { prompt: string }) {
+  const { copied, copy } = useCopyToClipboard({ toast: 'Prompt copiado' });
   return (
     <button
       type="button"
-      onClick={() => void navigator.clipboard?.writeText(prompt)}
+      onClick={() => void copy(prompt)}
       className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
       title="Copiar prompt de solución"
     >
-      <Clipboard size={12} aria-hidden="true" />
-      Copiar prompt
+      {copied ? <Check size={12} aria-hidden="true" /> : <Clipboard size={12} aria-hidden="true" />}
+      {copied ? 'Copiado' : 'Copiar prompt'}
     </button>
   );
 }

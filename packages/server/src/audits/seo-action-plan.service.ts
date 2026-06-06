@@ -5,6 +5,7 @@ import {
   IssueCategory,
   IssueCode,
   IssueState,
+  Permission,
   SeoActionEffort,
   SeoActionImpact,
   Severity,
@@ -189,7 +190,11 @@ export class SeoActionPlanService {
   ) {}
 
   async getForSite(siteId: string, userId: string): Promise<SeoActionPlan> {
-    const site = await this.sitesService.getById(siteId, userId);
+    const site = await this.sitesService.getByIdWithPermission(
+      siteId,
+      userId,
+      Permission.AUDIT_READ,
+    );
     const [latestRun] = await this.db
       .select()
       .from(auditRuns)
@@ -211,7 +216,11 @@ export class SeoActionPlanService {
       throw new NotFoundException('Audit not found');
     }
 
-    const site = await this.sitesService.getById(run.siteId, userId);
+    const site = await this.sitesService.getByIdWithPermission(
+      run.siteId,
+      userId,
+      Permission.AUDIT_READ,
+    );
     return this.buildPlan(site, run);
   }
 

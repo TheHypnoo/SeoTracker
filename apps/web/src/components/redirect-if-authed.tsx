@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 
 import { useAuth } from '../lib/auth-context';
+import { safeRedirectPath } from '../lib/safe-redirect';
 
 /**
  * Renders children only when the visitor is NOT authenticated. If they are,
@@ -20,7 +21,7 @@ export function RedirectIfAuthed({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (auth.user) {
-      const target = typeof search.redirect === 'string' ? search.redirect : '/dashboard';
+      const target = safeRedirectPath(search.redirect);
       void navigate({ replace: true, to: target });
     }
   }, [auth.user, navigate, search.redirect]);
