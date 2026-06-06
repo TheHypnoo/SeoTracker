@@ -7,6 +7,9 @@ function isPlaceholderSecret(value: string): boolean {
   return PLACEHOLDER_SECRET_PREFIXES.some((prefix) => lowered.startsWith(prefix));
 }
 
+const emptyStringToUndefined = (value: unknown) =>
+  typeof value === 'string' && value.length === 0 ? undefined : value;
+
 // Fields shared between the API and the worker. Keep this list tight — anything
 // only one service needs belongs in apiEnvSchema or workerEnvSchema so the
 // other service does not validate it (and so ConfigModule does not reinject
@@ -98,6 +101,7 @@ const commonShape = {
     .default(false),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url().optional(),
   OTEL_SERVICE_NAME: z.string().optional(),
+  GOOGLE_TOKEN_ENCRYPTION_KEY: z.preprocess(emptyStringToUndefined, z.string().min(32).optional()),
 } as const;
 
 export const commonEnvSchema = z.object(commonShape);
@@ -121,6 +125,9 @@ export const apiEnvSchema = z.object({
   //  - Railway only:         1
   //  - Railway + Cloudflare: 2
   TRUST_PROXY: z.coerce.number().int().nonnegative().default(0),
+  GOOGLE_CLIENT_ID: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  GOOGLE_CLIENT_SECRET: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  GOOGLE_OAUTH_REDIRECT_URI: z.preprocess(emptyStringToUndefined, z.url().optional()),
 });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 

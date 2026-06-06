@@ -11,6 +11,9 @@ export { DRIZZLE } from './database/database.constants';
 export { DatabaseModule } from './database/database.module';
 export { ExportsModule } from './exports/exports.module';
 export { ExportsProcessor } from './exports/exports.processor';
+export { GoogleOauthModule } from './google/google-oauth.module';
+export { GoogleOauthService } from './google/google-oauth.service';
+export { TokenEncryptionService } from './google/token-encryption.service';
 export { HealthModule } from './health/health.module';
 export { InvitationsModule } from './invitations/invitations.module';
 export { EmailDeliveriesProcessor } from './notifications/email-deliveries.processor';
@@ -19,6 +22,8 @@ export { OutboundWebhooksModule } from './outbound-webhooks/outbound-webhooks.mo
 export { OutboundWebhooksProcessor } from './outbound-webhooks/outbound-webhooks.processor';
 export { OutboundWebhooksService } from './outbound-webhooks/outbound-webhooks.service';
 export { PublicBadgesModule } from './public-badges/public-badges.module';
+export { SearchConsoleModule } from './search-console/search-console.module';
+export { SearchConsoleService } from './search-console/search-console.service';
 export { SitesModule } from './sites/sites.module';
 export { QueueModule } from './queue/queue.module';
 export { AllExceptionsFilter } from './common/filters/all-exceptions.filter';

@@ -115,6 +115,10 @@ describe('apiEnvSchema', () => {
     const env = envConfig.apiEnvSchema.parse({
       ...BASE_ENV,
       ALERT_WEBHOOK_URL: '',
+      GOOGLE_CLIENT_ID: '',
+      GOOGLE_CLIENT_SECRET: '',
+      GOOGLE_OAUTH_REDIRECT_URI: '',
+      GOOGLE_TOKEN_ENCRYPTION_KEY: '',
       METRICS_TOKEN: '',
     });
 
@@ -122,15 +126,66 @@ describe('apiEnvSchema', () => {
     expect(env.METRICS_TOKEN).toBeUndefined();
   });
 
+  it('normalizes empty optional Google OAuth env vars', () => {
+    const env = envConfig.apiEnvSchema.parse({
+      ...BASE_ENV,
+      GOOGLE_CLIENT_ID: '',
+      GOOGLE_CLIENT_SECRET: '',
+      GOOGLE_OAUTH_REDIRECT_URI: '',
+      GOOGLE_TOKEN_ENCRYPTION_KEY: '',
+    });
+
+    expect(env.GOOGLE_CLIENT_ID).toBeUndefined();
+    expect(env.GOOGLE_CLIENT_SECRET).toBeUndefined();
+    expect(env.GOOGLE_OAUTH_REDIRECT_URI).toBeUndefined();
+    expect(env.GOOGLE_TOKEN_ENCRYPTION_KEY).toBeUndefined();
+  });
+
   it('accepts configured optional metrics and alert values', () => {
     const env = envConfig.apiEnvSchema.parse({
       ...BASE_ENV,
       ALERT_WEBHOOK_URL: 'https://alerts.example.test/hook',
+      GOOGLE_CLIENT_ID: 'google-client-id.apps.googleusercontent.com',
+      GOOGLE_CLIENT_SECRET: 'google-client-secret',
+      GOOGLE_OAUTH_REDIRECT_URI: 'https://api.example.test/api/v1/google/oauth/callback',
+      GOOGLE_TOKEN_ENCRYPTION_KEY: 'g'.repeat(32),
       METRICS_TOKEN: '1234567890abcdef',
     });
 
     expect(env.ALERT_WEBHOOK_URL).toBe('https://alerts.example.test/hook');
     expect(env.METRICS_TOKEN).toBe('1234567890abcdef');
+  });
+
+  it('accepts configured optional Google OAuth values', () => {
+    const env = envConfig.apiEnvSchema.parse({
+      ...BASE_ENV,
+      GOOGLE_CLIENT_ID: 'google-client-id.apps.googleusercontent.com',
+      GOOGLE_CLIENT_SECRET: 'google-client-secret',
+      GOOGLE_OAUTH_REDIRECT_URI: 'https://api.example.test/api/v1/google/oauth/callback',
+      GOOGLE_TOKEN_ENCRYPTION_KEY: 'g'.repeat(32),
+    });
+
+    expect(env.GOOGLE_CLIENT_ID).toBe('google-client-id.apps.googleusercontent.com');
+    expect(env.GOOGLE_CLIENT_SECRET).toBe('google-client-secret');
+    expect(env.GOOGLE_OAUTH_REDIRECT_URI).toBe(
+      'https://api.example.test/api/v1/google/oauth/callback',
+    );
+    expect(env.GOOGLE_TOKEN_ENCRYPTION_KEY).toBe('g'.repeat(32));
+  });
+
+  it('rejects malformed Google OAuth configuration values when provided', () => {
+    expect(() =>
+      envConfig.apiEnvSchema.parse({
+        ...BASE_ENV,
+        GOOGLE_OAUTH_REDIRECT_URI: 'not-a-url',
+      }),
+    ).toThrow(/Invalid URL/);
+    expect(() =>
+      envConfig.apiEnvSchema.parse({
+        ...BASE_ENV,
+        GOOGLE_TOKEN_ENCRYPTION_KEY: 'too-short',
+      }),
+    ).toThrow(/Too small/);
   });
 });
 
@@ -156,6 +211,9 @@ describe('workerEnvSchema', () => {
     'TRUST_PROXY',
     'WEBHOOK_MAX_SKEW_SECONDS',
     'PASSWORD_RESET_TTL_MINUTES',
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+    'GOOGLE_OAUTH_REDIRECT_URI',
   ])('does not expose API-only field %s (regression: worker must not bind PORT=4000)', (key) => {
     const env = envConfig.workerEnvSchema.parse(BASE_ENV) as Record<string, unknown>;
     expect(env[key]).toBeUndefined();

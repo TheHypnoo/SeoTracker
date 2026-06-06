@@ -29,6 +29,34 @@
       "when": 1779816018518,
       "tag": "0003_typical_sentry",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780682504399,
+      "tag": "0004_google_oauth_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780695155479,
+      "tag": "0005_search_console_properties",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780696089415,
+      "tag": "0006_site_search_console_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780696400376,
+      "tag": "0007_gsc_daily_stats",
+      "breakpoints": true
     }
   ]
 }
