@@ -50,6 +50,7 @@ describe('siteSearchConsoleController', () => {
     trackKeyword: jest.fn(() => Promise.resolve({ query: 'kw', tracked: true })),
     untrackKeyword: jest.fn(() => Promise.resolve({ query: 'kw', tracked: false })),
     getKeywordTimeseries: jest.fn(() => Promise.resolve('keyword-series')),
+    getBrandSplit: jest.fn(() => Promise.resolve({ branded: {}, nonBranded: {}, terms: [] })),
   };
   const controller = new SiteSearchConsoleController(searchConsoleService as never);
   const user = { sub: 'user-1' };
@@ -122,6 +123,28 @@ describe('siteSearchConsoleController', () => {
       'site-1',
       'user-1',
       'zapatillas',
+    );
+  });
+
+  it('splits comma-separated brand terms before delegating the brand split', async () => {
+    await controller.brandSplit(user, 'site-1', {
+      brandTerms: 'nike,adidas',
+      endDate: '2026-06-04',
+      startDate: '2026-06-01',
+    });
+    expect(searchConsoleService.getBrandSplit).toHaveBeenCalledWith(
+      'site-1',
+      'user-1',
+      expect.objectContaining({ brandTerms: ['nike', 'adidas'] }),
+    );
+  });
+
+  it('passes an empty brand-term list when none are provided', async () => {
+    await controller.brandSplit(user, 'site-1', {});
+    expect(searchConsoleService.getBrandSplit).toHaveBeenCalledWith(
+      'site-1',
+      'user-1',
+      expect.objectContaining({ brandTerms: [] }),
     );
   });
 

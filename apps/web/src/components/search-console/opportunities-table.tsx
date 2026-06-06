@@ -1,4 +1,4 @@
-import { Sparkles } from 'lucide-react';
+import { Download, Sparkles } from 'lucide-react';
 
 import { Badge } from '#/components/badge';
 import { EmptyState } from '#/components/empty-state';
@@ -10,7 +10,13 @@ import type { OpportunityRow } from './types';
  * Striking-distance opportunities table: queries ranking on the edge of page one, sorted by the
  * extra clicks they could capture. "Clics potenciales" is an estimate, not a guarantee.
  */
-export function OpportunitiesTable({ rows }: { rows: OpportunityRow[] }) {
+export function OpportunitiesTable({
+  rows,
+  onExport,
+}: {
+  rows: OpportunityRow[];
+  onExport?: () => void;
+}) {
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -23,6 +29,18 @@ export function OpportunitiesTable({ rows }: { rows: OpportunityRow[] }) {
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {onExport ? (
+        <div className="flex justify-end border-b border-slate-200 px-4 py-2">
+          <button
+            type="button"
+            onClick={onExport}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-brand-200 hover:text-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+          >
+            <Download size={12} aria-hidden="true" />
+            CSV
+          </button>
+        </div>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[40rem] border-collapse text-sm">
           <thead>

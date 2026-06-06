@@ -960,6 +960,60 @@ describe('search console service', () => {
     expect(series).toHaveLength(1);
   });
 
+  it('splits branded vs non-branded traffic and normalizes the terms', async () => {
+    const { db, service } = makeService();
+    const { site, link } = linkLookupRows();
+    jest
+      .mocked(db.where)
+      .mockReturnValueOnce({ groupBy: db.groupBy, limit: db.limit, orderBy: db.orderBy } as never)
+      .mockReturnValueOnce({ groupBy: db.groupBy, limit: db.limit, orderBy: db.orderBy } as never)
+      .mockResolvedValueOnce([
+        {
+          brandedClicks: 100,
+          brandedCtr: 0.1,
+          brandedImpressions: 1000,
+          brandedPosition: 3,
+          nonBrandedClicks: 50,
+          nonBrandedCtr: 0.05,
+          nonBrandedImpressions: 800,
+          nonBrandedPosition: 7,
+        },
+      ] as never);
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([site] as never)
+      .mockResolvedValueOnce([{ link, property: { id: 'property-1' } }] as never);
+
+    const result = await service.getBrandSplit('site-1', 'user-1', {
+      brandTerms: ['Nike', ' adidas ', ''],
+      endDate: '2026-06-04',
+      startDate: '2026-06-01',
+    });
+
+    expect(result.terms).toStrictEqual(['nike', 'adidas']);
+    expect(result.branded).toMatchObject({ clicks: 100, impressions: 1000 });
+    expect(result.nonBranded).toMatchObject({ clicks: 50, impressions: 800 });
+  });
+
+  it('handles a brand split with no terms (everything is non-branded)', async () => {
+    const { db, service } = makeService();
+    const { site, link } = linkLookupRows();
+    jest
+      .mocked(db.where)
+      .mockReturnValueOnce({ groupBy: db.groupBy, limit: db.limit, orderBy: db.orderBy } as never)
+      .mockReturnValueOnce({ groupBy: db.groupBy, limit: db.limit, orderBy: db.orderBy } as never)
+      .mockResolvedValueOnce([] as never);
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([site] as never)
+      .mockResolvedValueOnce([{ link, property: { id: 'property-1' } }] as never);
+
+    const result = await service.getBrandSplit('site-1', 'user-1', {});
+
+    expect(result.terms).toStrictEqual([]);
+    expect(result.branded).toMatchObject({ clicks: 0 });
+  });
+
   it('rejects a range where the start date is after the end date', async () => {
     const { db, service } = makeService();
     const { site, link } = linkLookupRows();

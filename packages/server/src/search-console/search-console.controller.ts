@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UUID_V4_PIPE } from '../common/pipes/uuid-v4.pipe';
 import { ImportSearchConsoleDataDto } from './dto/import-search-console-data.dto';
 import { LinkSearchConsolePropertyDto } from './dto/link-search-console-property.dto';
+import { SearchConsoleBrandQueryDto } from './dto/search-console-brand.query.dto';
 import { SearchConsoleKeywordQueryDto } from './dto/search-console-keyword.query.dto';
 import { SearchConsoleRangeQueryDto } from './dto/search-console-range.query.dto';
 import { SyncSearchConsolePropertiesDto } from './dto/sync-search-console-properties.dto';
@@ -199,6 +200,20 @@ export class SiteSearchConsoleController {
     @Query('query') query: string,
   ) {
     return this.searchConsoleService.untrackKeyword(siteId, user.sub, query);
+  }
+
+  @Get('performance/brand-split')
+  @ApiOperation({ summary: 'Get branded vs non-branded performance for a linked site' })
+  brandSplit(
+    @CurrentUser() user: { sub: string },
+    @Param('siteId', UUID_V4_PIPE) siteId: string,
+    @Query() query: SearchConsoleBrandQueryDto,
+  ) {
+    return this.searchConsoleService.getBrandSplit(siteId, user.sub, {
+      brandTerms: query.brandTerms ? query.brandTerms.split(',') : [],
+      endDate: query.endDate,
+      startDate: query.startDate,
+    });
   }
 
   @Get('performance/keyword-timeseries')

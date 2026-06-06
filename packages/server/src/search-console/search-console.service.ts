@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Permission } from '@seotracker/shared-types';
-import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm';
 
 import type { Env } from '../config/env.schema';
 import { DRIZZLE } from '../database/database.constants';
@@ -77,6 +77,9 @@ const CANNIBALIZATION_MAX_DOMINANT_SHARE = 0.9;
 // have lost at least this share of them to count as a real decline (not noise).
 const DECAY_MIN_PREVIOUS_CLICKS = 5;
 const DECAY_MIN_DROP_RATIO = 0.2;
+
+// Branded vs non-branded: cap how many brand terms a caller can match on in one request.
+const BRAND_MAX_TERMS = 20;
 
 type TopDimensionInput = {
   startDate?: string;
@@ -676,6 +679,78 @@ export class SearchConsoleService {
         value: row.value,
       };
     });
+  }
+
+  /**
+   * Branded vs non-branded split: aggregates query rows into the queries that contain any of the
+   * supplied brand terms versus the rest, so the user can see how much traffic the brand drives.
+   */
+  async getBrandSplit(
+    siteId: string,
+    userId: string,
+    input: { startDate?: string; endDate?: string; brandTerms?: string[] },
+  ) {
+    const { link } = await this.getActiveLinkWithProperty(siteId, userId, Permission.SITE_READ);
+    const { startDate, endDate } = this.resolveDateRange(input);
+    const terms = (input.brandTerms ?? [])
+      .map((term) => term.trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, BRAND_MAX_TERMS);
+    const brandedExpr = terms.length
+      ? or(...terms.map((term) => ilike(gscDailyStats.query, `%${term}%`)))
+      : sql`false`;
+
+    const bucket = (matches: ReturnType<typeof sql>) => ({
+      clicks: sql<number>`coalesce(sum(case when ${matches} then ${gscDailyStats.clicks} else 0 end), 0)::int`,
+      ctr: sql<number>`case when coalesce(sum(case when ${matches} then ${gscDailyStats.impressions} else 0 end), 0) = 0 then 0 else sum(case when ${matches} then ${gscDailyStats.clicks} else 0 end)::float / sum(case when ${matches} then ${gscDailyStats.impressions} else 0 end) end`,
+      impressions: sql<number>`coalesce(sum(case when ${matches} then ${gscDailyStats.impressions} else 0 end), 0)::int`,
+      position: sql<number>`case when coalesce(sum(case when ${matches} then ${gscDailyStats.impressions} else 0 end), 0) = 0 then 0 else sum(case when ${matches} then ${gscDailyStats.position} * ${gscDailyStats.impressions} else 0 end) / sum(case when ${matches} then ${gscDailyStats.impressions} else 0 end) end`,
+    });
+
+    const brandedBucket = bucket(sql`(${brandedExpr})`);
+    const nonBrandedBucket = bucket(sql`not (${brandedExpr})`);
+
+    const [row] = await this.db
+      .select({
+        brandedClicks: brandedBucket.clicks,
+        brandedCtr: brandedBucket.ctr,
+        brandedImpressions: brandedBucket.impressions,
+        brandedPosition: brandedBucket.position,
+        nonBrandedClicks: nonBrandedBucket.clicks,
+        nonBrandedCtr: nonBrandedBucket.ctr,
+        nonBrandedImpressions: nonBrandedBucket.impressions,
+        nonBrandedPosition: nonBrandedBucket.position,
+      })
+      .from(gscDailyStats)
+      .where(
+        and(
+          eq(gscDailyStats.siteId, link.siteId),
+          eq(gscDailyStats.searchConsolePropertyId, link.searchConsolePropertyId),
+          gte(gscDailyStats.date, startDate),
+          lte(gscDailyStats.date, endDate),
+          sql`${gscDailyStats.query} <> ''`,
+          eq(gscDailyStats.page, ''),
+          eq(gscDailyStats.country, ''),
+          eq(gscDailyStats.device, ''),
+          eq(gscDailyStats.searchType, 'web'),
+        ),
+      );
+
+    return {
+      branded: {
+        clicks: Number(row?.brandedClicks ?? 0),
+        ctr: Number(row?.brandedCtr ?? 0),
+        impressions: Number(row?.brandedImpressions ?? 0),
+        position: Number(row?.brandedPosition ?? 0),
+      },
+      nonBranded: {
+        clicks: Number(row?.nonBrandedClicks ?? 0),
+        ctr: Number(row?.nonBrandedCtr ?? 0),
+        impressions: Number(row?.nonBrandedImpressions ?? 0),
+        position: Number(row?.nonBrandedPosition ?? 0),
+      },
+      terms,
+    };
   }
 
   /**

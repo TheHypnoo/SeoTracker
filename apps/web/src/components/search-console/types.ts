@@ -108,6 +108,19 @@ export type TrackedKeyword = {
   position: number;
 };
 
+export type BrandBucket = {
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+};
+
+export type BrandSplit = {
+  branded: BrandBucket;
+  nonBranded: BrandBucket;
+  terms: string[];
+};
+
 export type ImportResponse = {
   importedRows: number;
   startDate: string;

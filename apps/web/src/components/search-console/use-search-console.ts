@@ -6,6 +6,7 @@ import { useAuth } from '#/lib/auth-context';
 
 import { type ComparisonMode, comparisonRange, defaultDateRange, rangeParams } from './format';
 import type {
+  BrandSplit,
   CandidatesResponse,
   CannibalizationGroup,
   DecayRow,
@@ -16,6 +17,13 @@ import type {
   TopPerformanceRow,
   TrackedKeyword,
 } from './types';
+
+function loadBrandTerms(siteId: string) {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  return window.localStorage.getItem(`gsc-brand-terms-${siteId}`) ?? '';
+}
 
 /**
  * Encapsulates every Search Console query and mutation for a site: candidate/linked property,
@@ -30,6 +38,13 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
   const toast = useToast();
   const [selectedPropertyId, setSelectedPropertyId] = useState('');
   const [comparison, setComparison] = useState<ComparisonMode>('none');
+  const [brandTerms, setBrandTermsState] = useState(() => loadBrandTerms(siteId));
+  const setBrandTerms = (value: string) => {
+    setBrandTermsState(value);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(`gsc-brand-terms-${siteId}`, value);
+    }
+  };
   const { defaultStartDate, defaultEndDate } = useMemo(() => defaultDateRange(), []);
   const [startDate, setStartDate] = useState(defaultStartDate);
   const [endDate, setEndDate] = useState(defaultEndDate);
@@ -161,6 +176,19 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     placeholderData: keepPreviousData,
   });
 
+  const brandSplit = useQuery({
+    queryKey: ['search-console-brand', siteId, startDate, endDate, brandTerms] as const,
+    queryFn: () =>
+      auth.api.get<BrandSplit>(
+        `/sites/${siteId}/search-console/performance/brand-split?${rangeParams(
+          startDate,
+          endDate,
+        )}&brandTerms=${encodeURIComponent(brandTerms)}`,
+      ),
+    enabled: topEnabled && brandTerms.trim().length > 0,
+    placeholderData: keepPreviousData,
+  });
+
   const trackedKeywords = useQuery({
     queryKey: ['search-console-keywords', siteId, startDate, endDate] as const,
     queryFn: () =>
@@ -260,11 +288,14 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
 
   return {
     activePropertyId,
+    brandSplit,
+    brandTerms,
     candidates,
     cannibalization,
     comparison,
     decay,
     endDate,
+    setBrandTerms,
     trackKeyword,
     trackedKeywords,
     untrackKeyword,

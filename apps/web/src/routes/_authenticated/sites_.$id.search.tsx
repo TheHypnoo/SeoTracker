@@ -41,7 +41,9 @@ import {
   LinkedPropertyBanner,
   PropertyLinkPanel,
 } from '#/components/search-console/property-panels';
+import { BrandSplitPanel } from '#/components/search-console/brand-split-panel';
 import { CannibalizationGroups } from '#/components/search-console/cannibalization-groups';
+import { downloadCsv } from '#/components/search-console/csv';
 import { DecayTable } from '#/components/search-console/decay-table';
 import { KeywordTracking } from '#/components/search-console/keyword-tracking';
 import { OpportunitiesTable } from '#/components/search-console/opportunities-table';
@@ -301,6 +303,13 @@ function TabPanels({ tab, gsc, siteId }: { tab: SearchTab; gsc: GscState; siteId
   const topPages = gsc.topPages.data ?? [];
   const topCountries = gsc.topCountries.data ?? [];
   const topDevices = gsc.topDevices.data ?? [];
+  const trackedSet = new Set((gsc.trackedKeywords.data ?? []).map((keyword) => keyword.query));
+  const exportTop = (name: string, rows: typeof topQueries) =>
+    downloadCsv(
+      `gsc-${name}`,
+      ['Valor', 'Clicks', 'Impresiones', 'CTR', 'Posición'],
+      rows.map((row) => [row.value, row.clicks, row.impressions, row.ctr, row.position]),
+    );
 
   if (tab === 'overview') {
     const previous = gsc.comparison === 'none' ? undefined : gsc.previousSummary.data;
@@ -358,6 +367,13 @@ function TabPanels({ tab, gsc, siteId }: { tab: SearchTab; gsc: GscState; siteId
           )}
         </section>
 
+        <BrandSplitPanel
+          terms={gsc.brandTerms}
+          onChangeTerms={gsc.setBrandTerms}
+          data={gsc.brandSplit.data}
+          loading={gsc.brandSplit.isLoading}
+        />
+
         <div className="grid gap-3 lg:grid-cols-2">
           <TopList
             title="Top consultas"
@@ -383,6 +399,9 @@ function TabPanels({ tab, gsc, siteId }: { tab: SearchTab; gsc: GscState; siteId
         rows={topQueries}
         empty="Sin consultas importadas."
         icon={Search}
+        onTrack={(query) => gsc.trackKeyword.mutate(query)}
+        trackedValues={trackedSet}
+        onExport={() => exportTop('consultas', topQueries)}
       />
     );
   }
@@ -390,14 +409,39 @@ function TabPanels({ tab, gsc, siteId }: { tab: SearchTab; gsc: GscState; siteId
   if (tab === 'pages') {
     return (
       <div className="space-y-4">
-        <TopList title="URLs" rows={topPages} empty="Sin URLs importadas." icon={Globe2} />
+        <TopList
+          title="URLs"
+          rows={topPages}
+          empty="Sin URLs importadas."
+          icon={Globe2}
+          onExport={() => exportTop('urls', topPages)}
+        />
         <DecayTable rows={gsc.decay.data ?? []} />
       </div>
     );
   }
 
   if (tab === 'opportunities') {
-    return <OpportunitiesTable rows={gsc.opportunities.data ?? []} />;
+    const opportunities = gsc.opportunities.data ?? [];
+    return (
+      <OpportunitiesTable
+        rows={opportunities}
+        onExport={() =>
+          downloadCsv(
+            'gsc-oportunidades',
+            ['Consulta', 'Posición', 'Impresiones', 'CTR', 'Clics', 'Clics potenciales'],
+            opportunities.map((row) => [
+              row.value,
+              row.position,
+              row.impressions,
+              row.ctr,
+              row.clicks,
+              row.potentialClicks,
+            ]),
+          )
+        }
+      />
+    );
   }
 
   if (tab === 'cannibalization') {
@@ -429,6 +473,7 @@ function TabPanels({ tab, gsc, siteId }: { tab: SearchTab; gsc: GscState; siteId
         valueFormatter={formatCountry}
         valuePrefix={(value) => <CountryFlag countryCode={value} />}
         icon={Globe2}
+        onExport={() => exportTop('paises', topCountries)}
       />
       <TopList
         title="Dispositivos"
@@ -436,6 +481,7 @@ function TabPanels({ tab, gsc, siteId }: { tab: SearchTab; gsc: GscState; siteId
         empty="Sin dispositivos importados."
         valueFormatter={formatDevice}
         valuePrefix={(value) => <DeviceIcon device={value} />}
+        onExport={() => exportTop('dispositivos', topDevices)}
         icon={BarChart3}
       />
     </div>
