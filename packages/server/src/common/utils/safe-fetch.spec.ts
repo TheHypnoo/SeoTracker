@@ -67,6 +67,18 @@ describe('safeFetch', () => {
     expect(lookupMock).not.toHaveBeenCalled();
   });
 
+  it('rejects IPv4-mapped IPv6 literals that target private ranges', async () => {
+    // new URL() normalizes the dotted form to hex (::ffff:7f00:1 == 127.0.0.1,
+    // ::ffff:a9fe:a9fe == 169.254.169.254). These must be blocked before the
+    // isIP() early-return, with no fetch and no DNS lookup.
+    await expect(safeFetch('http://[::ffff:7f00:1]/')).rejects.toBeInstanceOf(SsrfBlockedError);
+    await expect(safeFetch('http://[::ffff:a9fe:a9fe]/latest/meta-data')).rejects.toBeInstanceOf(
+      SsrfBlockedError,
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(lookupMock).not.toHaveBeenCalled();
+  });
+
   it('rejects an initial URL whose hostname resolves to a private address', async () => {
     lookupMock.mockResolvedValueOnce([{ address: '10.0.0.8', family: 4 }]);
 
