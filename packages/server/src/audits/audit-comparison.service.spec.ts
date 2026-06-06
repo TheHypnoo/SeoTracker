@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { AuditStatus, ComparisonChangeType, Severity } from '@seotracker/shared-types';
+import { AuditStatus, ComparisonChangeType, Permission, Severity } from '@seotracker/shared-types';
 
 import { DRIZZLE } from '../database/database.constants';
 import { SitesService } from '../sites/sites.service';
@@ -56,11 +56,11 @@ const RUN_B = {
 describe('auditComparisonService', () => {
   let service: AuditComparisonService;
   let db: DbMock;
-  let sites: { getById: jest.Mock };
+  let sites: { getByIdWithPermission: jest.Mock };
 
   beforeEach(async () => {
     db = makeDb();
-    sites = { getById: jest.fn().mockResolvedValue({ id: 's1' }) };
+    sites = { getByIdWithPermission: jest.fn().mockResolvedValue({ id: 's1' }) };
     const moduleRef = await Test.createTestingModule({
       providers: [
         AuditComparisonService,
@@ -320,7 +320,7 @@ describe('auditComparisonService', () => {
         offset: 5,
         total: 0,
       });
-      expect(sites.getById).toHaveBeenCalledWith('s1', 'u1');
+      expect(sites.getByIdWithPermission).toHaveBeenCalledWith('s1', 'u1', Permission.AUDIT_READ);
     });
 
     it('attaches baseline and target runs to stored comparisons', async () => {

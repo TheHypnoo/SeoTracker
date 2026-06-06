@@ -56,7 +56,7 @@ export function CreateWebhookForm({ onCreate }: Props) {
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
       <div className="flex items-center gap-3">
         <Plus size={18} className="text-brand-500" />
-        <h2 className="text-2xl font-black tracking-tight text-slate-950">Nueva integración</h2>
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">Nueva integración</h2>
       </div>
       <form
         className="mt-6 space-y-4"

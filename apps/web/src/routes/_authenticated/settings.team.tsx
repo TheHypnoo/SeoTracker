@@ -2,7 +2,7 @@ import { Permission, Role, computeEffectivePermissions } from '@seotracker/share
 import { useForm } from '@tanstack/react-form';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MailPlus, Pencil, Trash2, Users2 } from 'lucide-react';
+import { ChevronDown, MailPlus, Pencil, SlidersHorizontal, Trash2, Users2 } from 'lucide-react';
 import { useMemo, useReducer, useState } from 'react';
 import { Button } from '#/components/button';
 import { EmptyState } from '#/components/empty-state';
@@ -16,6 +16,7 @@ import {
   ROLE_LABELS,
   diffAgainstRoleDefaults,
 } from '#/components/members/permission-catalog';
+import { RoleCards } from '#/components/members/role-cards';
 import { RolePermissionsEditor } from '#/components/members/role-permissions-editor';
 import { z } from 'zod';
 
@@ -60,10 +61,12 @@ function initEditMemberState(member: Member): EditMemberState {
 
 function editMemberReducer(state: EditMemberState, action: EditMemberAction): EditMemberState {
   if (action.type === 'role') {
+    if (action.role === state.role) return state;
+    // Switching role resets permissions to that role's defaults — predictable.
     return {
       ...state,
       role: action.role,
-      effective: new Set(action.role === state.role ? state.effective : state.effective),
+      effective: new Set(computeEffectivePermissions(action.role)),
     };
   }
   if (action.type === 'effective') {
@@ -99,7 +102,7 @@ function TeamSettingsPage() {
         <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
           Configuración &gt; Equipo
         </div>
-        <h1 className="mt-3 text-5xl font-black tracking-tight text-slate-950">
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
           Miembros del proyecto
         </h1>
         <p className="mt-3 text-sm text-slate-600">
@@ -120,9 +123,7 @@ function TeamSettingsPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
             <div className="flex items-center gap-3">
               <Users2 size={18} className="text-brand-500" />
-              <h2 className="text-2xl font-black tracking-tight text-slate-950">
-                Miembros actuales
-              </h2>
+              <h2 className="text-xl font-bold tracking-tight text-slate-900">Miembros actuales</h2>
             </div>
             <div className="mt-6">
               <QueryState
@@ -187,6 +188,17 @@ function InvitePanel({
   const [effective, setEffective] = useState<Set<Permission>>(
     () => new Set(computeEffectivePermissions(Role.MEMBER)),
   );
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+
+  // Changing the role resets permissions to that role's defaults — predictable.
+  const changeRole = (next: Role) => {
+    if (next === role) return;
+    setRole(next);
+    setEffective(new Set(computeEffectivePermissions(next)));
+  };
+
+  const roleDiff = diffAgainstRoleDefaults(role, effective);
+  const customCount = roleDiff.extra.length + roleDiff.revoked.length;
 
   const invite = useMutation({
     mutationFn: (email: string) => {
@@ -218,7 +230,7 @@ function InvitePanel({
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
       <div className="flex items-center gap-3">
         <MailPlus size={18} className="text-brand-500" />
-        <h2 className="text-2xl font-black tracking-tight text-slate-950">Invitar usuario</h2>
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">Invitar usuario</h2>
       </div>
       <form
         className="mt-6 space-y-5"
@@ -259,12 +271,43 @@ function InvitePanel({
           }}
         </inviteForm.Field>
 
-        <RolePermissionsEditor
-          role={role}
-          onRoleChange={setRole}
-          effective={effective}
-          onEffectiveChange={setEffective}
-        />
+        <RoleCards name="invite-role" role={role} onRoleChange={changeRole} />
+
+        <div className="overflow-hidden rounded-xl border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setCustomizeOpen((open) => !open)}
+            aria-expanded={customizeOpen}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+          >
+            <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-700">
+              <SlidersHorizontal size={15} className="text-slate-400" aria-hidden="true" />
+              Personalizar permisos
+              <span className="font-normal text-slate-400">(opcional)</span>
+              {customCount > 0 ? (
+                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                  {customCount} {customCount === 1 ? 'ajuste' : 'ajustes'}
+                </span>
+              ) : null}
+            </span>
+            <ChevronDown
+              size={16}
+              className={`shrink-0 text-slate-400 transition-transform ${customizeOpen ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+            />
+          </button>
+          {customizeOpen ? (
+            <div className="border-t border-slate-100 px-4 py-4">
+              <RolePermissionsEditor
+                role={role}
+                onRoleChange={changeRole}
+                effective={effective}
+                onEffectiveChange={setEffective}
+                showRoleSelector={false}
+              />
+            </div>
+          ) : null}
+        </div>
 
         {inviteError ? <Notice tone="danger">{inviteError}</Notice> : null}
         <inviteForm.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
@@ -432,14 +475,22 @@ function EditMemberPermissionsModal({
         </div>
       }
     >
-      <RolePermissionsEditor
-        role={role}
-        onRoleChange={(nextRole) => dispatch({ type: 'role', role: nextRole })}
-        effective={effective}
-        onEffectiveChange={(nextEffective) =>
-          dispatch({ type: 'effective', effective: nextEffective })
-        }
-      />
+      <div className="space-y-5">
+        <RoleCards
+          name={`edit-role-${member.userId}`}
+          role={role}
+          onRoleChange={(nextRole) => dispatch({ type: 'role', role: nextRole })}
+        />
+        <RolePermissionsEditor
+          role={role}
+          onRoleChange={(nextRole) => dispatch({ type: 'role', role: nextRole })}
+          effective={effective}
+          onEffectiveChange={(nextEffective) =>
+            dispatch({ type: 'effective', effective: nextEffective })
+          }
+          showRoleSelector={false}
+        />
+      </div>
       {error ? (
         <div className="mt-4">
           <Notice tone="danger">{error}</Notice>

@@ -4,6 +4,7 @@ import { Check, Copy, Share2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '#/components/button';
 import { Notice } from '#/components/notice';
+import { Skeleton } from '#/components/skeleton';
 import { useToast } from '#/components/toast';
 
 import { useAuth } from '../../lib/auth-context';
@@ -62,7 +63,7 @@ export function PublicBadgeCard({ siteId, projectId }: { siteId: string; project
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <Share2 size={18} className="text-brand-500" />
-          <h2 className="text-2xl font-black tracking-tight text-slate-950">Badge público</h2>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">Badge público</h2>
         </div>
         {canEdit ? (
           <Button
@@ -80,7 +81,10 @@ export function PublicBadgeCard({ siteId, projectId }: { siteId: string; project
       </p>
 
       {status.isLoading ? (
-        <p className="mt-4 text-sm text-slate-500">Cargando estado…</p>
+        <div className="mt-4 space-y-3">
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-9 w-40 rounded-lg" />
+        </div>
       ) : enabled ? (
         <div className="mt-5 space-y-4">
           <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">

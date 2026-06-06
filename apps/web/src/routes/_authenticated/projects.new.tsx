@@ -53,7 +53,7 @@ function NewProjectPage() {
       <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
         Nuevo proyecto
       </div>
-      <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+      <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
         Crea un nuevo proyecto
       </h1>
       <p className="mt-3 max-w-xl text-sm leading-7 text-slate-600">

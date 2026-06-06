@@ -27,9 +27,9 @@ describe('activityLogController', () => {
     controller = moduleRef.get(ActivityLogController);
   });
 
-  it('asserts MEMBERS_READ permission before listing', async () => {
+  it('asserts ACTIVITY_READ permission before listing', async () => {
     await controller.list(USER, 'p1');
-    expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u-1', Permission.MEMBERS_READ);
+    expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u-1', Permission.ACTIVITY_READ);
   });
 
   it('parses limit and forwards as resolved pagination', async () => {

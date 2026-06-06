@@ -52,4 +52,12 @@ export type MetricItem = {
   value: string;
   suffix?: string;
   tone: MetricTone;
+  /** Optional period-over-period change. Only set when a real baseline exists. */
+  delta?: {
+    value: number;
+    /** Whether an increase is a good thing (score) or bad (critical issues). */
+    positiveIsGood?: boolean;
+  };
+  /** Optional contextual line shown under the value (e.g. "últimos 30 días"). */
+  hint?: string;
 };

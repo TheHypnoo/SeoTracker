@@ -5,6 +5,7 @@ import {
   IndexabilityStatus,
   IssueCode,
   IssueState,
+  Permission,
   Severity,
 } from '@seotracker/shared-types';
 
@@ -26,13 +27,13 @@ function query<T>(rows: T[]) {
 }
 
 const sitesService = {
-  getById: jest.fn().mockResolvedValue({
+  getByIdWithPermission: jest.fn().mockResolvedValue({
     domain: 'example.com',
     id: 'site-1',
     name: 'Example',
   }),
 };
-const projectsService = { assertMember: jest.fn() };
+const projectsService = { assertMember: jest.fn(), assertPermission: jest.fn() };
 
 function makeService(db: { select: jest.Mock }) {
   return new AuditReadingService(db as never, sitesService as never, projectsService as never);
@@ -74,7 +75,11 @@ describe('auditReadingService', () => {
       offset: 0,
       total: 1,
     });
-    expect(sitesService.getById).toHaveBeenCalledWith('site-1', 'user-1');
+    expect(sitesService.getByIdWithPermission).toHaveBeenCalledWith(
+      'site-1',
+      'user-1',
+      Permission.AUDIT_READ,
+    );
   });
 
   it('returns empty site audit runs with default pagination and no aggregate queries', async () => {
@@ -137,7 +142,11 @@ describe('auditReadingService', () => {
       ],
       total: 1,
     });
-    expect(projectsService.assertMember).toHaveBeenCalledWith('project-1', 'user-1');
+    expect(projectsService.assertPermission).toHaveBeenCalledWith(
+      'project-1',
+      'user-1',
+      Permission.AUDIT_READ,
+    );
   });
 
   it('returns empty project audit runs with default pagination and no aggregate queries', async () => {

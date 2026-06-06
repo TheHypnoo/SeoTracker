@@ -11,8 +11,10 @@ import {
   X,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { Permission } from '@seotracker/shared-types';
 
 import { useProject } from '../../lib/project-context';
+import { usePermissions } from '../../lib/use-permissions';
 
 type SidebarLinkTarget =
   | '/dashboard'
@@ -45,14 +47,20 @@ function SidebarLink({ to, params, label, icon, collapsed }: SidebarLinkProps) {
       params={params}
       aria-current={active ? 'page' : undefined}
       title={collapsed ? label : undefined}
-      className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium no-underline transition ${
+      className={`relative flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${
         collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : ''
       } ${
         active
-          ? 'bg-brand-50 text-brand-700'
-          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+          ? 'bg-brand-50 font-semibold text-brand-700'
+          : 'font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900'
       }`}
     >
+      {active ? (
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand-500"
+        />
+      ) : null}
       <span className={active ? 'text-brand-500' : 'text-slate-400'}>{icon}</span>
       <span className={collapsed ? 'lg:hidden' : ''}>{label}</span>
     </Link>
@@ -68,6 +76,8 @@ type SidebarProps = {
 
 export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobile }: SidebarProps) {
   const project = useProject();
+  const permissions = usePermissions(project.activeProjectId);
+  const canViewActivity = permissions.can(Permission.ACTIVITY_READ);
   const sidebarWidth = collapsed ? 'lg:w-16' : 'lg:w-60';
 
   return (
@@ -88,7 +98,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
         >
           <img src="/icon.svg" alt="" aria-hidden="true" className="h-8 w-8 shrink-0 rounded-md" />
           <span
-            className={`text-lg font-black tracking-tight text-slate-900 ${collapsed ? 'lg:hidden' : ''}`}
+            className={`text-lg font-bold tracking-tight text-slate-900 ${collapsed ? 'lg:hidden' : ''}`}
           >
             SEOTracker
           </span>
@@ -154,12 +164,14 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
             icon={<Webhook size={16} aria-hidden="true" />}
             collapsed={collapsed}
           />
-          <SidebarLink
-            to="/settings/activity"
-            label="Actividad"
-            icon={<Activity size={16} aria-hidden="true" />}
-            collapsed={collapsed}
-          />
+          {canViewActivity ? (
+            <SidebarLink
+              to="/settings/activity"
+              label="Actividad"
+              icon={<Activity size={16} aria-hidden="true" />}
+              collapsed={collapsed}
+            />
+          ) : null}
         </div>
       </nav>
 

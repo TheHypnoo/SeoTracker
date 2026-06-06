@@ -1,6 +1,7 @@
-import { BellOff, Clipboard, RotateCcw } from 'lucide-react';
+import { BellOff, Check, Clipboard, RotateCcw } from 'lucide-react';
 
 import { Modal } from '../modal';
+import { useCopyToClipboard } from '../../lib/use-copy-to-clipboard';
 import { CATEGORY_LABELS, getIssueCodeInfo } from '../../lib/issue-codes';
 import { formatRelative } from './audit-detail-formatters';
 import type { IssueGroup, IssueState } from './audit-detail-types';
@@ -137,15 +138,16 @@ function formatEvidenceValue(value: unknown): string {
 }
 
 function CopyPromptButton({ prompt }: { prompt: string }) {
+  const { copied, copy } = useCopyToClipboard({ toast: 'Prompt copiado' });
   return (
     <button
       type="button"
-      onClick={() => void navigator.clipboard?.writeText(prompt)}
+      onClick={() => void copy(prompt)}
       className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       title="Copiar prompt de solución"
     >
-      <Clipboard size={12} aria-hidden="true" />
-      Copiar prompt
+      {copied ? <Check size={12} aria-hidden="true" /> : <Clipboard size={12} aria-hidden="true" />}
+      {copied ? 'Copiado' : 'Copiar prompt'}
     </button>
   );
 }

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { pollWhileAuditActive } from '../../lib/refetch-intervals';
 
 import { EmptyState } from '#/components/empty-state';
+import { Skeleton, TableSkeleton } from '#/components/skeleton';
 import {
   formatDate,
   formatDateTime,
@@ -345,21 +346,23 @@ function AuditDetailPage() {
       </div>
 
       {!runData ? (
-        <article className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">
-          Cargando detalle de auditoría...
-        </article>
+        <div className="space-y-6" aria-busy="true" aria-live="polite">
+          <Skeleton className="h-32 rounded-2xl" />
+          <Skeleton className="h-28 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
       ) : (
         <>
-          <header className="flex flex-wrap items-start justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <header className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
             <div className="min-w-0 space-y-3">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <div className="flex flex-wrap items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
                 <span>{runData.site.name}</span>
                 <span aria-hidden="true">·</span>
                 <span className="font-mono normal-case tracking-normal text-slate-400">
                   {runData.site.domain}
                 </span>
               </div>
-              <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                 Auditoría del{' '}
                 {formatDate(runData.startedAt ?? runData.createdAt, {
                   day: 'numeric',
@@ -521,7 +524,7 @@ function AuditDetailPage() {
             <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-2xl font-black tracking-tight text-slate-950">
+                  <h2 className="text-xl font-bold tracking-tight text-slate-900">
                     Incidencias técnicas
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
@@ -585,7 +588,11 @@ function AuditDetailPage() {
               ) : null}
 
               {issues.isLoading ? (
-                <p className="mt-5 text-sm text-slate-500">Cargando incidencias…</p>
+                <div className="mt-5 space-y-2" aria-busy="true" aria-live="polite">
+                  <Skeleton className="h-16 rounded-xl" />
+                  <Skeleton className="h-16 rounded-xl" />
+                  <Skeleton className="h-16 rounded-xl" />
+                </div>
               ) : !issueData?.length ? (
                 <div className="mt-5">
                   <EmptyState
@@ -818,8 +825,8 @@ function IndexabilityPanel({
 
   if (loading) {
     return (
-      <article className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
-        Cargando diagnóstico de indexabilidad...
+      <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <TableSkeleton rows={6} cols={6} />
       </article>
     );
   }
@@ -829,7 +836,7 @@ function IndexabilityPanel({
       <div className="border-b border-slate-100 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-lg font-black tracking-tight text-slate-950">
+            <h2 className="text-lg font-bold tracking-tight text-slate-900">
               Matriz de indexabilidad
             </h2>
             <p className="mt-1 text-sm text-slate-500">

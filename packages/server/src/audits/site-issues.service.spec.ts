@@ -234,7 +234,11 @@ describe('projectIssuesService', () => {
     await expect(
       service.listForProject('site-1', 'user-1', { state: IssueState.OPEN }),
     ).resolves.toBe(rows);
-    expect(sites.getById).toHaveBeenCalledWith('site-1', 'user-1');
+    expect(sites.getByIdWithPermission).toHaveBeenCalledWith(
+      'site-1',
+      'user-1',
+      Permission.AUDIT_READ,
+    );
   });
 
   it('lists all site persistent issues when no state filter is supplied', async () => {
@@ -242,7 +246,11 @@ describe('projectIssuesService', () => {
     db.where.mockReturnValueOnce(query(rows));
 
     await expect(service.listForProject('site-1', 'user-1')).resolves.toBe(rows);
-    expect(sites.getById).toHaveBeenCalledWith('site-1', 'user-1');
+    expect(sites.getByIdWithPermission).toHaveBeenCalledWith(
+      'site-1',
+      'user-1',
+      Permission.AUDIT_READ,
+    );
   });
 
   it('builds a fingerprint map for site issues in an audit context', async () => {
