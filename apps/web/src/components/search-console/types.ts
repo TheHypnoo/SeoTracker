@@ -70,6 +70,21 @@ export type OpportunityRow = {
   potentialClicks: number;
 };
 
+export type CannibalizationPage = {
+  page: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+};
+
+export type CannibalizationGroup = {
+  query: string;
+  clicks: number;
+  impressions: number;
+  pages: CannibalizationPage[];
+};
+
 export type ImportResponse = {
   importedRows: number;
   startDate: string;

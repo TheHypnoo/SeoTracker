@@ -714,6 +714,33 @@ describe('search console service', () => {
     expect(rows[2]?.potentialClicks).toBe(0);
   });
 
+  it('groups cannibalization by query, keeping only queries served by 2+ pages', async () => {
+    const { db, service } = makeService();
+    const { site, link } = linkLookupRows();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([site] as never)
+      .mockResolvedValueOnce([{ link, property: { id: 'property-1' } }] as never)
+      .mockResolvedValueOnce([
+        { query: 'sandals', page: '/x', clicks: 3, ctr: 0.05, impressions: 60, position: 9 },
+        { query: 'sandals', page: '/y', clicks: 2, ctr: 0.04, impressions: 40, position: 11 },
+        { query: 'shoes', page: '/a', clicks: 10, ctr: 0.1, impressions: 100, position: 5 },
+        { query: 'shoes', page: '/b', clicks: 5, ctr: 0.06, impressions: 80, position: 8 },
+        { query: 'boots', page: '/c', clicks: 2, ctr: 0.04, impressions: 50, position: 3 },
+      ] as never);
+    jest.mocked(db.orderBy).mockReturnValue({ limit: db.limit } as never);
+
+    const groups = await service.getCannibalization('site-1', 'user-1', {
+      endDate: '2026-06-04',
+      startDate: '2026-06-01',
+    });
+
+    // Only multi-page queries survive, sorted by total impressions (shoes 180 > sandals 100).
+    expect(groups.map((group) => group.query)).toStrictEqual(['shoes', 'sandals']);
+    expect(groups[0]).toMatchObject({ query: 'shoes', clicks: 15, impressions: 180 });
+    expect(groups[0]?.pages).toHaveLength(2);
+  });
+
   it('rejects a range where the start date is after the end date', async () => {
     const { db, service } = makeService();
     const { site, link } = linkLookupRows();

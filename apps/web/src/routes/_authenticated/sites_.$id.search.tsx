@@ -41,6 +41,7 @@ import {
   LinkedPropertyBanner,
   PropertyLinkPanel,
 } from '#/components/search-console/property-panels';
+import { CannibalizationGroups } from '#/components/search-console/cannibalization-groups';
 import { OpportunitiesTable } from '#/components/search-console/opportunities-table';
 import { MetricCard, TopList } from '#/components/search-console/top-list';
 import { useSearchConsole } from '#/components/search-console/use-search-console';
@@ -52,13 +53,20 @@ export const Route = createFileRoute('/_authenticated/sites_/$id/search')({
 
 type Site = { id: string; name: string; domain: string; projectId: string };
 
-type SearchTab = 'overview' | 'queries' | 'pages' | 'opportunities' | 'audience';
+type SearchTab =
+  | 'overview'
+  | 'queries'
+  | 'pages'
+  | 'opportunities'
+  | 'cannibalization'
+  | 'audience';
 
 const SEARCH_TABS: Array<{ id: SearchTab; label: string }> = [
   { id: 'overview', label: 'Resumen' },
   { id: 'queries', label: 'Consultas' },
   { id: 'pages', label: 'Páginas' },
   { id: 'opportunities', label: 'Oportunidades' },
+  { id: 'cannibalization', label: 'Canibalización' },
   { id: 'audience', label: 'Audiencia' },
 ];
 
@@ -381,6 +389,10 @@ function TabPanels({ tab, gsc }: { tab: SearchTab; gsc: GscState }) {
 
   if (tab === 'opportunities') {
     return <OpportunitiesTable rows={gsc.opportunities.data ?? []} />;
+  }
+
+  if (tab === 'cannibalization') {
+    return <CannibalizationGroups groups={gsc.cannibalization.data ?? []} />;
   }
 
   return (

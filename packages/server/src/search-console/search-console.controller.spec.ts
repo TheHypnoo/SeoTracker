@@ -44,6 +44,7 @@ describe('siteSearchConsoleController', () => {
     getTopCountries: jest.fn(() => Promise.resolve('countries')),
     getTopDevices: jest.fn(() => Promise.resolve('devices')),
     getOpportunities: jest.fn(() => Promise.resolve('opportunities')),
+    getCannibalization: jest.fn(() => Promise.resolve('cannibalization')),
   };
   const controller = new SiteSearchConsoleController(searchConsoleService as never);
   const user = { sub: 'user-1' };
@@ -96,6 +97,7 @@ describe('siteSearchConsoleController', () => {
     ['topCountries', 'getTopCountries', 'countries'],
     ['topDevices', 'getTopDevices', 'devices'],
     ['opportunities', 'getOpportunities', 'opportunities'],
+    ['cannibalization', 'getCannibalization', 'cannibalization'],
   ] as const)(
     'delegates %s to the service with the range query',
     async (endpoint, serviceFn, expected) => {

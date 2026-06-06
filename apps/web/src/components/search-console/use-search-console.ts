@@ -7,6 +7,7 @@ import { useAuth } from '#/lib/auth-context';
 import { type ComparisonMode, comparisonRange, defaultDateRange, rangeParams } from './format';
 import type {
   CandidatesResponse,
+  CannibalizationGroup,
   ImportResponse,
   OpportunityRow,
   PerformanceSummary,
@@ -131,6 +132,13 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     placeholderData: keepPreviousData,
   });
 
+  const cannibalization = useQuery({
+    queryKey: ['search-console-cannibalization', siteId, startDate, endDate, topLimit] as const,
+    queryFn: () => auth.api.get<CannibalizationGroup[]>(topUrl('cannibalization')),
+    enabled: topEnabled,
+    placeholderData: keepPreviousData,
+  });
+
   // Previous-period summary used to render delta badges. Built by re-querying the existing
   // summary endpoint over the comparison range rather than widening the backend response.
   const previousSummary = useQuery({
@@ -203,6 +211,7 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
   return {
     activePropertyId,
     candidates,
+    cannibalization,
     comparison,
     endDate,
     hasLink,

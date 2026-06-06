@@ -47,6 +47,11 @@ const OPPORTUNITY_MIN_IMPRESSIONS = 20;
 const OPPORTUNITY_TARGET_CTR = 0.1;
 const OPPORTUNITY_CANDIDATE_CAP = 200;
 
+// Cannibalization: a competing URL must clear this impression floor to count, and we scan up to
+// this many query+page rows before grouping by query in memory.
+const CANNIBALIZATION_MIN_IMPRESSIONS = 10;
+const CANNIBALIZATION_ROW_CAP = 2_000;
+
 @Injectable()
 export class SearchConsoleService {
   private readonly logger = new Logger(SearchConsoleService.name);
@@ -493,6 +498,91 @@ export class SearchConsoleService {
         };
       })
       .sort((a, b) => b.potentialClicks - a.potentialClicks)
+      .slice(0, limit);
+  }
+
+  /**
+   * Keyword cannibalization: queries where two or more of the site's own URLs compete in search.
+   * Built from the query+page rows, grouped by query, keeping only queries served by 2+ pages.
+   * Ranked by total impressions so the most visible conflicts surface first.
+   */
+  async getCannibalization(
+    siteId: string,
+    userId: string,
+    input: { startDate?: string; endDate?: string; limit?: number } = {},
+  ) {
+    const { link } = await this.getActiveLinkWithProperty(siteId, userId, Permission.SITE_READ);
+    const { startDate, endDate } = this.resolveDateRange(input);
+    const limit = Math.min(Math.max(input.limit ?? 20, 1), 100);
+
+    const rows = await this.db
+      .select({
+        clicks: sql<number>`coalesce(sum(${gscDailyStats.clicks}), 0)::int`,
+        ctr: sql<number>`case when coalesce(sum(${gscDailyStats.impressions}), 0) = 0 then 0 else coalesce(sum(${gscDailyStats.clicks}), 0)::float / sum(${gscDailyStats.impressions}) end`,
+        impressions: sql<number>`coalesce(sum(${gscDailyStats.impressions}), 0)::int`,
+        page: gscDailyStats.page,
+        position: sql<number>`sum(${gscDailyStats.position} * ${gscDailyStats.impressions}) / nullif(sum(${gscDailyStats.impressions}), 0)`,
+        query: gscDailyStats.query,
+      })
+      .from(gscDailyStats)
+      .where(
+        and(
+          eq(gscDailyStats.siteId, link.siteId),
+          eq(gscDailyStats.searchConsolePropertyId, link.searchConsolePropertyId),
+          gte(gscDailyStats.date, startDate),
+          lte(gscDailyStats.date, endDate),
+          sql`${gscDailyStats.query} <> ''`,
+          sql`${gscDailyStats.page} <> ''`,
+          eq(gscDailyStats.country, ''),
+          eq(gscDailyStats.device, ''),
+          eq(gscDailyStats.searchType, 'web'),
+        ),
+      )
+      .groupBy(gscDailyStats.query, gscDailyStats.page)
+      .having(sql`sum(${gscDailyStats.impressions}) >= ${CANNIBALIZATION_MIN_IMPRESSIONS}`)
+      .orderBy(gscDailyStats.query, desc(sql`sum(${gscDailyStats.clicks})`))
+      .limit(CANNIBALIZATION_ROW_CAP);
+
+    const groups = new Map<
+      string,
+      {
+        query: string;
+        clicks: number;
+        impressions: number;
+        pages: Array<{
+          page: string;
+          clicks: number;
+          impressions: number;
+          ctr: number;
+          position: number;
+        }>;
+      }
+    >();
+
+    for (const row of rows) {
+      const group = groups.get(row.query) ?? {
+        query: row.query,
+        clicks: 0,
+        impressions: 0,
+        pages: [],
+      };
+      const clicks = Number(row.clicks);
+      const impressions = Number(row.impressions);
+      group.clicks += clicks;
+      group.impressions += impressions;
+      group.pages.push({
+        clicks,
+        ctr: Number(row.ctr),
+        impressions,
+        page: row.page,
+        position: Number(row.position),
+      });
+      groups.set(row.query, group);
+    }
+
+    return [...groups.values()]
+      .filter((group) => group.pages.length >= 2)
+      .sort((a, b) => b.impressions - a.impressions)
       .slice(0, limit);
   }
 

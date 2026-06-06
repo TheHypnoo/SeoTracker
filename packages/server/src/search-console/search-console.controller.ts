@@ -148,4 +148,14 @@ export class SiteSearchConsoleController {
   ) {
     return this.searchConsoleService.getOpportunities(siteId, user.sub, query);
   }
+
+  @Get('performance/cannibalization')
+  @ApiOperation({ summary: 'Get keyword cannibalization groups for a linked site' })
+  cannibalization(
+    @CurrentUser() user: { sub: string },
+    @Param('siteId', UUID_V4_PIPE) siteId: string,
+    @Query() query: SearchConsoleRangeQueryDto,
+  ) {
+    return this.searchConsoleService.getCannibalization(siteId, user.sub, query);
+  }
 }
