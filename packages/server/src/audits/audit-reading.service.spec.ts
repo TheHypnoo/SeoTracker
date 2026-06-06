@@ -27,7 +27,7 @@ function query<T>(rows: T[]) {
 }
 
 const sitesService = {
-  getById: jest.fn().mockResolvedValue({
+  getByIdWithPermission: jest.fn().mockResolvedValue({
     domain: 'example.com',
     id: 'site-1',
     name: 'Example',
@@ -75,7 +75,11 @@ describe('auditReadingService', () => {
       offset: 0,
       total: 1,
     });
-    expect(sitesService.getById).toHaveBeenCalledWith('site-1', 'user-1');
+    expect(sitesService.getByIdWithPermission).toHaveBeenCalledWith(
+      'site-1',
+      'user-1',
+      Permission.AUDIT_READ,
+    );
   });
 
   it('returns empty site audit runs with default pagination and no aggregate queries', async () => {

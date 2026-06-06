@@ -48,7 +48,7 @@ export class AuditReadingService {
   ): Promise<
     PaginatedResponse<AuditRunRow & { issuesCount: number; criticalIssuesCount: number }>
   > {
-    await this.sitesService.getById(siteId, userId);
+    await this.sitesService.getByIdWithPermission(siteId, userId, Permission.AUDIT_READ);
 
     const { limit, offset } = filters?.pagination ?? { limit: 50, offset: 0 };
 
@@ -241,7 +241,11 @@ export class AuditReadingService {
       throw new NotFoundException('Audit not found');
     }
 
-    const site = await this.sitesService.getById(run.siteId, userId);
+    const site = await this.sitesService.getByIdWithPermission(
+      run.siteId,
+      userId,
+      Permission.AUDIT_READ,
+    );
 
     const [metrics, pages, severityRows, failureEvent, previousRuns] = await Promise.all([
       this.db.select().from(auditMetrics).where(eq(auditMetrics.auditRunId, run.id)),
@@ -318,7 +322,7 @@ export class AuditReadingService {
   }
 
   async getProjectTrends(siteId: string, userId: string, limit = 30) {
-    await this.sitesService.getById(siteId, userId);
+    await this.sitesService.getByIdWithPermission(siteId, userId, Permission.AUDIT_READ);
 
     const rows = await this.db
       .select({
@@ -377,7 +381,7 @@ export class AuditReadingService {
       throw new NotFoundException('Audit not found');
     }
 
-    await this.sitesService.getById(run.siteId, userId);
+    await this.sitesService.getByIdWithPermission(run.siteId, userId, Permission.AUDIT_READ);
 
     const { limit, offset } = pagination;
 
@@ -450,7 +454,7 @@ export class AuditReadingService {
       throw new NotFoundException('Audit not found');
     }
 
-    await this.sitesService.getById(run.siteId, userId);
+    await this.sitesService.getByIdWithPermission(run.siteId, userId, Permission.AUDIT_READ);
 
     const { limit, offset } = filters.pagination ?? { limit: 50, offset: 0 };
     const whereCondition = and(

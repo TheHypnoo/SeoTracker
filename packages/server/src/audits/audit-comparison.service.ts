@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { AuditStatus, ComparisonChangeType } from '@seotracker/shared-types';
+import { AuditStatus, ComparisonChangeType, Permission } from '@seotracker/shared-types';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { DEFAULT_PAGINATION, type PaginationInput } from '../common/dto/pagination.dto';
@@ -25,7 +25,7 @@ export class AuditComparisonService {
   ) {}
 
   async compareProjectRuns(siteId: string, userId: string, fromId?: string, toId?: string) {
-    await this.sitesService.getById(siteId, userId);
+    await this.sitesService.getByIdWithPermission(siteId, userId, Permission.AUDIT_READ);
 
     const [fromRun, toRun] = await this.resolveRuns(siteId, fromId, toId);
 
@@ -46,7 +46,7 @@ export class AuditComparisonService {
     userId: string,
     pagination: PaginationInput = DEFAULT_PAGINATION,
   ) {
-    await this.sitesService.getById(siteId, userId);
+    await this.sitesService.getByIdWithPermission(siteId, userId, Permission.AUDIT_READ);
 
     const { limit, offset } = pagination;
 

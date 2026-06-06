@@ -707,7 +707,7 @@ describe('projectsService', () => {
   });
 
   describe('updateMemberPermissions', () => {
-    it('updates role and resets overrides on role changes', async () => {
+    it('applies role change together with overrides in one call', async () => {
       db.where
         .mockReturnValueOnce(thenable([{ projectId: 'p1', userId: 'u-owner', role: Role.OWNER }]))
         .mockReturnValueOnce(thenable([{ projectId: 'p1', userId: 'u-member', role: Role.VIEWER }]))
@@ -722,9 +722,11 @@ describe('projectsService', () => {
         role: Role.MEMBER,
       });
 
+      // Overrides are interpreted against the new role and persisted alongside
+      // the role change (no silent reset).
       expect(db.set).toHaveBeenCalledWith({
-        extraPermissions: [],
-        revokedPermissions: [],
+        extraPermissions: [Permission.EXPORT_CREATE],
+        revokedPermissions: [Permission.SITE_READ],
         role: Role.MEMBER,
       });
       expect(events.emit).toHaveBeenCalledWith(

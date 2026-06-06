@@ -5,6 +5,7 @@ import {
   IssueCategory,
   IssueCode,
   IssueState,
+  Permission,
   SeoActionEffort,
   Severity,
 } from '@seotracker/shared-types';
@@ -100,12 +101,12 @@ describe('seoActionPlanService', () => {
     finishedAt: new Date('2026-05-08T10:05:00.000Z'),
   };
   let db: DbMock;
-  let sites: { getById: jest.Mock };
+  let sites: { getByIdWithPermission: jest.Mock };
   let service: SeoActionPlanService;
 
   beforeEach(() => {
     db = makeDb();
-    sites = { getById: jest.fn().mockResolvedValue(site) };
+    sites = { getByIdWithPermission: jest.fn().mockResolvedValue(site) };
     service = new SeoActionPlanService(db as never, sites as never);
   });
 
@@ -115,7 +116,11 @@ describe('seoActionPlanService', () => {
     await expect(service.getForSite('site-1', 'user-1')).rejects.toThrow(
       'No completed audit found',
     );
-    expect(sites.getById).toHaveBeenCalledWith('site-1', 'user-1');
+    expect(sites.getByIdWithPermission).toHaveBeenCalledWith(
+      'site-1',
+      'user-1',
+      Permission.AUDIT_READ,
+    );
   });
 
   it('builds an action plan from the latest completed audit for a site', async () => {
@@ -241,7 +246,11 @@ describe('seoActionPlanService', () => {
 
     const plan = await service.getForAudit('audit-2', 'user-1');
 
-    expect(sites.getById).toHaveBeenCalledWith('site-1', 'user-1');
+    expect(sites.getByIdWithPermission).toHaveBeenCalledWith(
+      'site-1',
+      'user-1',
+      Permission.AUDIT_READ,
+    );
     expect(plan.actions).toStrictEqual([]);
     expect(plan.executiveSummary).toMatchObject({
       criticalOpenActions: 0,
@@ -259,7 +268,7 @@ describe('seoActionPlanService', () => {
     db.where.mockReturnValueOnce(thenable([]));
 
     await expect(service.getForAudit('missing-audit', 'user-1')).rejects.toThrow('Audit not found');
-    expect(sites.getById).not.toHaveBeenCalled();
+    expect(sites.getByIdWithPermission).not.toHaveBeenCalled();
   });
 
   it('prefers persisted action items when available', async () => {

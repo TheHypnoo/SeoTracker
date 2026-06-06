@@ -194,12 +194,13 @@ async function main() {
 
       for (const [index, run] of site.runs.entries()) {
         const runId = randomUUID();
-        const createdAt = daysAgo(run.ageDays);
+        // Start ~1h before the "age" mark and finish at the age mark, so a
+        // freshly-run (ageDays: 0) audit finishes at "now" — never in the
+        // future, and always started < finished.
+        const createdAt = hoursAgo(run.ageDays * 24 + 1);
         const startedAt = run.status === 'QUEUED' ? null : createdAt;
         const finishedAt =
-          run.status === 'COMPLETED' || run.status === 'FAILED'
-            ? hoursAgo(run.ageDays * 24 - 1)
-            : null;
+          run.status === 'COMPLETED' || run.status === 'FAILED' ? hoursAgo(run.ageDays * 24) : null;
         await client.query(
           `INSERT INTO audit_runs (id, site_id, trigger, status, started_at, finished_at, http_status, response_ms, score, created_at)
            VALUES ($1, $2, 'MANUAL', $3, $4, $5, 200, 132, $6, $7)`,
