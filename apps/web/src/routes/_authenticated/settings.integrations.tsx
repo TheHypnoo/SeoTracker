@@ -7,6 +7,7 @@ import {
   CreateWebhookForm,
   type CreateWebhookInput,
 } from '#/components/integrations/create-webhook-form';
+import { GoogleSearchConsoleCard } from '#/components/integrations/google-search-console-card';
 import type { OutboundWebhook } from '#/components/integrations/integrations-types';
 import { WebhookCard } from '#/components/integrations/webhook-card';
 import { QueryState } from '#/components/query-state';
@@ -70,79 +71,80 @@ function IntegrationsSettingsPage() {
         <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
           Configuración &gt; Integraciones
         </div>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
-          Integraciones salientes
-        </h1>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">Integraciones</h1>
         <p className="mt-3 max-w-3xl text-sm text-slate-600">
-          Añade la URL donde quieres recibir los eventos y, si tu destino lo necesita, un header de
-          autenticación. SEOTracker enviará los datos automáticamente cuando ocurra cada evento
-          seleccionado.
+          Conecta fuentes de datos SEO y automatiza eventos salientes para que SEOTracker pueda
+          importar rendimiento, lanzar flujos externos y avisarte de cambios importantes.
         </p>
       </div>
 
       {projectId ? (
-        <article className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <CreateWebhookForm
-            onCreate={async (input) => {
-              await createWebhook.mutateAsync(input);
-            }}
-          />
+        <div className="space-y-6">
+          <GoogleSearchConsoleCard projectId={projectId} />
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
-            <div className="flex items-center gap-3">
-              <Webhook size={18} className="text-brand-500" />
-              <h2 className="text-xl font-bold tracking-tight text-slate-900">
-                Integraciones configuradas
-              </h2>
+          <article className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+            <CreateWebhookForm
+              onCreate={async (input) => {
+                await createWebhook.mutateAsync(input);
+              }}
+            />
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <Webhook size={18} className="text-brand-500" />
+                <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                  Integraciones configuradas
+                </h2>
+              </div>
+              <div className="mt-6">
+                <QueryState
+                  status={webhooks.status}
+                  data={webhooks.data}
+                  error={webhooks.error}
+                  onRetry={() => webhooks.refetch()}
+                  isEmpty={(list) => list.length === 0}
+                  loading={
+                    <ul className="space-y-4">
+                      {['o1', 'o2'].map((slot) => (
+                        <li key={slot} className="rounded-2xl border border-slate-200 px-5 py-4">
+                          <Skeleton className="h-5 w-1/3" />
+                          <Skeleton className="mt-2 h-3 w-2/3" />
+                          <Skeleton className="mt-3 h-3 w-1/2" />
+                        </li>
+                      ))}
+                    </ul>
+                  }
+                  empty={
+                    <EmptyState
+                      title="Sin integraciones"
+                      description="Añade tu primera integración saliente con el formulario."
+                    />
+                  }
+                >
+                  {(list) => (
+                    <ul className="space-y-4">
+                      {list.map((hook) => (
+                        <WebhookCard
+                          key={hook.id}
+                          webhook={hook}
+                          basePath={basePath}
+                          onToggle={() => toggleWebhook.mutate(hook)}
+                          onDelete={() => {
+                            if (confirm(`¿Eliminar "${hook.name}"?`)) {
+                              deleteWebhook.mutate(hook.id);
+                            }
+                          }}
+                          onEventsChange={(events) => updateEvents.mutate({ id: hook.id, events })}
+                          onRotated={() => queryClient.invalidateQueries({ queryKey: listKey })}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                </QueryState>
+              </div>
             </div>
-            <div className="mt-6">
-              <QueryState
-                status={webhooks.status}
-                data={webhooks.data}
-                error={webhooks.error}
-                onRetry={() => webhooks.refetch()}
-                isEmpty={(list) => list.length === 0}
-                loading={
-                  <ul className="space-y-4">
-                    {['o1', 'o2'].map((slot) => (
-                      <li key={slot} className="rounded-2xl border border-slate-200 px-5 py-4">
-                        <Skeleton className="h-5 w-1/3" />
-                        <Skeleton className="mt-2 h-3 w-2/3" />
-                        <Skeleton className="mt-3 h-3 w-1/2" />
-                      </li>
-                    ))}
-                  </ul>
-                }
-                empty={
-                  <EmptyState
-                    title="Sin integraciones"
-                    description="Añade tu primera integración saliente con el formulario."
-                  />
-                }
-              >
-                {(list) => (
-                  <ul className="space-y-4">
-                    {list.map((hook) => (
-                      <WebhookCard
-                        key={hook.id}
-                        webhook={hook}
-                        basePath={basePath}
-                        onToggle={() => toggleWebhook.mutate(hook)}
-                        onDelete={() => {
-                          if (confirm(`¿Eliminar "${hook.name}"?`)) {
-                            deleteWebhook.mutate(hook.id);
-                          }
-                        }}
-                        onEventsChange={(events) => updateEvents.mutate({ id: hook.id, events })}
-                        onRotated={() => queryClient.invalidateQueries({ queryKey: listKey })}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </QueryState>
-            </div>
-          </div>
-        </article>
+          </article>
+        </div>
       ) : (
         <article className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
           No hay un proyecto activo seleccionado.

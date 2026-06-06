@@ -21,6 +21,7 @@ import type { ReactNode } from 'react';
 import { Button } from '#/components/button';
 import { PublicBadgeCard } from '#/components/site-detail/public-badge-card';
 import { CompareAuditsPanel } from '#/components/site-detail/comparisons';
+import { SearchConsoleCard } from '#/components/site-detail/search-console-card';
 import { TrendsPanel } from '#/components/site-detail/trends-panel';
 import { Modal } from '#/components/modal';
 import { SelectInput } from '#/components/select-input';
@@ -438,6 +439,8 @@ function ProjectDetailPage() {
         {trends.data && trends.data.points.length > 1 ? (
           <TrendsPanel points={trends.data.points} onCompare={openComparison} />
         ) : null}
+
+        <SearchConsoleCard siteId={id} />
 
         <CompareAuditsPanel
           audits={completedAudits.data?.items ?? []}

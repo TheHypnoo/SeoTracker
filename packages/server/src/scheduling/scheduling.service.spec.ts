@@ -56,6 +56,12 @@ function makeService(db = makeDb()) {
   const outboundWebhooksService = {
     reconcilePendingDeliveries: jest.fn().mockResolvedValue({ requeued: 0 }),
   };
+  const searchConsoleService = {
+    listActiveLinks: jest.fn().mockResolvedValue([]),
+  };
+  const queueService = {
+    enqueueGscImport: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new SchedulingService(
     db as never,
     configService as never,
@@ -65,6 +71,8 @@ function makeService(db = makeDb()) {
     notificationsService as never,
     exportsService as never,
     outboundWebhooksService as never,
+    searchConsoleService as never,
+    queueService as never,
   );
 
   return {
@@ -75,6 +83,8 @@ function makeService(db = makeDb()) {
     exportsService,
     notificationsService,
     outboundWebhooksService,
+    queueService,
+    searchConsoleService,
     service,
     systemLogsService,
   };
@@ -320,5 +330,54 @@ describe('schedulingService', () => {
     expect(auditsService.reconcileQueuedRuns).toHaveBeenCalledTimes(1);
     expect(exportsService.reconcilePendingExports).toHaveBeenCalledTimes(1);
     expect(outboundWebhooksService.reconcilePendingDeliveries).toHaveBeenCalledTimes(1);
+  });
+
+  it('enqueues a Search Console import for every active link under its own lock', async () => {
+    const { distributedLockService, queueService, searchConsoleService, service } = makeService();
+    searchConsoleService.listActiveLinks.mockResolvedValueOnce([
+      { siteId: 'site-1', lastImportedAt: null },
+      { siteId: 'site-2', lastImportedAt: null },
+    ]);
+
+    await service.importSearchConsoleData();
+
+    expect(distributedLockService.withLock).toHaveBeenCalledWith(
+      'scheduler:gsc-import',
+      90_000,
+      expect.any(Function),
+    );
+    expect(queueService.enqueueGscImport).toHaveBeenCalledTimes(2);
+    expect(queueService.enqueueGscImport).toHaveBeenCalledWith(
+      expect.objectContaining({ siteId: 'site-1' }),
+    );
+  });
+
+  it('logs and records GSC import enqueue failures without aborting the tick', async () => {
+    const { queueService, searchConsoleService, service, systemLogsService } = makeService();
+    searchConsoleService.listActiveLinks.mockResolvedValueOnce([
+      { siteId: 'site-1', lastImportedAt: null },
+      { siteId: 'site-2', lastImportedAt: null },
+    ]);
+    queueService.enqueueGscImport.mockRejectedValueOnce(new Error('redis down'));
+
+    await service.importSearchConsoleData();
+
+    expect(systemLogsService.error).toHaveBeenCalledWith(
+      SchedulingService.name,
+      'Scheduled GSC import enqueue failed',
+      expect.any(Error),
+      { siteId: 'site-1' },
+    );
+    // The second link is still enqueued after the first one fails.
+    expect(queueService.enqueueGscImport).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips the GSC import tick when another instance owns the lock', async () => {
+    const { distributedLockService, searchConsoleService, service } = makeService();
+    distributedLockService.withLock.mockResolvedValueOnce(null);
+
+    await service.importSearchConsoleData();
+
+    expect(searchConsoleService.listActiveLinks).not.toHaveBeenCalled();
   });
 });

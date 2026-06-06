@@ -16,6 +16,8 @@ import {
   EMAIL_DELIVERIES_QUEUE_NAME,
   EXPORT_QUEUE,
   EXPORT_QUEUE_NAME,
+  GSC_IMPORT_QUEUE,
+  GSC_IMPORT_QUEUE_NAME,
   OUTBOUND_DELIVERIES_QUEUE,
   OUTBOUND_DELIVERIES_QUEUE_NAME,
   REDIS_CONNECTION,
@@ -32,6 +34,7 @@ const QUEUE_DISPOSER = Symbol('QUEUE_DISPOSER');
     EXPORT_QUEUE,
     OUTBOUND_DELIVERIES_QUEUE,
     EMAIL_DELIVERIES_QUEUE,
+    GSC_IMPORT_QUEUE,
     DISTRIBUTED_LOCK,
     DistributedLockService,
     JobFailuresService,
@@ -88,6 +91,15 @@ const QUEUE_DISPOSER = Symbol('QUEUE_DISPOSER');
       },
     },
     {
+      provide: GSC_IMPORT_QUEUE,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService<Env, true>) => {
+        const redisUrl = configService.get('REDIS_URL', { infer: true });
+
+        return new Queue(GSC_IMPORT_QUEUE_NAME, { connection: { url: redisUrl } });
+      },
+    },
+    {
       provide: DISTRIBUTED_LOCK,
       useExisting: DistributedLockService,
     },
@@ -103,6 +115,7 @@ const QUEUE_DISPOSER = Symbol('QUEUE_DISPOSER');
         EXPORT_QUEUE,
         OUTBOUND_DELIVERIES_QUEUE,
         EMAIL_DELIVERIES_QUEUE,
+        GSC_IMPORT_QUEUE,
       ],
       useFactory: (
         redis: IORedis,
@@ -110,6 +123,7 @@ const QUEUE_DISPOSER = Symbol('QUEUE_DISPOSER');
         exportQueue: Queue,
         outboundQueue: Queue,
         emailQueue: Queue,
+        gscImportQueue: Queue,
       ): OnModuleDestroy => {
         const packageName = process.env.npm_package_name ?? 'app';
         const logger = new Logger(`QueueModule:${packageName}`);
@@ -124,6 +138,7 @@ const QUEUE_DISPOSER = Symbol('QUEUE_DISPOSER');
                 exportQueue.close(),
                 outboundQueue.close(),
                 emailQueue.close(),
+                gscImportQueue.close(),
               ]);
               await redis.quit().catch(() => redis.disconnect());
               logger.log('Queues and Redis connection closed.');

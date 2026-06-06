@@ -20,6 +20,7 @@ import {
 } from '@seotracker/shared-types';
 import {
   boolean,
+  date as pgDate,
   doublePrecision,
   index,
   integer,
@@ -403,6 +404,185 @@ export const webhookSecrets = pgTable(
   (table) => [
     index('webhook_secrets_project_idx').on(table.projectId),
     index('webhook_secrets_endpoint_idx').on(table.webhookEndpointId),
+  ],
+);
+
+/**
+ * Google OAuth connection scoped to a project. Tokens are encrypted at rest with a reversible
+ * application key because background jobs need to refresh access tokens and call Google APIs.
+ */
+export const googleOauthConnections = pgTable(
+  'google_oauth_connections',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    connectedByUserId: uuid('connected_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    googleAccountEmail: varchar('google_account_email', { length: 320 }).notNull(),
+    accessTokenEncrypted: text('access_token_encrypted').notNull(),
+    refreshTokenEncrypted: text('refresh_token_encrypted'),
+    scopes: text('scopes').array().notNull().default([]),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('google_oauth_connections_project_idx').on(table.projectId),
+    index('google_oauth_connections_user_idx').on(table.connectedByUserId),
+    index('google_oauth_connections_email_idx').on(table.googleAccountEmail),
+  ],
+);
+
+/**
+ * Search Console properties visible through a Google OAuth connection. A user later links one of
+ * these `siteUrl` values (domain property or URL-prefix property) to a SEOTracker site.
+ */
+export const searchConsoleProperties = pgTable(
+  'search_console_properties',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    googleConnectionId: uuid('google_connection_id')
+      .notNull()
+      .references(() => googleOauthConnections.id, { onDelete: 'cascade' }),
+    siteUrl: text('site_url').notNull(),
+    permissionLevel: varchar('permission_level', { length: 80 }).notNull(),
+    verified: boolean('verified').notNull().default(true),
+    lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('search_console_properties_connection_url_uk').on(
+      table.googleConnectionId,
+      table.siteUrl,
+    ),
+    index('search_console_properties_project_idx').on(table.projectId),
+    index('search_console_properties_connection_idx').on(table.googleConnectionId),
+  ],
+);
+
+/**
+ * Single-use, browser-bound OAuth state for the Google connect flow. The nonce is signed into the
+ * `state` query param AND set as an HttpOnly cookie; the callback requires both to match and
+ * consumes the row, preventing account-linking CSRF (a state minted by one user being completed in
+ * another browser).
+ */
+export const googleOauthStates = pgTable('google_oauth_states', {
+  nonce: text('nonce').primaryKey(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Active Search Console property linked to a SEOTracker site. MVP keeps one property per site;
+ * changing the link replaces this row through an upsert.
+ */
+export const siteSearchConsoleLinks = pgTable(
+  'site_search_console_links',
+  {
+    siteId: uuid('site_id')
+      .primaryKey()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    searchConsolePropertyId: uuid('search_console_property_id')
+      .notNull()
+      .references(() => searchConsoleProperties.id, { onDelete: 'cascade' }),
+    linkedByUserId: uuid('linked_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    active: boolean('active').notNull().default(true),
+    linkedAt: timestamp('linked_at', { withTimezone: true }).defaultNow().notNull(),
+    // Last time a performance import (manual, scheduled, or backfill) completed for this link.
+    // Drives the freshness indicator in the UI and lets the daily cron skip recently-synced sites.
+    lastImportedAt: timestamp('last_imported_at', { withTimezone: true }),
+    // Last time a clicks-drop alert fired for this link, used to dedupe alerts to once per window.
+    lastClicksDropAlertAt: timestamp('last_clicks_drop_alert_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('site_search_console_links_property_idx').on(table.searchConsolePropertyId),
+    index('site_search_console_links_user_idx').on(table.linkedByUserId),
+  ],
+);
+
+/**
+ * Daily Search Console performance rows imported from searchAnalytics.query. Empty strings mean
+ * the dimension was not requested for that aggregate (for example `query = ''` for page-only rows).
+ */
+export const gscDailyStats = pgTable(
+  'gsc_daily_stats',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    siteId: uuid('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    searchConsolePropertyId: uuid('search_console_property_id')
+      .notNull()
+      .references(() => searchConsoleProperties.id, { onDelete: 'cascade' }),
+    date: pgDate('date', { mode: 'string' }).notNull(),
+    query: text('query').notNull().default(''),
+    page: text('page').notNull().default(''),
+    country: varchar('country', { length: 8 }).notNull().default(''),
+    device: varchar('device', { length: 32 }).notNull().default(''),
+    searchType: varchar('search_type', { length: 32 }).notNull().default('web'),
+    clicks: integer('clicks').notNull().default(0),
+    impressions: integer('impressions').notNull().default(0),
+    ctr: doublePrecision('ctr').notNull().default(0),
+    position: doublePrecision('position').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('gsc_daily_stats_unique_row_uk').on(
+      table.siteId,
+      table.searchConsolePropertyId,
+      table.date,
+      table.query,
+      table.page,
+      table.country,
+      table.device,
+      table.searchType,
+    ),
+    index('gsc_daily_stats_site_date_idx').on(table.siteId, table.date),
+    index('gsc_daily_stats_property_date_idx').on(table.searchConsolePropertyId, table.date),
+    index('gsc_daily_stats_site_query_idx').on(table.siteId, table.query),
+    index('gsc_daily_stats_site_page_idx').on(table.siteId, table.page),
+  ],
+);
+
+/**
+ * Search Console queries a user has pinned to follow over time (SeoCrawl-style keyword tracking).
+ * Position/clicks history comes from gsc_daily_stats; this table only records which queries matter.
+ */
+export const trackedKeywords = pgTable(
+  'tracked_keywords',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    siteId: uuid('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    query: text('query').notNull(),
+    createdByUserId: uuid('created_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('tracked_keywords_site_query_uk').on(table.siteId, table.query),
+    index('tracked_keywords_site_idx').on(table.siteId),
   ],
 );
 

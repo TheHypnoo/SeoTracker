@@ -27,6 +27,7 @@ import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/
 import { Route as AuthenticatedSettingsGeneralRouteImport } from './routes/_authenticated/settings.general'
 import { Route as AuthenticatedSettingsActivityRouteImport } from './routes/_authenticated/settings.activity'
 import { Route as AuthenticatedProjectsNewRouteImport } from './routes/_authenticated/projects.new'
+import { Route as AuthenticatedSitesIdSearchRouteImport } from './routes/_authenticated/sites_.$id.search'
 import { Route as AuthenticatedProjectsIdSitesRouteImport } from './routes/_authenticated/projects.$id.sites'
 import { Route as AuthenticatedProjectsIdIssuesRouteImport } from './routes/_authenticated/projects.$id.issues'
 import { Route as AuthenticatedProjectsIdExportsRouteImport } from './routes/_authenticated/projects.$id.exports'
@@ -128,6 +129,12 @@ const AuthenticatedProjectsNewRoute =
     path: '/projects/new',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSitesIdSearchRoute =
+  AuthenticatedSitesIdSearchRouteImport.update({
+    id: '/sites_/$id/search',
+    path: '/sites/$id/search',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedProjectsIdSitesRoute =
   AuthenticatedProjectsIdSitesRouteImport.update({
     id: '/projects/$id/sites',
@@ -181,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/projects/$id/exports': typeof AuthenticatedProjectsIdExportsRoute
   '/projects/$id/issues': typeof AuthenticatedProjectsIdIssuesRoute
   '/projects/$id/sites': typeof AuthenticatedProjectsIdSitesRoute
+  '/sites/$id/search': typeof AuthenticatedSitesIdSearchRoute
   '/sites/$id/audits/$auditId': typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
 export interface FileRoutesByTo {
@@ -205,6 +213,7 @@ export interface FileRoutesByTo {
   '/projects/$id/exports': typeof AuthenticatedProjectsIdExportsRoute
   '/projects/$id/issues': typeof AuthenticatedProjectsIdIssuesRoute
   '/projects/$id/sites': typeof AuthenticatedProjectsIdSitesRoute
+  '/sites/$id/search': typeof AuthenticatedSitesIdSearchRoute
   '/sites/$id/audits/$auditId': typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
 export interface FileRoutesById {
@@ -231,6 +240,7 @@ export interface FileRoutesById {
   '/_authenticated/projects/$id/exports': typeof AuthenticatedProjectsIdExportsRoute
   '/_authenticated/projects/$id/issues': typeof AuthenticatedProjectsIdIssuesRoute
   '/_authenticated/projects/$id/sites': typeof AuthenticatedProjectsIdSitesRoute
+  '/_authenticated/sites_/$id/search': typeof AuthenticatedSitesIdSearchRoute
   '/_authenticated/sites_/$id/audits/$auditId': typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
 export interface FileRouteTypes {
@@ -257,6 +267,7 @@ export interface FileRouteTypes {
     | '/projects/$id/exports'
     | '/projects/$id/issues'
     | '/projects/$id/sites'
+    | '/sites/$id/search'
     | '/sites/$id/audits/$auditId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -281,6 +292,7 @@ export interface FileRouteTypes {
     | '/projects/$id/exports'
     | '/projects/$id/issues'
     | '/projects/$id/sites'
+    | '/sites/$id/search'
     | '/sites/$id/audits/$auditId'
   id:
     | '__root__'
@@ -306,6 +318,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projects/$id/exports'
     | '/_authenticated/projects/$id/issues'
     | '/_authenticated/projects/$id/sites'
+    | '/_authenticated/sites_/$id/search'
     | '/_authenticated/sites_/$id/audits/$auditId'
   fileRoutesById: FileRoutesById
 }
@@ -450,6 +463,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjectsNewRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/sites_/$id/search': {
+      id: '/_authenticated/sites_/$id/search'
+      path: '/sites/$id/search'
+      fullPath: '/sites/$id/search'
+      preLoaderRoute: typeof AuthenticatedSitesIdSearchRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/projects/$id/sites': {
       id: '/_authenticated/projects/$id/sites'
       path: '/projects/$id/sites'
@@ -501,6 +521,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProjectsIdExportsRoute: typeof AuthenticatedProjectsIdExportsRoute
   AuthenticatedProjectsIdIssuesRoute: typeof AuthenticatedProjectsIdIssuesRoute
   AuthenticatedProjectsIdSitesRoute: typeof AuthenticatedProjectsIdSitesRoute
+  AuthenticatedSitesIdSearchRoute: typeof AuthenticatedSitesIdSearchRoute
   AuthenticatedSitesIdAuditsAuditIdRoute: typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
 
@@ -518,6 +539,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProjectsIdExportsRoute: AuthenticatedProjectsIdExportsRoute,
   AuthenticatedProjectsIdIssuesRoute: AuthenticatedProjectsIdIssuesRoute,
   AuthenticatedProjectsIdSitesRoute: AuthenticatedProjectsIdSitesRoute,
+  AuthenticatedSitesIdSearchRoute: AuthenticatedSitesIdSearchRoute,
   AuthenticatedSitesIdAuditsAuditIdRoute:
     AuthenticatedSitesIdAuditsAuditIdRoute,
 }

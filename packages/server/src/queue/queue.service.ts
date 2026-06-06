@@ -7,12 +7,14 @@ import {
   AUDIT_QUEUE,
   EMAIL_DELIVERIES_QUEUE,
   EXPORT_QUEUE,
+  GSC_IMPORT_QUEUE,
   OUTBOUND_DELIVERIES_QUEUE,
 } from './queue.constants';
 import type {
   AuditJobData,
   EmailDeliveryJobData,
   ExportJobData,
+  GscImportJobData,
   OutboundDeliveryJobData,
 } from './queue.types';
 
@@ -45,6 +47,7 @@ export class QueueService {
     @Inject(OUTBOUND_DELIVERIES_QUEUE)
     private readonly outboundQueue: Queue<OutboundDeliveryJobData>,
     @Inject(EMAIL_DELIVERIES_QUEUE) private readonly emailQueue: Queue<EmailDeliveryJobData>,
+    @Inject(GSC_IMPORT_QUEUE) private readonly gscImportQueue: Queue<GscImportJobData>,
     private readonly configService: ConfigService<Env, true>,
   ) {}
 
@@ -106,12 +109,35 @@ export class QueueService {
     });
   }
 
+  /**
+   * Enqueues a Search Console import for a site. `jobId` derives from the site, the import mode and
+   * the requested window so each day's rolling import is a distinct job. A static per-site id would
+   * be deduplicated by BullMQ against the previous (still-retained) completed/failed job, silently
+   * dropping the next day's import or blocking it for days after a failure.
+   */
+  enqueueGscImport(payload: GscImportJobData, options?: { delayMs?: number; jobId?: string }) {
+    const mode = payload.backfill ? 'backfill' : 'daily';
+    const window =
+      payload.startDate && payload.endDate ? `${payload.startDate}:${payload.endDate}` : 'auto';
+    return this.gscImportQueue.add('import-gsc', payload, {
+      attempts: this.configService.get('GSC_IMPORT_QUEUE_ATTEMPTS', { infer: true }),
+      backoff: {
+        delay: 5_000,
+        type: 'exponential',
+      },
+      ...(options?.delayMs !== undefined ? { delay: options.delayMs } : {}),
+      ...COMMON_REMOVE_OPTS,
+      jobId: options?.jobId ?? `${payload.siteId}:${mode}:${window}`,
+    });
+  }
+
   async getQueueSummary() {
     const entries = [
       { name: 'seo-audits', queue: this.auditQueue },
       { name: 'seo-exports', queue: this.exportQueue },
       { name: 'seo-outbound-deliveries', queue: this.outboundQueue },
       { name: 'seo-email-deliveries', queue: this.emailQueue },
+      { name: 'seo-gsc-import', queue: this.gscImportQueue },
     ];
 
     return Promise.all(
