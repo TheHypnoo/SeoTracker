@@ -120,13 +120,20 @@ describe('seoEngineService', () => {
       metrics: [{ key: 'duplicate_groups', valueNum: 0 }],
     });
     jest.mocked(scoreAudit).mockReturnValue({
-      breakdown: { penalties: [] },
+      breakdown: {
+        criticalRisk: { issueCodes: [], level: 'NONE', reasons: [] },
+        topDeductions: [],
+      },
       categoryScores: { TECHNICAL: 100 },
+      crawlConfidenceScore: 80,
+      criticalRisk: 'NONE',
+      modelVersion: 'v2.0',
       pageScores: new Map([
         ['https://example.com', 100],
         ['https://example.com/about', 95],
       ]),
       score: 98,
+      seoScore: 99,
     });
   });
 
@@ -246,6 +253,7 @@ describe('seoEngineService', () => {
       ]),
       [],
       'https://example.com',
+      [],
     );
   });
 });

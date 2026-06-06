@@ -14,12 +14,15 @@ import { getIssueCategory } from './scoring';
 import type { SeoIssue, SeoMetric, SeoPageResult } from './seo-engine.types';
 import { stripTrackingParams } from './url-utils';
 
+const MAX_INCONCLUSIVE_SITEMAP_PROBES = 3;
+
 export type DiscoveryResult = {
   issues: SeoIssue[];
   metrics: SeoMetric[];
   pages: SeoPageResult[];
   /** Sample of URLs harvested from the sitemap (already capped at sample max). */
   sitemapUrls: string[];
+  sitemapDiscoveryStatus: 'FOUND' | 'MISSING' | 'INCONCLUSIVE';
 };
 
 type DiscoverInput = {
@@ -124,28 +127,58 @@ export async function discoverSiteMetadata(input: DiscoverInput): Promise<Discov
   ];
   const seenSitemap = new Set<string>();
   let sitemapFoundUrl: string | undefined;
+  let inconclusiveProbeCount = 0;
+  const inconclusiveProbeReasons = new Set<string>();
   for (const candidate of sitemapCandidates) {
     const normalized = stripTrackingParams(candidate);
     if (seenSitemap.has(normalized)) continue;
     seenSitemap.add(normalized);
     const probe = await probeSitemap(normalized, timeoutMs, userAgent);
     pages.push(probe.page);
+    if (probe.status === 'inconclusive') {
+      inconclusiveProbeCount += 1;
+      if (probe.errorReason) {
+        inconclusiveProbeReasons.add(probe.errorReason);
+      }
+      if (inconclusiveProbeCount >= MAX_INCONCLUSIVE_SITEMAP_PROBES) {
+        break;
+      }
+    }
     if (probe.isSitemap) {
       sitemapFoundUrl = normalized;
       break;
     }
   }
+  metrics.push({ key: 'sitemap_candidates_checked', valueNum: seenSitemap.size });
+  if (inconclusiveProbeCount > 0) {
+    metrics.push({ key: 'sitemap_probe_inconclusive_count', valueNum: inconclusiveProbeCount });
+    metrics.push({
+      key: 'sitemap_probe_inconclusive_reasons',
+      valueText: [...inconclusiveProbeReasons].join(',') || 'unknown',
+    });
+  }
 
   let sitemapUrls: string[] = [];
+  let sitemapDiscoveryStatus: DiscoveryResult['sitemapDiscoveryStatus'];
   if (!sitemapFoundUrl) {
-    issues.push({
-      issueCode: IssueCode.MISSING_SITEMAP,
-      category: getIssueCategory(IssueCode.MISSING_SITEMAP),
-      severity: Severity.MEDIUM,
-      message: 'sitemap not found (checked robots.txt and common paths)',
-      resourceUrl: `${homepageUrl}/sitemap.xml`,
-    });
+    if (inconclusiveProbeCount > 0) {
+      sitemapDiscoveryStatus = 'INCONCLUSIVE';
+      metrics.push({ key: 'sitemap_discovery_status', valueText: 'INCONCLUSIVE' });
+    } else {
+      sitemapDiscoveryStatus = 'MISSING';
+      metrics.push({ key: 'sitemap_discovery_status', valueText: 'MISSING' });
+      issues.push({
+        issueCode: IssueCode.MISSING_SITEMAP,
+        category: getIssueCategory(IssueCode.MISSING_SITEMAP),
+        severity: Severity.MEDIUM,
+        message: 'sitemap not found (checked robots.txt and common paths)',
+        resourceUrl: `${homepageUrl}/sitemap.xml`,
+      });
+    }
   } else {
+    sitemapDiscoveryStatus = 'FOUND';
+    metrics.push({ key: 'sitemap_discovery_status', valueText: 'FOUND' });
+    metrics.push({ key: 'sitemap_found_url', valueText: sitemapFoundUrl });
     const sitemapAnalysis = await analyzeSitemap(sitemapFoundUrl, timeoutMs, userAgent);
     if (sitemapAnalysis.urlCount !== null) {
       metrics.push({ key: 'sitemap_urls', valueNum: sitemapAnalysis.urlCount });
@@ -176,5 +209,5 @@ export async function discoverSiteMetadata(input: DiscoverInput): Promise<Discov
     }
   }
 
-  return { issues, metrics, pages, sitemapUrls };
+  return { issues, metrics, pages, sitemapDiscoveryStatus, sitemapUrls };
 }

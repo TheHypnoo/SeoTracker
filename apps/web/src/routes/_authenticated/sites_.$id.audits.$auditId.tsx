@@ -39,8 +39,8 @@ import { IssueDetailDrawer } from '#/components/audit-detail/issue-detail-drawer
 import { IssueGroupCard } from '#/components/audit-detail/issue-group-card';
 import {
   CategoryScoreStrip,
-  ScoreBreakdownPanel,
   ScoreCard,
+  ScoreContextPanel,
   SeverityBreakdown,
 } from '#/components/audit-detail/score-cards';
 import {
@@ -452,6 +452,19 @@ function AuditDetailPage() {
                   value={runData.responseMs !== null ? `${runData.responseMs} ms` : '--'}
                 />
                 <InlineStat
+                  label="Confianza"
+                  value={
+                    runData.crawlConfidenceScore !== null
+                      ? `${runData.crawlConfidenceScore}/100`
+                      : '--'
+                  }
+                  tone={
+                    runData.crawlConfidenceScore !== null && runData.crawlConfidenceScore < 55
+                      ? 'warning'
+                      : 'neutral'
+                  }
+                />
+                <InlineStat
                   label="Duración"
                   value={durationMs !== null ? formatDuration(durationMs) : '--'}
                 />
@@ -475,16 +488,11 @@ function AuditDetailPage() {
             </div>
             {scoreDetailsOpen ? (
               <div id="audit-score-context">
+                <ScoreContextPanel run={runData} />
                 {runData.categoryScores ? (
                   <CategoryScoreStrip scores={runData.categoryScores} />
                 ) : null}
                 <SeverityBreakdown counts={runData.severityCounts} total={runData.issuesCount} />
-                {runData.scoreBreakdown ? (
-                  <ScoreBreakdownPanel
-                    breakdown={runData.scoreBreakdown}
-                    baseScore={runData.score}
-                  />
-                ) : null}
               </div>
             ) : null}
           </div>

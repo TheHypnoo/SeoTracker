@@ -271,7 +271,49 @@ describe('discoverSiteMetadata', () => {
     });
 
     expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_SITEMAP)).toBeDefined();
+    expect(result.metrics).toContainEqual({
+      key: 'sitemap_discovery_status',
+      valueText: 'MISSING',
+    });
+    expect(result.sitemapDiscoveryStatus).toBe('MISSING');
     expect(result.sitemapUrls).toStrictEqual([]);
+  });
+
+  it('does not emit MISSING_SITEMAP when sitemap probing is inconclusive', async () => {
+    fetchRobotsMock.mockResolvedValueOnce(
+      defaultRobots({ sitemaps: ['https://x.test/sitemap.xml'] }),
+    );
+    checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
+    probeSitemapMock.mockResolvedValue({
+      errorReason: 'timeout',
+      page: fakePage('https://x.test/sitemap.xml'),
+      isSitemap: false,
+      status: 'inconclusive',
+    });
+
+    const result = await discoverSiteMetadata({
+      homepageUrl: 'https://x.test',
+      $: cheerio.load(''),
+      hasFaviconLink: true,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+      sitemapSampleMax: 100,
+    });
+
+    expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_SITEMAP)).toBeUndefined();
+    expect(result.metrics).toContainEqual({
+      key: 'sitemap_discovery_status',
+      valueText: 'INCONCLUSIVE',
+    });
+    expect(result.metrics).toContainEqual({
+      key: 'sitemap_probe_inconclusive_count',
+      valueNum: 3,
+    });
+    expect(result.metrics).toContainEqual({
+      key: 'sitemap_probe_inconclusive_reasons',
+      valueText: 'timeout',
+    });
+    expect(result.sitemapDiscoveryStatus).toBe('INCONCLUSIVE');
   });
 
   it('emits SITEMAP_INVALID when sitemap analysis says invalid', async () => {

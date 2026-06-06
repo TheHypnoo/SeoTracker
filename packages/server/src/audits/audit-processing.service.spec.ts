@@ -60,16 +60,30 @@ function makeDb(): DbMock {
 const SAMPLE_ANALYSIS = {
   httpStatus: 200,
   responseMs: 120,
-  score: 90,
+  score: 94,
+  scoringModelVersion: 'v2.0',
+  seoScore: 94,
+  crawlConfidenceScore: 82,
+  criticalRisk: 'NONE',
   categoryScores: { content: 90 },
   scoreBreakdown: {
-    perSeverity: {},
-    totalDeduction: 10,
+    modelVersion: 'v2.0',
+    seoScore: 94,
+    criticalRisk: { issueCodes: [], level: 'NONE', reasons: [] },
+    topDeductions: [],
   },
   pages: [
     { url: 'https://x.test/', statusCode: 200, responseMs: 50, contentType: 'html', score: 90 },
   ],
   metrics: [],
+  engineTelemetry: [
+    {
+      stage: 'scoring',
+      status: 'success',
+      durationMs: 1,
+      details: { publicScore: 94, seoScore: 94 },
+    },
+  ],
   issues: [
     {
       issueCode: IssueCode.MISSING_TITLE,
@@ -254,7 +268,9 @@ describe('auditProcessingService', () => {
   });
 
   describe('processQueuedRun — successful side effects', () => {
-    it('persists metrics, rescores ignored issues and dispatches critical/regression webhooks', async () => {
+    // Shared arrange for the rescore-on-success path; split across two tests so
+    // each stays within the per-test assertion cap.
+    async function runRescoreSuccessScenario() {
       db.where
         .mockReturnValueOnce(
           thenable([{ id: 'r1', siteId: 's1', status: AuditStatus.QUEUED, trigger: 'MANUAL' }]),
@@ -271,18 +287,23 @@ describe('auditProcessingService', () => {
             },
           ]),
         );
+      const txSet = jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) });
+      const txValues = jest.fn().mockResolvedValue(undefined);
       const tx = {
         update: jest.fn().mockReturnValue({
-          set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) }),
+          set: txSet,
         }),
         insert: jest.fn().mockReturnValue({
-          values: jest.fn().mockResolvedValue(undefined),
+          values: txValues,
         }),
       };
       db.transaction.mockImplementation(async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx));
       seo.analyzeDomain.mockResolvedValueOnce({
         ...SAMPLE_ANALYSIS,
-        metrics: [{ key: 'pages_total', valueNum: 1, valueText: null }],
+        metrics: [
+          { key: 'pages_total', valueNum: 1, valueText: null },
+          { key: 'crawl_confidence_score', valueNum: 82, valueText: null },
+        ],
         urlInspections: [
           {
             canonicalUrl: 'https://x.test/',
@@ -325,9 +346,29 @@ describe('auditProcessingService', () => {
 
       await service.processQueuedRun('r1', 5);
 
+      return { txSet, txValues };
+    }
+
+    it('persists metrics, rescores ignored issues and dispatches critical/regression webhooks', async () => {
+      const { txSet, txValues } = await runRescoreSuccessScenario();
+
       // The rescore (ignored-issue filtering) is now folded into the same
       // transaction as the initial persist — one tx total.
       expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(txSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          crawlConfidenceScore: expect.any(Number),
+          criticalRisk: expect.any(String),
+          scoreBreakdown: expect.any(Object),
+          scoringModelVersion: 'v2.0',
+          seoScore: expect.any(Number),
+        }),
+      );
+      expect(txValues).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ auditRunId: 'r1', stage: 'scoring', status: 'success' }),
+        ]),
+      );
       expect(alerts.evaluateRegression).toHaveBeenCalledWith(
         expect.objectContaining({ id: 's1', projectId: 'p1' }),
         expect.objectContaining({ id: 'comparison-1', scoreDelta: -12 }),
@@ -340,6 +381,11 @@ describe('auditProcessingService', () => {
           OutboundEvent.SITE_REGRESSION,
         ]),
       );
+    });
+
+    it('notifies project members and does not fail the run on success', async () => {
+      await runRescoreSuccessScenario();
+
       expect(notifications.createForProjectMembers).toHaveBeenCalledWith(
         'p1',
         expect.objectContaining({ type: 'AUDIT_COMPLETED' }),

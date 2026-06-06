@@ -64,4 +64,19 @@ describe('computeCrawlConfidence', () => {
     expect(metrics).toContainEqual({ key: 'crawl_confidence_score', valueNum: 100 });
     expect(metrics).toContainEqual({ key: 'crawl_coverage_ratio', valueNum: 1 });
   });
+
+  it('reduces confidence when sitemap discovery is inconclusive', () => {
+    const metrics = computeCrawlConfidence({
+      analyzedPages: [{ statusCode: 200, url: 'https://x.test/' }],
+      crawlCandidateCount: 0,
+      maxDepth: 1,
+      maxPages: 1,
+      sitemapDiscoveryStatus: 'INCONCLUSIVE',
+      sitemapUrls: [],
+      totalAnalyzed: 1,
+    });
+
+    expect(metrics).toContainEqual({ key: 'crawl_confidence_sitemap_penalty', valueNum: 8 });
+    expect(metrics).toContainEqual({ key: 'crawl_confidence_score', valueNum: 72 });
+  });
 });

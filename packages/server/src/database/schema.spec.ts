@@ -23,6 +23,7 @@ const TABLE_EXPORTS = [
   'gscDailyStats',
   'trackedKeywords',
   'auditRuns',
+  'auditEngineTelemetry',
   'auditPages',
   'auditUrlInspections',
   'auditIssues',

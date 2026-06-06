@@ -70,6 +70,7 @@ const commonShape = {
   // Google retains ~16 months of Search Console data.
   GSC_BACKFILL_MONTHS: z.coerce.number().int().positive().max(16).default(16),
   AUDIT_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  AUDIT_FETCH_RETRY_ATTEMPTS: z.coerce.number().int().min(1).max(3).default(2),
   AUDIT_MAX_LINKS: z.coerce.number().int().positive().default(20),
   AUDIT_MAX_PAGES: z.coerce.number().int().positive().default(12),
   AUDIT_MAX_DEPTH: z.coerce.number().int().min(1).max(3).default(2),

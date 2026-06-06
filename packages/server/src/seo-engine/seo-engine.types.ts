@@ -1,7 +1,10 @@
 import {
-  IndexabilityStatus,
+  type CriticalRiskLevel,
   IssueCategory,
+  IndexabilityStatus,
   IssueCode,
+  type ScoreBreakdown,
+  type ScoreDeduction,
   SeoActionEffort,
   SeoActionImpact,
   Severity,
@@ -71,9 +74,18 @@ export type SeoActionItem = {
   remediationPrompt: string;
 };
 
-export type ScoreBreakdown = {
-  perSeverity: Record<Severity, { rawDeduction: number; cappedDeduction: number }>;
-  totalDeduction: number;
+// The score-model shapes (ScoreBreakdown, ScoreDeduction, CriticalRiskLevel)
+// live in @seotracker/shared-types so the engine and the web app consume one
+// definition. Imported for local use below and re-exported for engine modules
+// that import them from this file.
+export type { CriticalRiskLevel, ScoreBreakdown, ScoreDeduction };
+
+export type SeoEngineTelemetryEvent = {
+  stage: string;
+  status: 'success' | 'error';
+  durationMs: number;
+  details?: Record<string, unknown> | undefined;
+  error?: string | undefined;
 };
 
 export type SeoAuditResult = {
@@ -82,8 +94,13 @@ export type SeoAuditResult = {
   score: number;
   categoryScores: Record<IssueCategory, number>;
   scoreBreakdown: ScoreBreakdown;
+  scoringModelVersion: string;
+  seoScore: number;
+  crawlConfidenceScore: number | null;
+  criticalRisk: CriticalRiskLevel;
   issues: SeoIssue[];
   metrics: SeoMetric[];
   pages: SeoPageResult[];
   urlInspections: SeoUrlInspection[];
+  engineTelemetry: SeoEngineTelemetryEvent[];
 };

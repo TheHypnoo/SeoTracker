@@ -2,7 +2,13 @@ import { Logger } from '@nestjs/common';
 import { IssueCode, Severity } from '@seotracker/shared-types';
 import { load } from 'cheerio';
 
-import { readBodyWithLimit, safeFetch } from '../common/utils/safe-fetch';
+import {
+  readBodyWithLimit,
+  ResponseTooLargeError,
+  safeFetch,
+  type SafeFetchOptions,
+  SsrfBlockedError,
+} from '../common/utils/safe-fetch';
 import { runBlogChecks } from './content-checks';
 import { extractTextForComparison } from './content-utils';
 import { getIssueCategory } from './scoring';
@@ -16,12 +22,15 @@ import { isExpectedNoindexUrl, isSeoCrawlCandidateUrl } from './url-policy';
 // box.
 const logger = new Logger('SeoCrawler');
 
-// Body-size ceilings. robots.txt and probe responses are tiny in practice;
-// sitemaps and HTML pages can legitimately be a few MB. Anything beyond these
-// is almost certainly a misbehaving server or an attack.
+// Body-size ceilings. robots.txt and probe responses are tiny in practice.
+// Sitemaps follow the official Sitemap protocol / Google limit: 50MB
+// uncompressed per sitemap file. Anything beyond these caps is treated as
+// inconclusive/invalid rather than allowed to grow memory without bound.
 const MAX_ROBOTS_BYTES = 256 * 1024;
-const MAX_SITEMAP_BYTES = 10 * 1024 * 1024;
+const MAX_SITEMAP_BYTES = 50 * 1024 * 1024;
+const MAX_SITEMAP_PROBE_BYTES = 64 * 1024;
 const MAX_HTML_BYTES = 5 * 1024 * 1024;
+const MAX_INCONCLUSIVE_SITEMAP_FETCHES = 3;
 
 type Cheerio = ReturnType<typeof load>;
 
@@ -57,12 +66,136 @@ const AI_BOTS = new Set([
 // env.schema.ts and clamped here in case the module is loaded without it.
 const MAX_LINKS_PER_PAGE = Math.max(1, Number(process.env.AUDIT_MAX_LINKS_PER_PAGE) || 40);
 const MAX_SITEMAPS_PER_RUN = Math.max(1, Number(process.env.AUDIT_MAX_SITEMAPS_PER_RUN) || 8);
+const FETCH_RETRY_ATTEMPTS = clampInt(Number(process.env.AUDIT_FETCH_RETRY_ATTEMPTS) || 2, 1, 3);
+const FETCH_RETRY_BASE_DELAY_MS = process.env.NODE_ENV === 'test' ? 0 : 150;
 
 function describeError(error: unknown): string {
   if (error instanceof Error) {
     return `${error.name}: ${error.message}`;
   }
   return String(error);
+}
+
+export type SitemapProbeStatus = 'found' | 'not_found' | 'not_sitemap' | 'inconclusive';
+
+export type SitemapProbeResult = {
+  isSitemap: boolean;
+  page: SeoPageResult;
+  status?: SitemapProbeStatus | undefined;
+  errorReason?: string | undefined;
+};
+
+function classifySitemapProbeError(error: unknown): string {
+  if (error instanceof ResponseTooLargeError) return 'response_too_large';
+  if (error instanceof SsrfBlockedError) return 'blocked_by_ssrf_guard';
+  if (typeof error === 'object' && error !== null) {
+    const name = String((error as { name?: unknown }).name ?? '');
+    const message = String((error as { message?: unknown }).message ?? '');
+    if (name === 'TimeoutError' || name === 'AbortError' || /timeout|aborted/i.test(message)) {
+      return 'timeout';
+    }
+  }
+  if (error instanceof Error) {
+    return error.name || 'error';
+  }
+  return 'error';
+}
+
+type RetryableFetchOptions = Omit<SafeFetchOptions, 'signal'>;
+
+async function safeFetchWithRetry(
+  url: string,
+  init: RetryableFetchOptions,
+  timeoutMs: number,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= FETCH_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await safeFetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (isRetriableStatus(response.status) && attempt < FETCH_RETRY_ATTEMPTS) {
+        await cancelResponseBody(response);
+        await waitBeforeRetry(attempt);
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (!isRetriableFetchError(error) || attempt >= FETCH_RETRY_ATTEMPTS) {
+        throw error;
+      }
+      await waitBeforeRetry(attempt);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+function isRetriableStatus(status: number): boolean {
+  return status === 408 || status === 429 || (status >= 500 && status !== 501);
+}
+
+function isRetriableFetchError(error: unknown): boolean {
+  if (error instanceof ResponseTooLargeError || error instanceof SsrfBlockedError) return false;
+  const reason = classifySitemapProbeError(error);
+  if (reason === 'timeout') return true;
+  if (error instanceof TypeError) return true;
+  if (error instanceof Error) {
+    return /econnreset|econnrefused|enotfound|terminated|fetch failed|network/i.test(
+      `${error.name} ${error.message}`,
+    );
+  }
+  return false;
+}
+
+async function cancelResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Best-effort cleanup before retrying.
+  }
+}
+
+async function waitBeforeRetry(attempt: number): Promise<void> {
+  const delayMs = FETCH_RETRY_BASE_DELAY_MS * attempt;
+  if (delayMs <= 0) return;
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(Math.trunc(value), min), max);
+}
+
+async function readBodyPrefix(response: Response, maxBytes: number): Promise<string> {
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (total < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const remaining = maxBytes - total;
+      const chunk = value.byteLength > remaining ? value.slice(0, remaining) : value;
+      chunks.push(chunk);
+      total += chunk.byteLength;
+      if (value.byteLength > remaining) {
+        await reader.cancel();
+        break;
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Reader may already be released after cancel.
+    }
+  }
+  return new TextDecoder('utf-8').decode(Buffer.concat(chunks));
 }
 
 export interface RobotsResult {
@@ -86,11 +219,14 @@ export async function fetchRobots(
 ): Promise<RobotsResult> {
   try {
     const startedAt = performance.now();
-    const response = await safeFetch(url, {
-      headers: { 'User-Agent': userAgent },
-      method: 'GET',
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const response = await safeFetchWithRetry(
+      url,
+      {
+        headers: { 'User-Agent': userAgent },
+        method: 'GET',
+      },
+      timeoutMs,
+    );
     const responseMs = Math.round(performance.now() - startedAt);
     const page: SeoPageResult = {
       contentType: response.headers.get('content-type') ?? undefined,
@@ -180,10 +316,13 @@ export async function checkSoft404(
   const probedUrl = `${homepageUrl}/__seotracker_nonexistent_${Date.now()}__`;
   try {
     const startedAt = performance.now();
-    const response = await safeFetch(probedUrl, {
-      headers: { 'User-Agent': userAgent },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const response = await safeFetchWithRetry(
+      probedUrl,
+      {
+        headers: { 'User-Agent': userAgent },
+      },
+      timeoutMs,
+    );
     const responseMs = Math.round(performance.now() - startedAt);
     const page: SeoPageResult = {
       contentType: response.headers.get('content-type') ?? undefined,
@@ -230,14 +369,17 @@ export async function probeSitemap(
   url: string,
   timeoutMs: number,
   userAgent: string,
-): Promise<{ isSitemap: boolean; page: SeoPageResult }> {
+): Promise<SitemapProbeResult> {
   try {
     const startedAt = performance.now();
-    const response = await safeFetch(url, {
-      headers: { Accept: 'application/xml, text/xml, */*', 'User-Agent': userAgent },
-      method: 'GET',
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const response = await safeFetchWithRetry(
+      url,
+      {
+        headers: { Accept: 'application/xml, text/xml, */*', 'User-Agent': userAgent },
+        method: 'GET',
+      },
+      timeoutMs,
+    );
     const responseMs = Math.round(performance.now() - startedAt);
     const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
     const page: SeoPageResult = {
@@ -247,31 +389,36 @@ export async function probeSitemap(
       url,
     };
     if (response.status >= 400) {
-      return { isSitemap: false, page };
+      return { isSitemap: false, page, status: 'not_found' };
     }
-    const responseText = await readBodyWithLimit(response, MAX_SITEMAP_BYTES);
+    const responseText = await readBodyPrefix(response, MAX_SITEMAP_PROBE_BYTES);
     const snippet = responseText.slice(0, 4096).toLowerCase();
     const looksXml =
       snippet.includes('<urlset') ||
       snippet.includes('<sitemapindex') ||
       (snippet.trimStart().startsWith('<?xml') && snippet.includes('sitemap'));
-    return { isSitemap: looksXml, page };
+    return { isSitemap: looksXml, page, status: looksXml ? 'found' : 'not_sitemap' };
   } catch (error) {
     logger.warn(`probeSitemap failed for ${url}: ${describeError(error)}`);
     return {
+      errorReason: classifySitemapProbeError(error),
       isSitemap: false,
       page: { contentType: undefined, responseMs: undefined, statusCode: undefined, url },
+      status: 'inconclusive',
     };
   }
 }
 
 export async function analyzeSitemap(url: string, timeoutMs: number, userAgent: string) {
   try {
-    const response = await safeFetch(url, {
-      headers: { 'User-Agent': userAgent },
-      method: 'GET',
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const response = await safeFetchWithRetry(
+      url,
+      {
+        headers: { 'User-Agent': userAgent },
+        method: 'GET',
+      },
+      timeoutMs,
+    );
     if (response.status >= 400) {
       return { invalid: false, urlCount: null as number | null };
     }
@@ -287,6 +434,9 @@ export async function analyzeSitemap(url: string, timeoutMs: number, userAgent: 
     return { invalid: false, urlCount: urlMatches + sitemapMatches };
   } catch (error) {
     logger.warn(`analyzeSitemap failed for ${url}: ${describeError(error)}`);
+    if (error instanceof ResponseTooLargeError) {
+      return { invalid: true, urlCount: null as number | null };
+    }
     return { invalid: false, urlCount: null as number | null };
   }
 }
@@ -301,6 +451,7 @@ export async function extractSitemapUrls(
   const seen = new Set<string>();
   const visitedSitemaps = new Set<string>();
   const queue: string[] = [rootUrl];
+  let inconclusiveFetches = 0;
 
   while (
     queue.length > 0 &&
@@ -314,17 +465,26 @@ export async function extractSitemapUrls(
     visitedSitemaps.add(current);
     let body: string;
     try {
-      const response = await safeFetch(current, {
-        headers: { Accept: 'application/xml, text/xml, */*', 'User-Agent': userAgent },
-        method: 'GET',
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      const response = await safeFetchWithRetry(
+        current,
+        {
+          headers: { Accept: 'application/xml, text/xml, */*', 'User-Agent': userAgent },
+          method: 'GET',
+        },
+        timeoutMs,
+      );
       if (response.status >= 400) {
         continue;
       }
       body = await readBodyWithLimit(response, MAX_SITEMAP_BYTES);
     } catch (error) {
       logger.warn(`extractSitemapUrls fetch failed for ${current}: ${describeError(error)}`);
+      if (isRetriableFetchError(error) || error instanceof ResponseTooLargeError) {
+        inconclusiveFetches += 1;
+        if (inconclusiveFetches >= MAX_INCONCLUSIVE_SITEMAP_FETCHES) {
+          break;
+        }
+      }
       continue;
     }
     const isIndex = /<sitemapindex\b/i.test(body);
@@ -361,18 +521,24 @@ export async function extractSitemapUrls(
 export async function existsUrl(url: string, timeoutMs: number, userAgent: string) {
   try {
     const startedAt = performance.now();
-    let response = await safeFetch(url, {
-      headers: { 'User-Agent': userAgent },
-      method: 'HEAD',
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    let response = await safeFetchWithRetry(
+      url,
+      {
+        headers: { 'User-Agent': userAgent },
+        method: 'HEAD',
+      },
+      timeoutMs,
+    );
 
     if (response.status >= 400 || response.status === 405) {
-      response = await safeFetch(url, {
-        headers: { 'User-Agent': userAgent },
-        method: 'GET',
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      response = await safeFetchWithRetry(
+        url,
+        {
+          headers: { 'User-Agent': userAgent },
+          method: 'GET',
+        },
+        timeoutMs,
+      );
     }
 
     const responseMs = Math.round(performance.now() - startedAt);
@@ -558,10 +724,13 @@ export async function analyzeInternalPage(
 
   try {
     const startedAt = performance.now();
-    const response = await safeFetch(pageUrl, {
-      headers: { 'User-Agent': userAgent },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const response = await safeFetchWithRetry(
+      pageUrl,
+      {
+        headers: { 'User-Agent': userAgent },
+      },
+      timeoutMs,
+    );
     responseMs = Math.round(performance.now() - startedAt);
     statusCode = response.status;
     contentType = response.headers.get('content-type') ?? undefined;

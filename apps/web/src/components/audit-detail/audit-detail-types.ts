@@ -1,3 +1,5 @@
+import type { CriticalRiskLevel, ScoreBreakdown } from '@seotracker/shared-types';
+
 export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
 export type IssueState = 'OPEN' | 'IGNORED' | 'FIXED';
@@ -41,10 +43,11 @@ export type AuditRun = {
   issuesCount: number;
   severityCounts: Record<Severity, number>;
   categoryScores: Record<string, number> | null;
-  scoreBreakdown: {
-    perSeverity: Record<Severity, { rawDeduction: number; cappedDeduction: number }>;
-    totalDeduction: number;
-  } | null;
+  scoringModelVersion: string | null;
+  seoScore: number | null;
+  crawlConfidenceScore: number | null;
+  criticalRisk: CriticalRiskLevel | null;
+  scoreBreakdown: ScoreBreakdown | null;
   previousScore: number | null;
   scoreDelta: number | null;
   site: {

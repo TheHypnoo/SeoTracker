@@ -40,3 +40,6 @@ apps/worker/storage/**
 # local-only documentation (not published)
 docs/
 Documentación_sin_acabar.pdf
+
+# local generated reports
+tmp/

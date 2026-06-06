@@ -108,60 +108,138 @@ export function CategoryScoreStrip({ scores }: { scores: Record<string, number> 
   );
 }
 
-export function ScoreBreakdownPanel({
-  breakdown,
-  baseScore,
+export function ScoreContextPanel({
+  run,
 }: {
-  breakdown: AuditRun['scoreBreakdown'];
-  baseScore: number | null;
+  run: Pick<
+    AuditRun,
+    'seoScore' | 'crawlConfidenceScore' | 'criticalRisk' | 'scoreBreakdown' | 'scoringModelVersion'
+  >;
 }) {
-  if (!breakdown) return null;
+  const breakdown = run.scoreBreakdown;
+  if (!breakdown && run.seoScore === null && run.crawlConfidenceScore === null) {
+    return null;
+  }
+  const risk = breakdown?.criticalRisk.level ?? run.criticalRisk ?? 'NONE';
+  const confidence = breakdown?.crawlConfidenceScore ?? run.crawlConfidenceScore;
+  const seoScore = breakdown?.seoScore ?? run.seoScore;
+
   return (
-    <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-          Desglose del score
-        </span>
-        <span className="text-xs text-slate-500">
-          100 − {breakdown.totalDeduction} = {baseScore ?? '--'}
+    <div className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-700">
+            Modelo de score activo
+          </div>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+            El score principal combina salud SEO, confianza del crawl y riesgos críticos para evitar
+            penalizaciones genéricas.
+          </p>
+        </div>
+        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+          {breakdown?.modelVersion ?? run.scoringModelVersion ?? 'v2.0'}
         </span>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {SCORE_SEVERITIES.map((sev) => {
-          const entry = breakdown.perSeverity[sev];
-          const raw = entry?.rawDeduction ?? 0;
-          const capped = entry?.cappedDeduction ?? 0;
-          const capTriggered = raw > capped;
-          const tone = severityStyle(sev);
-          return (
-            <div
-              key={sev}
-              className={`rounded-lg border px-3 py-2 ${tone.border} bg-white`}
-              title={
-                capTriggered
-                  ? `Deducción bruta ${raw.toFixed(1)} limitada por el cap de severidad`
-                  : undefined
-              }
-            >
-              <div className={`text-[11px] font-semibold uppercase tracking-wider ${tone.label}`}>
-                {severityLabel(sev)}
-              </div>
-              <div className="mt-1 flex items-baseline gap-2">
-                <span className={`text-lg font-bold tabular-nums ${tone.value}`}>
-                  -{capped.toFixed(1)}
-                </span>
-                {capTriggered ? (
-                  <span className="text-[10px] font-semibold text-slate-400 line-through">
-                    -{raw.toFixed(1)}
+
+      <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+        <ContextMetric label="Salud SEO" value={seoScore !== null ? `${seoScore}/100` : '--'} />
+        <ContextMetric
+          label="Confianza del crawl"
+          value={confidence !== null ? `${confidence}/100` : '--'}
+          hint={confidence !== null && confidence < 55 ? 'Baja confianza: lectura cautelosa' : null}
+        />
+        <ContextMetric
+          label="Riesgo crítico"
+          value={criticalRiskLabel(risk)}
+          tone={riskTone(risk)}
+        />
+      </dl>
+
+      {breakdown?.confidenceAdjustment.applied ? (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+          {breakdown.confidenceAdjustment.reason}
+        </p>
+      ) : null}
+
+      {breakdown?.criticalRisk.reasons.length ? (
+        <ul className="mt-3 list-inside list-disc text-xs text-slate-600">
+          {breakdown.criticalRisk.reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      ) : null}
+
+      {breakdown?.topDeductions.length ? (
+        <div className="mt-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Principales penalizaciones
+          </div>
+          <ul className="mt-2 grid gap-2">
+            {breakdown.topDeductions.map((deduction) => (
+              <li
+                key={deduction.issueCode}
+                className="rounded-lg border border-white bg-white/80 px-3 py-2"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-semibold text-slate-800">
+                    {deduction.issueCode}
                   </span>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                  <span className="text-xs font-bold text-rose-700">
+                    -{deduction.cappedDeduction.toFixed(1)} pts
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {deduction.reason} · {deduction.occurrences} ocurrencia
+                  {deduction.occurrences === 1 ? '' : 's'} · falso positivo:{' '}
+                  {falsePositiveRiskLabel(deduction.falsePositiveRisk)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function ContextMetric({
+  label,
+  value,
+  hint,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: string;
+  hint?: string | null;
+  tone?: 'neutral' | 'warning' | 'danger';
+}) {
+  const toneClass =
+    tone === 'danger' ? 'text-rose-700' : tone === 'warning' ? 'text-amber-700' : 'text-slate-900';
+  return (
+    <div className="rounded-lg border border-white bg-white/80 px-3 py-2">
+      <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</dt>
+      <dd className={`mt-1 text-lg font-black tabular-nums ${toneClass}`}>{value}</dd>
+      {hint ? <p className="mt-1 text-xs text-amber-700">{hint}</p> : null}
+    </div>
+  );
+}
+
+function criticalRiskLabel(risk: string | null): string {
+  if (risk === 'BLOCKING') return 'Bloqueante';
+  if (risk === 'WARNING') return 'Aviso';
+  return 'Sin bloqueo';
+}
+
+function riskTone(risk: string | null): 'neutral' | 'warning' | 'danger' {
+  if (risk === 'BLOCKING') return 'danger';
+  if (risk === 'WARNING') return 'warning';
+  return 'neutral';
+}
+
+function falsePositiveRiskLabel(risk: string): string {
+  if (risk === 'HIGH') return 'alto';
+  if (risk === 'LOW') return 'bajo';
+  return 'medio';
 }
 
 export function SeverityBreakdown({

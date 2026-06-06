@@ -7,6 +7,7 @@ import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import {
   auditEvents,
+  auditEngineTelemetry,
   auditActionItems,
   auditIssues,
   auditMetrics,
@@ -163,6 +164,7 @@ export class AuditProcessingService {
       let effectiveScore = analysis.score;
       let effectiveCategoryScores = analysis.categoryScores;
       let effectiveScoreBreakdown = analysis.scoreBreakdown;
+      let effectiveSeoScore = analysis.seoScore;
       let effectivePages = analysis.pages;
       if (ignoredFingerprints.size > 0) {
         const filtered = analysis.issues.filter((issue) => {
@@ -172,10 +174,11 @@ export class AuditProcessingService {
           return !ignoredFingerprints.has(key);
         });
         const homepageUrl = analysis.pages[0]?.url ?? `https://${site.normalizedDomain}`;
-        const rescored = scoreAudit(filtered, analysis.pages, homepageUrl);
+        const rescored = scoreAudit(filtered, analysis.pages, homepageUrl, analysis.metrics);
         effectiveScore = rescored.score;
         effectiveCategoryScores = rescored.categoryScores;
         effectiveScoreBreakdown = rescored.breakdown;
+        effectiveSeoScore = rescored.seoScore;
         effectivePages = analysis.pages.map((page) => ({
           ...page,
           score: rescored.pageScores.get(page.url) ?? page.score,
@@ -185,6 +188,9 @@ export class AuditProcessingService {
         analysis.score = rescored.score;
         analysis.categoryScores = rescored.categoryScores;
         analysis.scoreBreakdown = rescored.breakdown;
+        analysis.seoScore = rescored.seoScore;
+        analysis.criticalRisk = rescored.criticalRisk;
+        analysis.crawlConfidenceScore = rescored.crawlConfidenceScore;
       }
 
       await this.db.transaction(async (tx) => {
@@ -198,6 +204,10 @@ export class AuditProcessingService {
             score: effectiveScore,
             categoryScores: effectiveCategoryScores,
             scoreBreakdown: effectiveScoreBreakdown,
+            scoringModelVersion: analysis.scoringModelVersion,
+            seoScore: effectiveSeoScore,
+            crawlConfidenceScore: analysis.crawlConfidenceScore,
+            criticalRisk: analysis.criticalRisk,
           })
           .where(eq(auditRuns.id, run.id));
 
@@ -221,6 +231,19 @@ export class AuditProcessingService {
               key: metric.key,
               valueNum: metric.valueNum,
               valueText: metric.valueText,
+            })),
+          );
+        }
+
+        if (analysis.engineTelemetry.length) {
+          await tx.insert(auditEngineTelemetry).values(
+            analysis.engineTelemetry.map((event) => ({
+              auditRunId: run.id,
+              details: event.details,
+              durationMs: event.durationMs,
+              error: event.error,
+              stage: event.stage,
+              status: event.status,
             })),
           );
         }
