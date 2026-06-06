@@ -703,8 +703,10 @@ describe('authService', () => {
       );
     });
 
-    it('updates the password, consumes the reset token and revokes active sessions atomically', async () => {
-      db.limit.mockResolvedValueOnce([{ id: 'reset-1', userId: 'u1' }]);
+    it('updates the password, consumes the token, revokes sessions and clears the lockout', async () => {
+      db.limit
+        .mockResolvedValueOnce([{ id: 'reset-1', userId: 'u1' }]) // reset record
+        .mockResolvedValueOnce([{ email: 'a@b.c' }]); // user email lookup for lockout clear
       const tx = {
         update: jest.fn().mockReturnValue({
           set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) }),
@@ -720,6 +722,25 @@ describe('authService', () => {
 
       expect(argon2.hash).toHaveBeenCalledWith('New-password-123');
       expect(tx.update).toHaveBeenCalledTimes(3);
+      // Active brute-force strike + lock are cleared so the user can sign in now.
+      expect(redis.del).toHaveBeenCalledWith('auth:login:fail:a@b.c', 'auth:login:lock:a@b.c');
+    });
+
+    it('still succeeds if the user row is gone when clearing the lockout', async () => {
+      db.limit.mockResolvedValueOnce([{ id: 'reset-1', userId: 'u1' }]).mockResolvedValueOnce([]); // user lookup returns nothing
+      const tx = {
+        update: jest.fn().mockReturnValue({
+          set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) }),
+        }),
+      };
+      db.transaction.mockImplementation(async (cb: (transaction: typeof tx) => Promise<unknown>) =>
+        cb(tx),
+      );
+
+      await expect(service.resetPassword('token', 'New-password-123')).resolves.toStrictEqual({
+        success: true,
+      });
+      expect(redis.del).not.toHaveBeenCalled();
     });
   });
 });

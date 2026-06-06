@@ -504,6 +504,19 @@ export class AuthService {
         .where(and(eq(refreshTokens.userId, resetRecord.userId), isNull(refreshTokens.revokedAt)));
     });
 
+    // The user just proved ownership via the reset link, so clear any active
+    // brute-force strike/lock to let them sign in immediately (the lock is keyed
+    // by email). Outside the transaction and fail-open — a Redis hiccup here must
+    // not fail the password reset itself.
+    const [resetUser] = await this.db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, resetRecord.userId))
+      .limit(1);
+    if (resetUser) {
+      await this.clearLoginFailures(resetUser.email.toLowerCase().trim());
+    }
+
     return { success: true };
   }
 
