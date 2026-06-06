@@ -94,7 +94,9 @@ export function KeywordTracking({
                   <th className="px-4 py-3 text-right">Clics</th>
                   <th className="px-4 py-3 text-right">Impresiones</th>
                   <th className="px-4 py-3 text-right">CTR</th>
-                  <th className="px-4 py-3" />
+                  <th className="px-4 py-3">
+                    <span className="sr-only">Acciones</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -136,7 +138,7 @@ export function KeywordTracking({
                         <button
                           type="button"
                           onClick={() => onUntrack(keyword.query)}
-                          className="inline-grid size-8 place-items-center rounded-md text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                          className="inline-grid size-8 place-items-center rounded-md text-rose-400 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
                           aria-label={`Dejar de seguir ${keyword.query}`}
                         >
                           <Trash2 size={15} aria-hidden="true" />

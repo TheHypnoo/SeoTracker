@@ -416,7 +416,21 @@ function TabPanels({ tab, gsc, siteId }: { tab: SearchTab; gsc: GscState; siteId
           icon={Globe2}
           onExport={() => exportTop('urls', topPages)}
         />
-        <DecayTable rows={gsc.decay.data ?? []} />
+        <DecayTable
+          rows={gsc.decay.data ?? []}
+          onExport={() =>
+            downloadCsv(
+              'gsc-decay',
+              ['URL', 'Clics antes', 'Clics ahora', 'Variación'],
+              (gsc.decay.data ?? []).map((row) => [
+                row.value,
+                row.previousClicks,
+                row.recentClicks,
+                row.changeRatio,
+              ]),
+            )
+          }
+        />
       </div>
     );
   }

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -11,6 +12,10 @@ import { SearchConsoleKeywordQueryDto } from './dto/search-console-keyword.query
 import { SearchConsoleRangeQueryDto } from './dto/search-console-range.query.dto';
 import { SyncSearchConsolePropertiesDto } from './dto/sync-search-console-properties.dto';
 import { TrackKeywordDto } from './dto/track-keyword.dto';
+
+// Endpoints that call the Google API + write to the DB are capped tighter than the global bucket
+// so a single user cannot spam expensive imports/syncs.
+const GSC_WRITE_THROTTLE = { default: { limit: 10, ttl: 60_000 } } as const;
 import { SearchConsoleService } from './search-console.service';
 
 @ApiTags('search-console')
@@ -27,6 +32,7 @@ export class SearchConsoleController {
   }
 
   @Post('sync')
+  @Throttle(GSC_WRITE_THROTTLE)
   @ApiOperation({ summary: 'Sync Google Search Console properties from a Google connection' })
   sync(
     @CurrentUser() user: { sub: string },
@@ -73,6 +79,7 @@ export class SiteSearchConsoleController {
   }
 
   @Post('performance/import')
+  @Throttle(GSC_WRITE_THROTTLE)
   @ApiOperation({ summary: 'Import Search Console performance data for a linked site' })
   importPerformance(
     @CurrentUser() user: { sub: string },

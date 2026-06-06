@@ -1,4 +1,4 @@
-import { TrendingDown } from 'lucide-react';
+import { Download, TrendingDown } from 'lucide-react';
 
 import { Badge } from '#/components/badge';
 
@@ -9,13 +9,25 @@ import type { DecayRow } from './types';
  * Content decay table: pages losing clicks between the previous and recent halves of the range.
  * Rendered below the top URLs so page health lives in one place.
  */
-export function DecayTable({ rows }: { rows: DecayRow[] }) {
+export function DecayTable({ rows, onExport }: { rows: DecayRow[]; onExport?: () => void }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <h3 className="flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-        <TrendingDown size={14} className="text-rose-500" aria-hidden="true" />
-        Páginas en declive
-      </h3>
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
+        <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+          <TrendingDown size={14} className="text-rose-500" aria-hidden="true" />
+          Páginas en declive
+        </h3>
+        {onExport && rows.length > 0 ? (
+          <button
+            type="button"
+            onClick={onExport}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-brand-200 hover:text-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+          >
+            <Download size={12} aria-hidden="true" />
+            CSV
+          </button>
+        ) : null}
+      </div>
       {rows.length === 0 ? (
         <p className="border-t border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
           Ninguna página pierde clics frente a la primera mitad del periodo.
