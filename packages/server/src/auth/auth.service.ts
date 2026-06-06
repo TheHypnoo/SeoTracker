@@ -29,15 +29,34 @@ import { REDIS_CONNECTION } from '../queue/queue.constants';
 import { UsersService } from '../users/users.service';
 import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from './jwt.constants';
 
-// Per-account brute-force / credential-stuffing brake. The IP throttle on
-// /auth/login (5/min) does not stop an attacker who rotates IPs against a
-// single account, so we additionally count failures per email in Redis and
-// temporarily refuse logins once the threshold is crossed. Reset on success.
-const MAX_LOGIN_FAILURES = 10;
-const LOGIN_LOCKOUT_WINDOW_SECONDS = 15 * 60;
+// Per-account brute-force / credential-stuffing brake. The per-IP throttle on
+// /auth/login (5/min) can't stop an attacker rotating IPs against one account,
+// so we additionally count failures per email in Redis and lock the account
+// with an EXPONENTIAL, self-expiring backoff. Recovery never requires support:
+// every lock lifts on its own, and past a high strike count we email the owner
+// a one-click reset link (the owner — not an attacker who only knows the email —
+// controls that mailbox, so this can't be weaponized into a permanent lockout).
+//
+// A CAPTCHA / proof-of-work challenge (e.g. Cap, https://trycap.dev) is the
+// planned next layer: shown after a few failures it distinguishes humans from
+// bots, so a legitimate user is never blocked. Left as a future enhancement.
+const LOGIN_LOCK_THRESHOLD = 5; // failures within the window before the first lock
+const LOGIN_BASE_LOCK_SECONDS = 60; // first lock; doubles for each extra strike
+const LOGIN_MAX_LOCK_SECONDS = 30 * 60; // hard cap on a single lock duration
+const LOGIN_STRIKE_WINDOW_SECONDS = 60 * 60; // how long strikes are remembered
+const LOGIN_ALERT_STRIKES = 8; // strike count at which the owner is emailed an unlock link
 // Redis is only a brute-force brake, never the primary credential gate, so we
 // cap how long a login may wait on it and fail open if it is slow/unreachable.
 const LOGIN_LOCKOUT_REDIS_TIMEOUT_MS = 1000;
+
+// A constant decoy hash so login spends roughly the same time whether or not the
+// email exists, removing the user-enumeration timing oracle (a missing account
+// would otherwise return before the ~tens-of-ms Argon2 verify). Computed once.
+let decoyHashPromise: Promise<string> | undefined;
+function decoyPasswordHash(): Promise<string> {
+  decoyHashPromise ??= hash('decoy-password-never-used-for-authentication');
+  return decoyHashPromise;
+}
 
 /**
  * Authentication service.
@@ -113,14 +132,13 @@ export class AuthService {
       .where(eq(users.email, normalizedEmail))
       .limit(1);
 
-    if (!user) {
-      await this.recordLoginFailure(normalizedEmail);
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    // Always run a hash verify — against a decoy hash for unknown emails — so the
+    // response time doesn't reveal whether the account exists.
+    const passwordHash = user?.passwordHash ?? (await decoyPasswordHash());
+    const validPassword = await verify(passwordHash, input.password);
 
-    const validPassword = await verify(user.passwordHash, input.password);
-    if (!validPassword) {
-      await this.recordLoginFailure(normalizedEmail);
+    if (!user || !validPassword) {
+      await this.recordLoginFailure(normalizedEmail, user ?? null);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -129,32 +147,34 @@ export class AuthService {
     return this.issueSession({ id: user.id, email: user.email, name: user.name }, response);
   }
 
-  private loginFailureKey(email: string): string {
+  private loginStrikeKey(email: string): string {
     return `auth:login:fail:${email}`;
   }
 
+  private loginLockKey(email: string): string {
+    return `auth:login:lock:${email}`;
+  }
+
+  private withRedisTimeout<T>(promise: Promise<T>): Promise<T> {
+    return withTimeout(promise, 'login-lockout', LOGIN_LOCKOUT_REDIS_TIMEOUT_MS);
+  }
+
   /**
-   * Reject the login outright once an account has accumulated too many recent
-   * failures, independent of source IP. Defeats distributed credential stuffing
-   * that the per-IP throttle alone cannot stop.
+   * Reject the login while the account is in an active backoff lock, independent
+   * of source IP. Defeats distributed credential stuffing the per-IP throttle
+   * can't. Fails open if Redis is unreachable (the throttle + Argon2 still gate
+   * logins — we must not lock everyone out on a Redis outage).
    */
   private async assertNotLockedOut(email: string): Promise<void> {
-    let raw: string | null;
+    let locked: string | null;
     try {
-      raw = await withTimeout(
-        this.redis.get(this.loginFailureKey(email)),
-        'login-lockout',
-        LOGIN_LOCKOUT_REDIS_TIMEOUT_MS,
-      );
+      locked = await this.withRedisTimeout(this.redis.get(this.loginLockKey(email)));
     } catch (error) {
-      // Fail open: if Redis is unreachable the per-IP throttle + Argon2 still
-      // apply, but we must not lock every user out of the product.
       this.logger.warn(`Login lockout check skipped (Redis unavailable): ${String(error)}`);
       return;
     }
 
-    const failures = raw ? Number(raw) : 0;
-    if (failures >= MAX_LOGIN_FAILURES) {
+    if (locked) {
       throw new HttpException(
         'Too many failed login attempts. Try again later.',
         HttpStatus.TOO_MANY_REQUESTS,
@@ -162,22 +182,34 @@ export class AuthService {
     }
   }
 
-  private async recordLoginFailure(email: string): Promise<void> {
-    const key = this.loginFailureKey(email);
+  /**
+   * Count a failed attempt and, once the threshold is crossed, lock the account
+   * for an exponentially-growing but capped, self-expiring window. Strikes are
+   * remembered for an hour so repeated bursts escalate. At a high strike count
+   * the owner (when the email maps to a real account) is emailed a one-click
+   * reset link so they can always regain access without contacting support.
+   */
+  private async recordLoginFailure(
+    email: string,
+    user: { id: string; email: string; name: string } | null,
+  ): Promise<void> {
+    const strikeKey = this.loginStrikeKey(email);
     try {
-      const failures = await withTimeout(
-        this.redis.incr(key),
-        'login-lockout',
-        LOGIN_LOCKOUT_REDIS_TIMEOUT_MS,
-      );
-      if (failures === 1) {
-        // Bound the window on the first failure; the key self-expires so a
-        // legitimate user is never permanently locked out.
-        await withTimeout(
-          this.redis.expire(key, LOGIN_LOCKOUT_WINDOW_SECONDS),
-          'login-lockout',
-          LOGIN_LOCKOUT_REDIS_TIMEOUT_MS,
-        );
+      const strikes = await this.withRedisTimeout(this.redis.incr(strikeKey));
+      await this.withRedisTimeout(this.redis.expire(strikeKey, LOGIN_STRIKE_WINDOW_SECONDS));
+
+      if (strikes < LOGIN_LOCK_THRESHOLD) {
+        return;
+      }
+
+      const exponent = strikes - LOGIN_LOCK_THRESHOLD;
+      const lockSeconds = Math.min(LOGIN_BASE_LOCK_SECONDS * 2 ** exponent, LOGIN_MAX_LOCK_SECONDS);
+      await this.withRedisTimeout(this.redis.set(this.loginLockKey(email), '1', 'EX', lockSeconds));
+
+      // Email the owner exactly once per escalation (strict equality), and only
+      // for a real account so we never email arbitrary addresses on demand.
+      if (strikes === LOGIN_ALERT_STRIKES && user) {
+        await this.sendLockoutRecoveryEmail(user);
       }
     } catch (error) {
       this.logger.warn(`Could not record login failure (Redis unavailable): ${String(error)}`);
@@ -186,14 +218,60 @@ export class AuthService {
 
   private async clearLoginFailures(email: string): Promise<void> {
     try {
-      await withTimeout(
-        this.redis.del(this.loginFailureKey(email)),
-        'login-lockout',
-        LOGIN_LOCKOUT_REDIS_TIMEOUT_MS,
+      await this.withRedisTimeout(
+        this.redis.del(this.loginStrikeKey(email), this.loginLockKey(email)),
       );
     } catch (error) {
       this.logger.warn(`Could not clear login failures (Redis unavailable): ${String(error)}`);
     }
+  }
+
+  private async sendLockoutRecoveryEmail(user: {
+    id: string;
+    email: string;
+    name: string;
+  }): Promise<void> {
+    const ttlMinutes = this.configService.get('PASSWORD_RESET_TTL_MINUTES', { infer: true });
+    const rawToken = await this.createPasswordResetToken(user.id);
+    const resetUrl = `${this.configService.get('APP_URL', { infer: true })}/reset-password/${rawToken}`;
+
+    void this.notificationsService
+      .enqueueEmailDelivery({
+        notificationType: 'PASSWORD_RESET',
+        to: user.email,
+        userId: user.id,
+        subject: 'SEOTracker - Actividad de inicio de sesión sospechosa',
+        text: `Hola ${user.name}.\n\nHemos detectado muchos intentos de inicio de sesión fallidos en tu cuenta. Si no fuiste tú, tu cuenta sigue protegida y no necesitas hacer nada.\n\nSi eres tú y no puedes acceder, restablece tu contraseña para recuperar el acceso de inmediato:\n${resetUrl}\n\nEste enlace caduca en ${ttlMinutes} minutos.`,
+      })
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `Failed to send lockout recovery email to user ${user.id}: ${String(error)}`,
+        );
+      });
+  }
+
+  /**
+   * Issue a single-use password reset token: invalidate any previously-issued
+   * unused tokens for the user, then persist the hash of a fresh one. Returns the
+   * raw token for inclusion in the reset link.
+   */
+  private async createPasswordResetToken(userId: string): Promise<string> {
+    const ttlMinutes = this.configService.get('PASSWORD_RESET_TTL_MINUTES', { infer: true });
+    const rawToken = randomToken(32);
+    const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+
+    await this.db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(and(eq(passwordResetTokens.userId, userId), isNull(passwordResetTokens.usedAt)));
+
+    await this.db.insert(passwordResetTokens).values({
+      userId,
+      tokenHash: hashToken(rawToken),
+      expiresAt,
+    });
+
+    return rawToken;
   }
 
   /**
@@ -360,23 +438,7 @@ export class AuthService {
     const [user] = await this.usersService.findByEmail(normalizedEmail);
 
     if (user) {
-      const rawToken = randomToken(32);
-      const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
-
-      // Single active token: invalidate any previously-issued, still-unused reset
-      // tokens for this user so an older link (forwarded email, proxy log) can no
-      // longer be redeemed once a fresh one is requested.
-      await this.db
-        .update(passwordResetTokens)
-        .set({ usedAt: new Date() })
-        .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
-
-      await this.db.insert(passwordResetTokens).values({
-        userId: user.id,
-        tokenHash: hashToken(rawToken),
-        expiresAt,
-      });
-
+      const rawToken = await this.createPasswordResetToken(user.id);
       const resetUrl = `${this.configService.get('APP_URL', { infer: true })}/reset-password/${rawToken}`;
 
       void this.notificationsService
