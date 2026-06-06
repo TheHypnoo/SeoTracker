@@ -4,14 +4,24 @@ export type CrawlConfidenceInput = {
   maxPages: number;
   maxDepth: number;
   sitemapUrls: string[];
+  sitemapDiscoveryStatus?: 'FOUND' | 'MISSING' | 'INCONCLUSIVE' | undefined;
+  robotsDiscoveryStatus?: 'FOUND' | 'MISSING' | 'INCONCLUSIVE' | undefined;
   crawlCandidateCount: number;
   totalAnalyzed: number;
   analyzedPages: SeoPageResult[];
 };
 
 export function computeCrawlConfidence(input: CrawlConfidenceInput): SeoMetric[] {
-  const { maxPages, maxDepth, sitemapUrls, crawlCandidateCount, totalAnalyzed, analyzedPages } =
-    input;
+  const {
+    maxPages,
+    maxDepth,
+    sitemapUrls,
+    sitemapDiscoveryStatus,
+    robotsDiscoveryStatus,
+    crawlCandidateCount,
+    totalAnalyzed,
+    analyzedPages,
+  } = input;
   const expectedInternalPages = Math.max(1, 1 + crawlCandidateCount);
   const coverageRatio = clamp(totalAnalyzed / expectedInternalPages, 0, 1);
   const sampledEnough = maxPages >= expectedInternalPages || coverageRatio >= 0.75;
@@ -19,8 +29,16 @@ export function computeCrawlConfidence(input: CrawlConfidenceInput): SeoMetric[]
   const sitemapSignal = sitemapUrls.length > 0 ? 12 : 0;
   const depthSignal = maxDepth >= 2 && totalAnalyzed > 1 ? 8 : 0;
   const samplingSignal = sampledEnough ? 5 : 0;
+  const sitemapDiscoveryPenalty = sitemapDiscoveryStatus === 'INCONCLUSIVE' ? 8 : 0;
+  const robotsDiscoveryPenalty = robotsDiscoveryStatus === 'INCONCLUSIVE' ? 5 : 0;
   const confidenceScore = Math.round(
-    coverageRatio * 60 + successfulPageRatio * 15 + sitemapSignal + depthSignal + samplingSignal,
+    coverageRatio * 60 +
+      successfulPageRatio * 15 +
+      sitemapSignal +
+      depthSignal +
+      samplingSignal -
+      sitemapDiscoveryPenalty -
+      robotsDiscoveryPenalty,
   );
 
   return [
@@ -29,6 +47,12 @@ export function computeCrawlConfidence(input: CrawlConfidenceInput): SeoMetric[]
     { key: 'crawl_coverage_ratio', valueNum: round2(coverageRatio) },
     { key: 'crawl_success_ratio', valueNum: round2(successfulPageRatio) },
     { key: 'crawl_candidates_found', valueNum: crawlCandidateCount },
+    ...(sitemapDiscoveryPenalty > 0
+      ? [{ key: 'crawl_confidence_sitemap_penalty', valueNum: sitemapDiscoveryPenalty }]
+      : []),
+    ...(robotsDiscoveryPenalty > 0
+      ? [{ key: 'crawl_confidence_robots_penalty', valueNum: robotsDiscoveryPenalty }]
+      : []),
   ];
 }
 

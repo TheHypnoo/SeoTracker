@@ -3,16 +3,14 @@ jest.mock<typeof import('./crawler')>('./crawler', () => {
   const fetchRobots = jest.fn();
   const checkSoft404 = jest.fn();
   const probeSitemap = jest.fn();
-  const analyzeSitemap = jest.fn();
-  const extractSitemapUrls = jest.fn();
+  const analyzeAndSampleSitemap = jest.fn();
   const extractSitemapHintsFromHtml = jest.fn().mockReturnValue([]);
   const existsUrl = jest.fn();
   return {
     fetchRobots,
     checkSoft404,
     probeSitemap,
-    analyzeSitemap,
-    extractSitemapUrls,
+    analyzeAndSampleSitemap,
     extractSitemapHintsFromHtml,
     existsUrl,
   } as unknown as typeof import('./crawler');
@@ -22,11 +20,10 @@ import { IssueCode } from '@seotracker/shared-types';
 import * as cheerio from 'cheerio';
 
 import {
-  analyzeSitemap,
+  analyzeAndSampleSitemap,
   checkSoft404,
   existsUrl,
   extractSitemapHintsFromHtml,
-  extractSitemapUrls,
   fetchRobots,
   probeSitemap,
 } from './crawler';
@@ -35,8 +32,7 @@ import { discoverSiteMetadata } from './sitemap-discovery';
 const fetchRobotsMock = jest.mocked(fetchRobots);
 const checkSoft404Mock = jest.mocked(checkSoft404);
 const probeSitemapMock = jest.mocked(probeSitemap);
-const analyzeSitemapMock = jest.mocked(analyzeSitemap);
-const extractSitemapUrlsMock = jest.mocked(extractSitemapUrls);
+const analyzeAndSampleSitemapMock = jest.mocked(analyzeAndSampleSitemap);
 const extractHintsMock = jest.mocked(extractSitemapHintsFromHtml);
 const existsUrlMock = jest.mocked(existsUrl);
 
@@ -52,6 +48,7 @@ describe('discoverSiteMetadata', () => {
     return {
       page: fakePage('https://x.test/robots.txt'),
       exists: true,
+      status: 'FOUND',
       disallowsAll: false,
       blockedAiBots: [],
       sitemaps: [],
@@ -60,7 +57,12 @@ describe('discoverSiteMetadata', () => {
   }
 
   it('emits MISSING_FAVICON when probe says not exists and HTML had no <link rel=icon>', async () => {
-    existsUrlMock.mockResolvedValueOnce({ page: fakePage('fav'), exists: false, statusCode: 404 });
+    existsUrlMock.mockResolvedValueOnce({
+      page: fakePage('fav'),
+      exists: false,
+      status: 'MISSING',
+      statusCode: 404,
+    });
     fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
     checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
     probeSitemapMock.mockResolvedValue({ page: fakePage('s'), isSitemap: false });
@@ -79,7 +81,12 @@ describe('discoverSiteMetadata', () => {
   });
 
   it('does not emit a favicon issue when the fallback favicon exists', async () => {
-    existsUrlMock.mockResolvedValueOnce({ page: fakePage('fav'), exists: true, statusCode: 200 });
+    existsUrlMock.mockResolvedValueOnce({
+      page: fakePage('fav'),
+      exists: true,
+      status: 'FOUND',
+      statusCode: 200,
+    });
     fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
     checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
     probeSitemapMock.mockResolvedValue({ page: fakePage('s'), isSitemap: false });
@@ -95,6 +102,38 @@ describe('discoverSiteMetadata', () => {
 
     expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_FAVICON)).toBeUndefined();
     expect(result.pages).toContainEqual(fakePage('fav'));
+  });
+
+  it('does not emit a favicon issue when the fallback favicon probe is inconclusive', async () => {
+    existsUrlMock.mockResolvedValueOnce({
+      page: fakePage('fav'),
+      exists: false,
+      status: 'INCONCLUSIVE',
+      statusCode: undefined,
+      errorReason: 'timeout',
+    });
+    fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
+    checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
+    probeSitemapMock.mockResolvedValue({ page: fakePage('s'), isSitemap: false });
+
+    const result = await discoverSiteMetadata({
+      homepageUrl: 'https://x.test',
+      $: cheerio.load('<html></html>'),
+      hasFaviconLink: false,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+      sitemapSampleMax: 100,
+    });
+
+    expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_FAVICON)).toBeUndefined();
+    expect(result.metrics).toContainEqual({
+      key: 'favicon_probe_status',
+      valueText: 'INCONCLUSIVE',
+    });
+    expect(result.metrics).toContainEqual({
+      key: 'favicon_probe_inconclusive_reason',
+      valueText: 'timeout',
+    });
   });
 
   it('does NOT probe favicon when HTML has <link rel=icon>', async () => {
@@ -129,6 +168,34 @@ describe('discoverSiteMetadata', () => {
     });
 
     expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_ROBOTS)).toBeDefined();
+  });
+
+  it('does not emit MISSING_ROBOTS when the robots probe is inconclusive', async () => {
+    fetchRobotsMock.mockResolvedValueOnce(
+      defaultRobots({ exists: false, status: 'INCONCLUSIVE', errorReason: 'timeout' }),
+    );
+    checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
+    probeSitemapMock.mockResolvedValue({ page: fakePage('s'), isSitemap: false });
+
+    const result = await discoverSiteMetadata({
+      homepageUrl: 'https://x.test',
+      $: cheerio.load(''),
+      hasFaviconLink: true,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+      sitemapSampleMax: 100,
+    });
+
+    expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_ROBOTS)).toBeUndefined();
+    expect(result.robotsDiscoveryStatus).toBe('INCONCLUSIVE');
+    expect(result.metrics).toContainEqual({
+      key: 'robots_discovery_status',
+      valueText: 'INCONCLUSIVE',
+    });
+    expect(result.metrics).toContainEqual({
+      key: 'robots_probe_inconclusive_reason',
+      valueText: 'timeout',
+    });
   });
 
   it('emits ROBOTS_DISALLOWS_ALL with CRITICAL severity', async () => {
@@ -218,8 +285,11 @@ describe('discoverSiteMetadata', () => {
     );
     checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
     probeSitemapMock.mockResolvedValueOnce({ page: fakePage('sm'), isSitemap: true });
-    analyzeSitemapMock.mockResolvedValueOnce({ urlCount: 42, invalid: false });
-    extractSitemapUrlsMock.mockResolvedValueOnce(['https://x.test/a', 'https://x.test/b']);
+    analyzeAndSampleSitemapMock.mockResolvedValueOnce({
+      invalid: false,
+      urlCount: 42,
+      urls: ['https://x.test/a', 'https://x.test/b'],
+    });
 
     const result = await discoverSiteMetadata({
       homepageUrl: 'https://x.test',
@@ -271,14 +341,56 @@ describe('discoverSiteMetadata', () => {
     });
 
     expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_SITEMAP)).toBeDefined();
+    expect(result.metrics).toContainEqual({
+      key: 'sitemap_discovery_status',
+      valueText: 'MISSING',
+    });
+    expect(result.sitemapDiscoveryStatus).toBe('MISSING');
     expect(result.sitemapUrls).toStrictEqual([]);
+  });
+
+  it('does not emit MISSING_SITEMAP when sitemap probing is inconclusive', async () => {
+    fetchRobotsMock.mockResolvedValueOnce(
+      defaultRobots({ sitemaps: ['https://x.test/sitemap.xml'] }),
+    );
+    checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
+    probeSitemapMock.mockResolvedValue({
+      errorReason: 'timeout',
+      page: fakePage('https://x.test/sitemap.xml'),
+      isSitemap: false,
+      status: 'inconclusive',
+    });
+
+    const result = await discoverSiteMetadata({
+      homepageUrl: 'https://x.test',
+      $: cheerio.load(''),
+      hasFaviconLink: true,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+      sitemapSampleMax: 100,
+    });
+
+    expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_SITEMAP)).toBeUndefined();
+    expect(result.metrics).toContainEqual({
+      key: 'sitemap_discovery_status',
+      valueText: 'INCONCLUSIVE',
+    });
+    expect(result.metrics).toContainEqual({
+      key: 'sitemap_probe_inconclusive_count',
+      valueNum: 3,
+    });
+    expect(result.metrics).toContainEqual({
+      key: 'sitemap_probe_inconclusive_reasons',
+      valueText: 'timeout',
+    });
+    expect(result.sitemapDiscoveryStatus).toBe('INCONCLUSIVE');
   });
 
   it('emits SITEMAP_INVALID when sitemap analysis says invalid', async () => {
     fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
     checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
     probeSitemapMock.mockResolvedValueOnce({ page: fakePage('sm'), isSitemap: true });
-    analyzeSitemapMock.mockResolvedValueOnce({ urlCount: null, invalid: true });
+    analyzeAndSampleSitemapMock.mockResolvedValueOnce({ invalid: true, urlCount: null, urls: [] });
 
     const result = await discoverSiteMetadata({
       homepageUrl: 'https://x.test',
@@ -296,7 +408,7 @@ describe('discoverSiteMetadata', () => {
     fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
     checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
     probeSitemapMock.mockResolvedValueOnce({ page: fakePage('sm'), isSitemap: true });
-    analyzeSitemapMock.mockResolvedValueOnce({ urlCount: 0, invalid: false });
+    analyzeAndSampleSitemapMock.mockResolvedValueOnce({ invalid: false, urlCount: 0, urls: [] });
 
     const result = await discoverSiteMetadata({
       homepageUrl: 'https://x.test',

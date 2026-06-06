@@ -4,7 +4,8 @@ import { IssueCode, Severity } from '@seotracker/shared-types';
 import { load } from 'cheerio';
 
 import { normalizeDomain } from '../common/utils/domain';
-import { readBodyWithLimit, safeFetch, SsrfBlockedError } from '../common/utils/safe-fetch';
+import { readBodyWithLimit, SsrfBlockedError } from '../common/utils/safe-fetch';
+import { safeFetchWithRetry } from './fetch-with-retry';
 import { computeCrawlConfidence } from './crawl-confidence';
 import type { Env } from '../config/env.schema';
 import { runBlogChecks } from './content-checks';
@@ -14,7 +15,13 @@ import { buildIndexabilityMatrix } from './indexability-analyzer';
 import { buildLinkGraph } from './link-graph';
 import { crawlPages } from './page-crawler';
 import { getIssueCategory, scoreAudit } from './scoring';
-import type { SeoAuditResult, SeoIssue, SeoMetric, SeoPageResult } from './seo-engine.types';
+import type {
+  SeoAuditResult,
+  SeoEngineTelemetryEvent,
+  SeoIssue,
+  SeoMetric,
+  SeoPageResult,
+} from './seo-engine.types';
 import { discoverSiteMetadata } from './sitemap-discovery';
 import { safeResolveUrl } from './url-utils';
 
@@ -71,26 +78,38 @@ export class SeoEngineService {
     const metrics: SeoMetric[] = [];
     const pages: SeoPageResult[] = [];
     const pageTexts: Array<{ url: string; text: string }> = [];
+    const telemetry: SeoEngineTelemetryEvent[] = [];
 
     // ── Step 1: fetch the homepage ───────────────────────────────────────
     let response: Response;
     let responseMs: number;
     let html: string;
+    const homepageFetchStart = performance.now();
     try {
       const startedAt = performance.now();
-      response = await safeFetch(homepageUrl, {
-        headers: { 'User-Agent': userAgent },
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      // Retry transient homepage failures (timeout/5xx) before declaring the
+      // domain unreachable — a single hiccup must not zero the whole audit.
+      response = await safeFetchWithRetry(
+        homepageUrl,
+        { headers: { 'User-Agent': userAgent } },
+        timeoutMs,
+      );
       responseMs = Math.round(performance.now() - startedAt);
       // Bound the body: fetch transparently decompresses gzip, so a small
       // response can expand to GBs (decompression bomb) and OOM the worker.
       // readBodyWithLimit counts decompressed bytes and aborts past the cap.
       html = await readBodyWithLimit(response, MAX_HOMEPAGE_HTML_BYTES);
+      pushTelemetry(telemetry, homepageFetchStart, 'homepage_fetch', 'success', {
+        bytes: html.length,
+        finalUrl: response.url || homepageUrl,
+        statusCode: response.status,
+        timeoutMs,
+      });
     } catch (error) {
       const reason =
         error instanceof SsrfBlockedError ? 'SSRF guard blocked redirect' : String(error);
       this.logger.warn(`Main fetch failed (${reason})`);
+      pushTelemetry(telemetry, homepageFetchStart, 'homepage_fetch', 'error', undefined, reason);
       issues.push({
         issueCode: IssueCode.DOMAIN_UNREACHABLE,
         category: getIssueCategory(IssueCode.DOMAIN_UNREACHABLE),
@@ -101,14 +120,25 @@ export class SeoEngineService {
             : `Domain unreachable: ${domain}`,
       });
 
-      const fallback = scoreAudit(issues, pages, homepageUrl);
+      const scoringStart = performance.now();
+      const fallback = scoreAudit(issues, pages, homepageUrl, metrics);
+      pushTelemetry(telemetry, scoringStart, 'scoring', 'success', {
+        criticalRisk: fallback.criticalRisk,
+        publicScore: fallback.score,
+        seoScore: fallback.seoScore,
+      });
       return {
-        score: fallback.score,
+        crawlConfidenceScore: fallback.crawlConfidenceScore,
+        criticalRisk: fallback.criticalRisk,
+        engineTelemetry: telemetry,
         categoryScores: fallback.categoryScores,
-        scoreBreakdown: fallback.breakdown,
         issues,
         metrics,
         pages,
+        score: fallback.score,
+        scoreBreakdown: fallback.breakdown,
+        scoringModelVersion: fallback.modelVersion,
+        seoScore: fallback.seoScore,
         urlInspections: [],
       };
     }
@@ -129,6 +159,7 @@ export class SeoEngineService {
     metrics.push({ key: 'html_bytes', valueNum: html.length });
 
     // ── Step 2: parse + run static HTML analysis ─────────────────────────
+    const htmlAnalysisStart = performance.now();
     const $ = load(html);
     const homepageCanonical = $('link[rel="canonical"]').first().attr('href')?.trim();
     homepagePage.canonicalUrl = homepageCanonical
@@ -140,16 +171,27 @@ export class SeoEngineService {
     issues.push(...htmlAnalysis.issues);
     metrics.push(...htmlAnalysis.metrics);
     pageTexts.push({ url: homepageUrl, text: htmlAnalysis.homepageText });
+    pushTelemetry(telemetry, htmlAnalysisStart, 'html_analysis', 'success', {
+      issuesFound: htmlAnalysis.issues.length,
+      metricsFound: htmlAnalysis.metrics.length,
+      textLength: htmlAnalysis.homepageText.length,
+    });
 
     // Blog-style checks live in their own module; orchestrator just folds them in.
+    const blogChecksStart = performance.now();
+    const blogIssuesBefore = issues.length;
     for (const issue of runBlogChecks(homepageUrl, $, htmlAnalysis.homepageText)) {
       issues.push(issue);
     }
+    pushTelemetry(telemetry, blogChecksStart, 'blog_content_checks', 'success', {
+      issuesFound: issues.length - blogIssuesBefore,
+    });
 
     // ── Step 3: discovery (favicon, robots, soft-404, sitemap) ──────────
     const hasFaviconLink =
       $('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').length > 0;
 
+    const discoveryStart = performance.now();
     const discovery = await discoverSiteMetadata({
       homepageUrl,
       $,
@@ -161,8 +203,16 @@ export class SeoEngineService {
     issues.push(...discovery.issues);
     metrics.push(...discovery.metrics);
     pages.push(...discovery.pages);
+    pushTelemetry(telemetry, discoveryStart, 'site_discovery', 'success', {
+      issuesFound: discovery.issues.length,
+      pagesDiscovered: discovery.pages.length,
+      robotsDiscoveryStatus: discovery.robotsDiscoveryStatus,
+      sitemapDiscoveryStatus: discovery.sitemapDiscoveryStatus,
+      sitemapUrls: discovery.sitemapUrls.length,
+    });
 
     // ── Step 4: build link graph ────────────────────────────────────────
+    const linkGraphStart = performance.now();
     const linkGraph = buildLinkGraph({
       $,
       homepageUrl,
@@ -173,8 +223,15 @@ export class SeoEngineService {
       maxDepth,
     });
     metrics.push(...linkGraph.metrics);
+    pushTelemetry(telemetry, linkGraphStart, 'link_graph', 'success', {
+      crawlCandidates: linkGraph.crawlCandidateCount,
+      depth1Selected: linkGraph.depth1Selected.length,
+      externalLinks: linkGraph.externalLinks.length,
+      remainingInternal: linkGraph.remainingInternal.length,
+    });
 
     // ── Step 5: crawl pages (depth-1 + optional depth-2 + HEAD checks) ──
+    const crawlStart = performance.now();
     const crawl = await crawlPages({
       homepageKey: linkGraph.homepageKey,
       depth1Selected: linkGraph.depth1Selected,
@@ -189,42 +246,98 @@ export class SeoEngineService {
     metrics.push(...crawl.metrics);
     pages.push(...crawl.pages);
     pageTexts.push(...crawl.pageTexts);
+    pushTelemetry(telemetry, crawlStart, 'crawl_pages', 'success', {
+      issuesFound: crawl.issues.length,
+      pagesChecked: crawl.pages.length,
+      textsCollected: crawl.pageTexts.length,
+      totalAnalyzed: crawl.totalAnalyzed,
+    });
     const analyzedPages = pages[0] ? [pages[0], ...crawl.pages] : crawl.pages;
-    metrics.push(
-      ...computeCrawlConfidence({
-        analyzedPages,
-        crawlCandidateCount: linkGraph.crawlCandidateCount,
-        maxDepth,
-        maxPages,
-        sitemapUrls: discovery.sitemapUrls,
-        totalAnalyzed: crawl.totalAnalyzed,
-      }),
-    );
+    const confidenceStart = performance.now();
+    const confidenceMetrics = computeCrawlConfidence({
+      analyzedPages,
+      crawlCandidateCount: linkGraph.crawlCandidateCount,
+      maxDepth,
+      maxPages,
+      robotsDiscoveryStatus: discovery.robotsDiscoveryStatus,
+      sitemapDiscoveryStatus: discovery.sitemapDiscoveryStatus,
+      sitemapUrls: discovery.sitemapUrls,
+      totalAnalyzed: crawl.totalAnalyzed,
+    });
+    metrics.push(...confidenceMetrics);
+    pushTelemetry(telemetry, confidenceStart, 'crawl_confidence', 'success', {
+      confidenceLevel: confidenceMetrics.find((metric) => metric.key === 'crawl_confidence_level')
+        ?.valueText,
+      confidenceScore: confidenceMetrics.find((metric) => metric.key === 'crawl_confidence_score')
+        ?.valueNum,
+    });
 
     // ── Step 6: cross-page (duplicates / thin content) ──────────────────
+    const crossPageStart = performance.now();
     const cross = runCrossPageChecks({ pageTexts });
     issues.push(...cross.issues);
     metrics.push(...cross.metrics);
+    pushTelemetry(telemetry, crossPageStart, 'cross_page_checks', 'success', {
+      issuesFound: cross.issues.length,
+      metricsFound: cross.metrics.length,
+      pagesCompared: pageTexts.length,
+    });
+    const indexabilityStart = performance.now();
     const urlInspections = buildIndexabilityMatrix({
       homepageUrl,
       issues,
       pages: analyzedPages,
       sitemapUrls: discovery.sitemapUrls,
     });
+    pushTelemetry(telemetry, indexabilityStart, 'indexability_matrix', 'success', {
+      inspections: urlInspections.length,
+    });
 
     // ── Step 7: score ───────────────────────────────────────────────────
-    const scored = scoreAudit(issues, pages, homepageUrl);
+    const scoringStart = performance.now();
+    const scored = scoreAudit(issues, pages, homepageUrl, metrics);
+    pushTelemetry(telemetry, scoringStart, 'scoring', 'success', {
+      criticalRisk: scored.criticalRisk,
+      publicScore: scored.score,
+      seoScore: scored.seoScore,
+      topDeductions: scored.breakdown.topDeductions.map((deduction) => ({
+        issueCode: deduction.issueCode,
+        points: deduction.cappedDeduction,
+      })),
+    });
 
     return {
+      crawlConfidenceScore: scored.crawlConfidenceScore,
+      criticalRisk: scored.criticalRisk,
+      engineTelemetry: telemetry,
       httpStatus: status,
-      responseMs,
-      score: scored.score,
       categoryScores: scored.categoryScores,
-      scoreBreakdown: scored.breakdown,
       issues,
       metrics,
       pages: pages.map((p) => ({ ...p, score: scored.pageScores.get(p.url) })),
+      responseMs,
+      score: scored.score,
+      scoreBreakdown: scored.breakdown,
+      scoringModelVersion: scored.modelVersion,
+      seoScore: scored.seoScore,
       urlInspections,
     };
   }
+}
+
+function pushTelemetry(
+  telemetry: SeoEngineTelemetryEvent[],
+  startedAt: number,
+  stage: string,
+  status: SeoEngineTelemetryEvent['status'],
+  details?: Record<string, unknown>,
+  error?: string,
+) {
+  telemetry.push({
+    details,
+    durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    error,
+    stage,
+    status,
+  });
 }

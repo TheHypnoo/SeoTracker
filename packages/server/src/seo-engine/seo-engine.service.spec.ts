@@ -120,13 +120,20 @@ describe('seoEngineService', () => {
       metrics: [{ key: 'duplicate_groups', valueNum: 0 }],
     });
     jest.mocked(scoreAudit).mockReturnValue({
-      breakdown: { penalties: [] },
+      breakdown: {
+        criticalRisk: { issueCodes: [], level: 'NONE', reasons: [] },
+        topDeductions: [],
+      },
       categoryScores: { TECHNICAL: 100 },
+      crawlConfidenceScore: 80,
+      criticalRisk: 'NONE',
+      modelVersion: 'v2.0',
       pageScores: new Map([
         ['https://example.com', 100],
         ['https://example.com/about', 95],
       ]),
       score: 98,
+      seoScore: 99,
     });
   });
 
@@ -142,6 +149,27 @@ describe('seoEngineService', () => {
     const result = await service.analyzeDomain('example.com', { maxDepth: 1, maxPages: 2 });
 
     expectCoordinatedAnalysis(result);
+  });
+
+  it('retries a transient homepage failure instead of marking the domain unreachable', async () => {
+    jest
+      .mocked(safeFetch)
+      .mockRejectedValueOnce(Object.assign(new Error('timed out'), { name: 'TimeoutError' }))
+      .mockResolvedValueOnce(
+        new Response('<html><head></head><body>ok</body></html>', {
+          headers: { 'content-type': 'text/html' },
+          status: 200,
+        }),
+      );
+    const service = new SeoEngineService(configService as never);
+
+    const result = await service.analyzeDomain('example.com');
+
+    expect(safeFetch).toHaveBeenCalledTimes(2);
+    expect(result.httpStatus).toBe(200);
+    expect(result.issues).not.toContainEqual(
+      expect.objectContaining({ issueCode: IssueCode.DOMAIN_UNREACHABLE }),
+    );
   });
 
   it('folds blog issues and config-derived crawl limits into the audit result', async () => {
@@ -246,6 +274,7 @@ describe('seoEngineService', () => {
       ]),
       [],
       'https://example.com',
+      [],
     );
   });
 });

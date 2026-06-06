@@ -3,6 +3,7 @@ import { IssueCode } from '@seotracker/shared-types';
 import { load } from 'cheerio';
 
 import {
+  analyzeAndSampleSitemap,
   analyzeInternalPage,
   analyzeSitemap,
   analyzeJsonLdBlocks,
@@ -124,18 +125,34 @@ describe('fetchRobots', () => {
     expect(result.blockedAiBots.sort()).toStrictEqual(['claudebot', 'gptbot']);
   });
 
-  it('returns exists=false on 4xx (no body parse)', async () => {
+  it('returns status=MISSING on 4xx (no body parse)', async () => {
     safeFetch.mockResolvedValueOnce(textResponse(404, 'not found'));
     const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
     expect(result.exists).toBe(false);
+    expect(result.status).toBe('MISSING');
     expect(result.sitemaps).toStrictEqual([]);
     expect(result.page.statusCode).toBe(404);
   });
 
-  it('returns exists=false on fetch error (and a page with all undefined)', async () => {
-    safeFetch.mockRejectedValueOnce(new Error('econnrefused'));
+  it('returns status=INCONCLUSIVE on final transient HTTP statuses', async () => {
+    safeFetch
+      .mockResolvedValueOnce(textResponse(500, 'server down'))
+      .mockResolvedValueOnce(textResponse(500, 'still down'));
+
+    const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
+
+    expect(result.exists).toBe(false);
+    expect(result.status).toBe('INCONCLUSIVE');
+    expect(result.errorReason).toBe('http_500');
+    expect(result.page.statusCode).toBe(500);
+  });
+
+  it('returns status=INCONCLUSIVE on fetch error (and a page with all undefined)', async () => {
+    safeFetch.mockRejectedValue(new Error('econnrefused'));
     const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
     expect(result.exists).toBe(false);
+    expect(result.status).toBe('INCONCLUSIVE');
+    expect(result.errorReason).toBeTruthy();
     expect(result.page.statusCode).toBeUndefined();
   });
 });
@@ -234,7 +251,21 @@ describe('probeSitemap', () => {
     safeFetch.mockResolvedValueOnce(textResponse(404, 'not found'));
     const result = await probeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
     expect(result.isSitemap).toBe(false);
+    expect(result.status).toBe('not_found');
     expect(result.page.statusCode).toBe(404);
+  });
+
+  it('classifies final transient HTTP sitemap probe statuses as inconclusive', async () => {
+    safeFetch
+      .mockResolvedValueOnce(textResponse(503, 'temporarily down'))
+      .mockResolvedValueOnce(textResponse(503, 'still down'));
+
+    const result = await probeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
+
+    expect(result.isSitemap).toBe(false);
+    expect(result.status).toBe('inconclusive');
+    expect(result.errorReason).toBe('http_503');
+    expect(result.page.statusCode).toBe(503);
   });
 
   it('returns isSitemap=false on fetch errors with an empty page result', async () => {
@@ -243,11 +274,48 @@ describe('probeSitemap', () => {
     const result = await probeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
 
     expect(result.isSitemap).toBe(false);
+    expect(result.status).toBe('inconclusive');
     expect(result.page).toMatchObject({
       contentType: undefined,
       statusCode: undefined,
       url: 'https://x.test/sitemap.xml',
     });
+  });
+
+  it('detects sitemap probes from a prefix without downloading the full body', async () => {
+    safeFetch.mockResolvedValueOnce(
+      xmlResponse(200, '<urlset><url><loc>https://x.test/a</loc></url></urlset>', {
+        'content-length': String(51 * 1024 * 1024),
+      }),
+    );
+
+    const result = await probeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
+
+    expect(result.isSitemap).toBe(true);
+    expect(result.status).toBe('found');
+  });
+
+  it('classifies sitemap probe timeouts as inconclusive', async () => {
+    safeFetch
+      .mockRejectedValueOnce(new DOMException('The operation was aborted', 'TimeoutError'))
+      .mockRejectedValueOnce(new DOMException('The operation was aborted', 'TimeoutError'));
+
+    const result = await probeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
+
+    expect(result.isSitemap).toBe(false);
+    expect(result.status).toBe('inconclusive');
+    expect(result.errorReason).toBe('timeout');
+  });
+
+  it('retries transient sitemap probe timeouts once', async () => {
+    safeFetch
+      .mockRejectedValueOnce(new DOMException('The operation was aborted', 'TimeoutError'))
+      .mockResolvedValueOnce(xmlResponse(200, '<urlset></urlset>'));
+
+    const result = await probeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
+
+    expect(result.status).toBe('found');
+    expect(safeFetch).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -291,15 +359,41 @@ describe('analyzeSitemap', () => {
   });
 
   it('returns null urlCount on 4xx (sitemap unreachable)', async () => {
-    safeFetch.mockResolvedValueOnce(xmlResponse(503, ''));
+    safeFetch
+      .mockResolvedValueOnce(xmlResponse(503, ''))
+      .mockResolvedValueOnce(xmlResponse(503, ''));
     const result = await analyzeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
     expect(result.urlCount).toBeNull();
   });
 
+  it('retries transient 5xx sitemap responses once', async () => {
+    safeFetch
+      .mockResolvedValueOnce(xmlResponse(503, ''))
+      .mockResolvedValueOnce(xmlResponse(200, '<urlset><url><loc>x</loc></url></urlset>'));
+
+    const result = await analyzeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
+
+    expect(result.urlCount).toBe(1);
+    expect(safeFetch).toHaveBeenCalledTimes(2);
+  });
+
   it('returns a neutral result on fetch errors', async () => {
-    safeFetch.mockRejectedValueOnce(new Error('network down'));
+    safeFetch
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockRejectedValueOnce(new Error('network down'));
     await expect(analyzeSitemap('https://x.test/sitemap.xml', 1000, 'UA')).resolves.toStrictEqual({
       invalid: false,
+      urlCount: null,
+    });
+  });
+
+  it('marks sitemaps above the 50MB protocol limit as invalid', async () => {
+    safeFetch.mockResolvedValueOnce(
+      xmlResponse(200, '', { 'content-length': String(51 * 1024 * 1024) }),
+    );
+
+    await expect(analyzeSitemap('https://x.test/sitemap.xml', 1000, 'UA')).resolves.toStrictEqual({
+      invalid: true,
       urlCount: null,
     });
   });
@@ -415,11 +509,69 @@ describe('extractSitemapUrls', () => {
         </sitemapindex>`,
       ),
     );
+    for (let index = 0; index < 7; index += 1) {
+      safeFetch.mockResolvedValueOnce(xmlResponse(404, 'not found'));
+    }
 
     await expect(
       extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 10),
     ).resolves.toStrictEqual([]);
     expect(safeFetch).toHaveBeenCalledTimes(8);
+  });
+});
+
+describe('analyzeAndSampleSitemap', () => {
+  beforeEach(() => safeFetch.mockReset());
+
+  it('validates and samples a flat sitemap with a single root download', async () => {
+    safeFetch.mockResolvedValueOnce(
+      xmlResponse(
+        200,
+        `<urlset>
+          <url><loc>https://x.test/a</loc></url>
+          <url><loc>https://x.test/b</loc></url>
+        </urlset>`,
+      ),
+    );
+
+    const result = await analyzeAndSampleSitemap('https://x.test/sitemap.xml', 1000, 'UA', 100);
+
+    expect(result).toStrictEqual({
+      invalid: false,
+      urlCount: 2,
+      urls: ['https://x.test/a', 'https://x.test/b'],
+    });
+    // The root sitemap is downloaded once and reused for both analysis and
+    // extraction (no duplicate GET).
+    expect(safeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses the root body and only refetches child sitemaps of an index', async () => {
+    safeFetch
+      .mockResolvedValueOnce(
+        xmlResponse(
+          200,
+          `<sitemapindex><sitemap><loc>https://x.test/sub.xml</loc></sitemap></sitemapindex>`,
+        ),
+      )
+      .mockResolvedValueOnce(
+        xmlResponse(200, `<urlset><url><loc>https://x.test/page-1</loc></url></urlset>`),
+      );
+
+    const result = await analyzeAndSampleSitemap('https://x.test/sitemap.xml', 1000, 'UA', 50);
+
+    expect(result.urls).toStrictEqual(['https://x.test/page-1']);
+    // Root (index) + one child = 2 fetches, not 3 (no separate analyze GET).
+    expect(safeFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not extract urls from an invalid sitemap', async () => {
+    safeFetch.mockResolvedValueOnce(xmlResponse(200, 'not xml at all'));
+
+    const result = await analyzeAndSampleSitemap('https://x.test/sitemap.xml', 1000, 'UA', 50);
+
+    expect(result).toStrictEqual({ invalid: true, urlCount: null, urls: [] });
+    expect(safeFetch).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -430,6 +582,7 @@ describe('existsUrl', () => {
     safeFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
     const result = await existsUrl('https://x.test/page', 1000, 'UA');
     expect(result.exists).toBe(true);
+    expect(result.status).toBe('FOUND');
     expect(result.statusCode).toBe(200);
     // Single fetch — no GET fallback when HEAD already 2xx.
     expect(safeFetch).toHaveBeenCalledTimes(1);
@@ -441,6 +594,7 @@ describe('existsUrl', () => {
       .mockResolvedValueOnce(new Response('body', { status: 200 }));
     const result = await existsUrl('https://x.test/page', 1000, 'UA');
     expect(result.exists).toBe(true);
+    expect(result.status).toBe('FOUND');
     expect(safeFetch).toHaveBeenCalledTimes(2);
   });
 
@@ -450,16 +604,46 @@ describe('existsUrl', () => {
       .mockResolvedValueOnce(new Response('body', { status: 200 }));
     const result = await existsUrl('https://x.test/page', 1000, 'UA');
     expect(result.exists).toBe(true);
+    expect(result.status).toBe('FOUND');
     expect(safeFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns status=MISSING for confirmed 4xx GET fallback failures', async () => {
+    safeFetch
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response('not found', { status: 404 }));
+
+    await expect(existsUrl('https://x.test/page', 1000, 'UA')).resolves.toMatchObject({
+      exists: false,
+      status: 'MISSING',
+      statusCode: 404,
+    });
   });
 
   it('returns exists=false for GET fallback failures', async () => {
     safeFetch
       .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response('still down', { status: 500 }))
       .mockResolvedValueOnce(new Response('still down', { status: 500 }));
     await expect(existsUrl('https://x.test/page', 1000, 'UA')).resolves.toMatchObject({
       exists: false,
+      status: 'INCONCLUSIVE',
       statusCode: 500,
+    });
+  });
+
+  it('returns status=INCONCLUSIVE for final rate-limited probe responses', async () => {
+    safeFetch
+      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+      .mockResolvedValueOnce(new Response('rate limited', { status: 429 }))
+      .mockResolvedValueOnce(new Response('rate limited', { status: 429 }));
+
+    await expect(existsUrl('https://x.test/page', 1000, 'UA')).resolves.toMatchObject({
+      exists: false,
+      status: 'INCONCLUSIVE',
+      statusCode: 429,
     });
   });
 
@@ -467,6 +651,20 @@ describe('existsUrl', () => {
     safeFetch.mockRejectedValueOnce(new Error('boom'));
     const result = await existsUrl('https://x.test/page', 1000, 'UA');
     expect(result.exists).toBe(false);
+    expect(result.status).toBe('INCONCLUSIVE');
+    expect(result.errorReason).toBe('Error');
+    expect(result.statusCode).toBeUndefined();
+  });
+
+  it('returns status=INCONCLUSIVE when the probe times out', async () => {
+    const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    safeFetch.mockRejectedValue(timeout);
+
+    const result = await existsUrl('https://x.test/page', 1000, 'UA');
+
+    expect(result.exists).toBe(false);
+    expect(result.status).toBe('INCONCLUSIVE');
+    expect(result.errorReason).toBe('timeout');
     expect(result.statusCode).toBeUndefined();
   });
 });

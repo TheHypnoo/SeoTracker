@@ -321,6 +321,58 @@ export enum EmailDeliveryStatus {
   FAILED = 'FAILED',
 }
 
+/**
+ * Active SEO score model shapes shared between the engine (which produces them)
+ * and the web app (which renders them). Keep this as the single source of truth
+ * so the persisted `score_breakdown` payload and the UI never drift.
+ */
+export type CriticalRiskLevel = 'NONE' | 'WARNING' | 'BLOCKING';
+
+export type SeoImpactTier = 'BLOCKING' | 'HIGH' | 'MEDIUM' | 'LOW' | 'COSMETIC';
+
+export type FalsePositiveRisk = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export type ScoreDeduction = {
+  issueCode: IssueCode;
+  category: IssueCategory;
+  severity: Severity;
+  scope: 'site' | 'page';
+  occurrences: number;
+  affectedPagesCount: number;
+  rawDeduction: number;
+  adjustedDeduction: number;
+  cappedDeduction: number;
+  impactTier: SeoImpactTier;
+  falsePositiveRisk: FalsePositiveRisk;
+  reason: string;
+};
+
+export type ScoreBreakdown = {
+  modelVersion: string;
+  seoScore: number;
+  rawSeoScore: number;
+  crawlConfidenceScore: number | null;
+  criticalRisk: {
+    level: CriticalRiskLevel;
+    reasons: string[];
+    issueCodes: IssueCode[];
+  };
+  confidenceAdjustment: {
+    applied: boolean;
+    multiplier: number;
+    reason: string | null;
+  };
+  totalDeduction: number;
+  rawTotalDeduction: number;
+  categoryDeductions: Record<
+    IssueCategory,
+    { rawDeduction: number; cappedDeduction: number; score: number }
+  >;
+  scopeDeductions: Record<'site' | 'page', number>;
+  deductions: ScoreDeduction[];
+  topDeductions: ScoreDeduction[];
+};
+
 export interface ApiError {
   message: string;
   statusCode: number;

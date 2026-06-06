@@ -27,7 +27,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "email:test": "pnpm build && node scripts/send-test-emails.mjs",
     "test": "jest --passWithNoTests",
-    "test:cov": "jest --coverage"
+    "test:cov": "jest --coverage",
+    "score:calibrate": "pnpm build && node scripts/calibrate-score.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.19",

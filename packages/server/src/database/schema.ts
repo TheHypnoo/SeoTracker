@@ -605,10 +605,11 @@ export const auditRuns = pgTable(
     responseMs: integer('response_ms'),
     score: integer('score'),
     categoryScores: jsonb('category_scores').$type<Record<string, number>>(),
-    scoreBreakdown: jsonb('score_breakdown').$type<{
-      perSeverity: Record<string, { rawDeduction: number; cappedDeduction: number }>;
-      totalDeduction: number;
-    }>(),
+    scoreBreakdown: jsonb('score_breakdown').$type<Record<string, unknown>>(),
+    scoringModelVersion: varchar('scoring_model_version', { length: 40 }),
+    seoScore: integer('seo_score'),
+    crawlConfidenceScore: integer('crawl_confidence_score'),
+    criticalRisk: varchar('critical_risk', { length: 24 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -617,6 +618,28 @@ export const auditRuns = pgTable(
     index('audit_runs_site_created_idx').on(table.siteId, table.createdAt),
     index('audit_runs_site_score_idx').on(table.siteId, table.score),
     index('audit_runs_site_trigger_idx').on(table.siteId, table.trigger),
+  ],
+);
+
+export type AuditEngineTelemetryDetails = Record<string, unknown>;
+
+export const auditEngineTelemetry = pgTable(
+  'audit_engine_telemetry',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    auditRunId: uuid('audit_run_id')
+      .notNull()
+      .references(() => auditRuns.id, { onDelete: 'cascade' }),
+    stage: varchar('stage', { length: 80 }).notNull(),
+    status: varchar('status', { length: 20 }).notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    details: jsonb('details').$type<AuditEngineTelemetryDetails>(),
+    error: text('error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('audit_engine_telemetry_run_idx').on(table.auditRunId),
+    index('audit_engine_telemetry_run_stage_idx').on(table.auditRunId, table.stage),
   ],
 );
 
