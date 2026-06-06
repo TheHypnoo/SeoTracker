@@ -13,25 +13,33 @@ type TopbarProps = {
   onOpenPalette: () => void;
 };
 
+const unsubscribeShortcutHint = () => undefined;
+const subscribeShortcutHint = () => unsubscribeShortcutHint;
+
 /** Detect macOS once for the keyboard hint. SSR-safe (defaults to "Ctrl"). */
 function useShortcutHint() {
   return useSyncExternalStore(subscribeShortcutHint, getClientShortcutHint, getServerShortcutHint);
 }
 
-function subscribeShortcutHint() {
-  return function unsubscribeShortcutHint() {
-    return undefined;
-  };
-}
-
 function getClientShortcutHint() {
-  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
-    ? '⌘ K'
-    : 'Ctrl K';
+  return isApplePlatform() ? '⌘ K' : 'Ctrl K';
 }
 
 function getServerShortcutHint() {
   return 'Ctrl K';
+}
+
+function isApplePlatform() {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const { userAgentData, platform, userAgent } = navigator as Navigator & {
+    userAgentData?: { platform?: string };
+  };
+  const platformHint = userAgentData?.platform ?? platform ?? userAgent;
+
+  return /Mac|iPhone|iPad|iPod/i.test(platformHint);
 }
 
 export function Topbar({ onOpenMobileNav, mobileNavOpen, onOpenPalette }: TopbarProps) {
@@ -39,6 +47,14 @@ export function Topbar({ onOpenMobileNav, mobileNavOpen, onOpenPalette }: Topbar
   const project = useProject();
   const navigate = useNavigate();
   const shortcutHint = useShortcutHint();
+  const handleProjectChange = async (nextProjectId: string) => {
+    if (!nextProjectId) {
+      return;
+    }
+
+    await project.setActiveProject(nextProjectId);
+    await navigate({ to: '/dashboard' });
+  };
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/80 backdrop-blur">
@@ -66,12 +82,7 @@ export function Topbar({ onOpenMobileNav, mobileNavOpen, onOpenPalette }: Topbar
               <SelectInput
                 value={project.activeProjectId ?? ''}
                 onValueChange={(nextProjectId) => {
-                  if (!nextProjectId) {
-                    return;
-                  }
-                  void project.setActiveProject(nextProjectId).then(() => {
-                    navigate({ to: '/dashboard' });
-                  });
+                  void handleProjectChange(nextProjectId);
                 }}
                 options={project.projects.map((item) => ({
                   value: item.id,
