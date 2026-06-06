@@ -42,6 +42,7 @@ import {
   PropertyLinkPanel,
 } from '#/components/search-console/property-panels';
 import { CannibalizationGroups } from '#/components/search-console/cannibalization-groups';
+import { DecayTable } from '#/components/search-console/decay-table';
 import { OpportunitiesTable } from '#/components/search-console/opportunities-table';
 import { MetricCard, TopList } from '#/components/search-console/top-list';
 import { useSearchConsole } from '#/components/search-console/use-search-console';
@@ -384,7 +385,12 @@ function TabPanels({ tab, gsc }: { tab: SearchTab; gsc: GscState }) {
   }
 
   if (tab === 'pages') {
-    return <TopList title="URLs" rows={topPages} empty="Sin URLs importadas." icon={Globe2} />;
+    return (
+      <div className="space-y-4">
+        <TopList title="URLs" rows={topPages} empty="Sin URLs importadas." icon={Globe2} />
+        <DecayTable rows={gsc.decay.data ?? []} />
+      </div>
+    );
   }
 
   if (tab === 'opportunities') {

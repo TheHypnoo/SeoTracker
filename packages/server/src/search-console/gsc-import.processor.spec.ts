@@ -44,7 +44,9 @@ describe('gscImportProcessor', () => {
         startDate: '2026-06-01',
       }),
     ),
+    getClicksDropAlert: jest.fn<() => Promise<unknown>>(() => Promise.resolve(null)),
   };
+  const notificationsService = { createForProjectMembers: jest.fn(() => Promise.resolve([])) };
   const configService = {
     get: jest.fn((key: string) => {
       const values: Record<string, unknown> = {
@@ -66,6 +68,7 @@ describe('gscImportProcessor', () => {
       configService as never,
       jobFailuresService as never,
       metricsService as never,
+      notificationsService as never,
     );
   }
 
@@ -103,6 +106,48 @@ describe('gscImportProcessor', () => {
       { queue: GSC_IMPORT_QUEUE_NAME, status: 'completed' },
       expect.any(Number),
     );
+  });
+
+  it('notifies project members when the import detects a clicks drop', async () => {
+    searchConsoleService.getClicksDropAlert.mockResolvedValueOnce({
+      dropRatio: 0.6,
+      previousClicks: 100,
+      projectId: 'project-1',
+      recentClicks: 40,
+      siteId: 'site-1',
+    });
+    const processor = makeProcessor();
+    processor.onModuleInit();
+
+    await mockWorkerInstances[0].processor({ data: { siteId: 'site-1' } });
+
+    expect(notificationsService.createForProjectMembers).toHaveBeenCalledWith(
+      'project-1',
+      expect.objectContaining({ type: 'gsc.clicks_drop' }),
+    );
+  });
+
+  it('does not notify when there is no clicks-drop alert', async () => {
+    const processor = makeProcessor();
+    processor.onModuleInit();
+
+    await mockWorkerInstances[0].processor({ data: { siteId: 'site-1' } });
+
+    expect(notificationsService.createForProjectMembers).not.toHaveBeenCalled();
+  });
+
+  it('swallows alert evaluation failures so the import still completes', async () => {
+    searchConsoleService.getClicksDropAlert.mockRejectedValueOnce(new Error('alert boom'));
+    const processor = makeProcessor();
+    processor.onModuleInit();
+
+    await expect(
+      mockWorkerInstances[0].processor({ data: { siteId: 'site-1' } }),
+    ).resolves.toBeUndefined();
+    expect(metricsService.bullmqJobsTotal.inc).toHaveBeenCalledWith({
+      event: 'completed',
+      queue: GSC_IMPORT_QUEUE_NAME,
+    });
   });
 
   it('records failed metrics and rethrows import errors', async () => {

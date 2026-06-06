@@ -85,6 +85,14 @@ export type CannibalizationGroup = {
   pages: CannibalizationPage[];
 };
 
+export type DecayRow = {
+  value: string;
+  previousClicks: number;
+  recentClicks: number;
+  clicksLost: number;
+  changeRatio: number;
+};
+
 export type ImportResponse = {
   importedRows: number;
   startDate: string;

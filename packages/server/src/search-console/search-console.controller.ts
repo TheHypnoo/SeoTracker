@@ -158,4 +158,14 @@ export class SiteSearchConsoleController {
   ) {
     return this.searchConsoleService.getCannibalization(siteId, user.sub, query);
   }
+
+  @Get('performance/decay')
+  @ApiOperation({ summary: 'Get decaying pages (losing clicks) for a linked site' })
+  decay(
+    @CurrentUser() user: { sub: string },
+    @Param('siteId', UUID_V4_PIPE) siteId: string,
+    @Query() query: SearchConsoleRangeQueryDto,
+  ) {
+    return this.searchConsoleService.getDecay(siteId, user.sub, query);
+  }
 }

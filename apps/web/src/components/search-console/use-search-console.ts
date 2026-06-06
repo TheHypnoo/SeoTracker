@@ -8,6 +8,7 @@ import { type ComparisonMode, comparisonRange, defaultDateRange, rangeParams } f
 import type {
   CandidatesResponse,
   CannibalizationGroup,
+  DecayRow,
   ImportResponse,
   OpportunityRow,
   PerformanceSummary,
@@ -139,6 +140,13 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     placeholderData: keepPreviousData,
   });
 
+  const decay = useQuery({
+    queryKey: ['search-console-decay', siteId, startDate, endDate, topLimit] as const,
+    queryFn: () => auth.api.get<DecayRow[]>(topUrl('decay')),
+    enabled: topEnabled,
+    placeholderData: keepPreviousData,
+  });
+
   // Previous-period summary used to render delta badges. Built by re-querying the existing
   // summary endpoint over the comparison range rather than widening the backend response.
   const previousSummary = useQuery({
@@ -213,6 +221,7 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     candidates,
     cannibalization,
     comparison,
+    decay,
     endDate,
     hasLink,
     importPerformance,

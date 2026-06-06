@@ -52,6 +52,13 @@ const OPPORTUNITY_CANDIDATE_CAP = 200;
 const CANNIBALIZATION_MIN_IMPRESSIONS = 10;
 const CANNIBALIZATION_ROW_CAP = 2_000;
 
+// Content decay: a page needs this many clicks in the earlier half to be worth flagging a decline.
+const DECAY_MIN_PREVIOUS_CLICKS = 5;
+// Clicks-drop alert: minimum prior-week clicks before alerting, and the week-over-week drop ratio
+// (0.3 = a 30% fall) that triggers a notification to project members.
+const ALERT_MIN_PREVIOUS_CLICKS = 20;
+const ALERT_DROP_THRESHOLD = 0.3;
+
 @Injectable()
 export class SearchConsoleService {
   private readonly logger = new Logger(SearchConsoleService.name);
@@ -584,6 +591,114 @@ export class SearchConsoleService {
       .filter((group) => group.pages.length >= 2)
       .sort((a, b) => b.impressions - a.impressions)
       .slice(0, limit);
+  }
+
+  /**
+   * Content decay: pages losing clicks. Splits the range in half and compares each page's clicks
+   * in the recent half against the previous half, returning the steepest declines first. Useful to
+   * spot content that needs refreshing before it falls off page one entirely.
+   */
+  async getDecay(
+    siteId: string,
+    userId: string,
+    input: { startDate?: string; endDate?: string; limit?: number } = {},
+  ) {
+    const { link } = await this.getActiveLinkWithProperty(siteId, userId, Permission.SITE_READ);
+    const { startDate, endDate } = this.resolveDateRange(input);
+    const limit = Math.min(Math.max(input.limit ?? 20, 1), 100);
+    const splitDate = this.midpointDate(startDate, endDate);
+    const recentClicks = sql<number>`coalesce(sum(case when ${gscDailyStats.date} >= ${splitDate} then ${gscDailyStats.clicks} else 0 end), 0)::int`;
+    const previousClicks = sql<number>`coalesce(sum(case when ${gscDailyStats.date} < ${splitDate} then ${gscDailyStats.clicks} else 0 end), 0)::int`;
+
+    const rows = await this.db
+      .select({ previousClicks, recentClicks, value: gscDailyStats.page })
+      .from(gscDailyStats)
+      .where(
+        and(
+          eq(gscDailyStats.siteId, link.siteId),
+          eq(gscDailyStats.searchConsolePropertyId, link.searchConsolePropertyId),
+          gte(gscDailyStats.date, startDate),
+          lte(gscDailyStats.date, endDate),
+          sql`${gscDailyStats.page} <> ''`,
+          eq(gscDailyStats.query, ''),
+          eq(gscDailyStats.country, ''),
+          eq(gscDailyStats.device, ''),
+          eq(gscDailyStats.searchType, 'web'),
+        ),
+      )
+      .groupBy(gscDailyStats.page)
+      .having(
+        sql`${previousClicks} >= ${DECAY_MIN_PREVIOUS_CLICKS} and ${recentClicks} < ${previousClicks}`,
+      )
+      .orderBy(desc(sql`(${previousClicks} - ${recentClicks})`))
+      .limit(limit);
+
+    return rows.map((row) => {
+      const previous = Number(row.previousClicks);
+      const recent = Number(row.recentClicks);
+      return {
+        changeRatio: previous === 0 ? 0 : (recent - previous) / previous,
+        clicksLost: previous - recent,
+        previousClicks: previous,
+        recentClicks: recent,
+        value: row.value,
+      };
+    });
+  }
+
+  /**
+   * Compares the most recent 7 days of clicks against the previous 7 for an active link, in system
+   * context (no user). Returns the drop details when clicks fell past the alert threshold so the
+   * import worker can notify project members; returns null otherwise.
+   */
+  async getClicksDropAlert(siteId: string) {
+    const { link, property } = await this.getActiveLinkBySiteId(siteId);
+    const recentEnd = this.daysAgo(2);
+    const recentStart = this.daysBefore(recentEnd, 6);
+    const previousEnd = this.daysBefore(recentStart, 1);
+    const previousStart = this.daysBefore(previousEnd, 6);
+
+    const [recent, previous] = await Promise.all([
+      this.sumClicks(link.siteId, link.searchConsolePropertyId, recentStart, recentEnd),
+      this.sumClicks(link.siteId, link.searchConsolePropertyId, previousStart, previousEnd),
+    ]);
+
+    if (previous < ALERT_MIN_PREVIOUS_CLICKS) {
+      return null;
+    }
+    const dropRatio = (previous - recent) / previous;
+    if (dropRatio < ALERT_DROP_THRESHOLD) {
+      return null;
+    }
+
+    return {
+      dropRatio,
+      previousClicks: previous,
+      projectId: property.projectId,
+      recentClicks: recent,
+      siteId: link.siteId,
+    };
+  }
+
+  private async sumClicks(
+    siteId: string,
+    searchConsolePropertyId: string,
+    startDate: string,
+    endDate: string,
+  ) {
+    const [row] = await this.db
+      .select({ clicks: sql<number>`coalesce(sum(${gscDailyStats.clicks}), 0)::int` })
+      .from(gscDailyStats)
+      .where(this.baseStatsWhere(siteId, searchConsolePropertyId, startDate, endDate));
+    return Number(row?.clicks ?? 0);
+  }
+
+  private midpointDate(startDate: string, endDate: string) {
+    const start = new Date(`${startDate}T00:00:00.000Z`);
+    const end = new Date(`${endDate}T00:00:00.000Z`);
+    const lengthDays = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+    const half = Math.max(1, Math.floor(lengthDays / 2));
+    return this.daysBefore(endDate, half - 1);
   }
 
   private async upsertProperty(input: typeof searchConsoleProperties.$inferInsert) {

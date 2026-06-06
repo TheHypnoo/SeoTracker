@@ -741,6 +741,62 @@ describe('search console service', () => {
     expect(groups[0]?.pages).toHaveLength(2);
   });
 
+  it('lists decaying pages comparing the recent half against the previous half', async () => {
+    const { db, service } = makeService();
+    const { site, link } = linkLookupRows();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([site] as never)
+      .mockResolvedValueOnce([{ link, property: { id: 'property-1' } }] as never)
+      .mockResolvedValueOnce([
+        { value: '/a', previousClicks: 100, recentClicks: 40 },
+        { value: '/b', previousClicks: 50, recentClicks: 30 },
+      ] as never);
+    jest.mocked(db.orderBy).mockReturnValue({ limit: db.limit } as never);
+
+    const rows = await service.getDecay('site-1', 'user-1', {
+      endDate: '2026-06-04',
+      startDate: '2026-05-06',
+    });
+
+    expect(rows[0]).toMatchObject({ clicksLost: 60, value: '/a' });
+    expect(rows[0]?.changeRatio).toBeCloseTo(-0.6);
+  });
+
+  function setupDropAlert(recentClicks: number, previousClicks: number) {
+    const { db, service } = makeService();
+    const { link } = linkLookupRows();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([{ id: 'site-1', projectId: 'project-1' }] as never)
+      .mockResolvedValueOnce([
+        { link, property: { id: 'property-1', projectId: 'project-1' } },
+      ] as never);
+    const builder = { groupBy: db.groupBy, limit: db.limit, orderBy: db.orderBy };
+    jest
+      .mocked(db.where)
+      .mockReturnValueOnce(builder as never)
+      .mockReturnValueOnce(builder as never)
+      .mockReturnValueOnce([{ clicks: recentClicks }] as never)
+      .mockReturnValueOnce([{ clicks: previousClicks }] as never);
+    return service;
+  }
+
+  it('returns a clicks-drop alert when the week-over-week fall passes the threshold', async () => {
+    const alert = await setupDropAlert(40, 100).getClicksDropAlert('site-1');
+
+    expect(alert).toMatchObject({ previousClicks: 100, projectId: 'project-1', recentClicks: 40 });
+    expect(alert?.dropRatio).toBeCloseTo(0.6);
+  });
+
+  it('returns no alert when the clicks drop is within the threshold', async () => {
+    await expect(setupDropAlert(95, 100).getClicksDropAlert('site-1')).resolves.toBeNull();
+  });
+
+  it('returns no alert when the previous week has too few clicks', async () => {
+    await expect(setupDropAlert(2, 10).getClicksDropAlert('site-1')).resolves.toBeNull();
+  });
+
   it('rejects a range where the start date is after the end date', async () => {
     const { db, service } = makeService();
     const { site, link } = linkLookupRows();
