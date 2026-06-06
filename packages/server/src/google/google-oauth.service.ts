@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -165,29 +166,43 @@ export class GoogleOauthService {
 
   async revokeConnection(projectId: string, connectionId: string, userId: string) {
     await this.projectsService.assertPermission(projectId, userId, Permission.OUTBOUND_WRITE);
-    await this.db
-      .update(googleOauthConnections)
-      .set({ revokedAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(googleOauthConnections.id, connectionId),
-          eq(googleOauthConnections.projectId, projectId),
-          isNull(googleOauthConnections.revokedAt),
-        ),
-      );
-    // Unlink any sites pointing at this connection's properties so the worker stops importing
-    // through a dead connection. The properties and historical stats stay for a future reconnect.
-    await this.db
-      .delete(siteSearchConsoleLinks)
-      .where(
+    const now = new Date();
+    await this.db.transaction(async (tx) => {
+      // Scope the revoke to the caller's project and only proceed if a row was actually revoked.
+      // This prevents using another project's connectionId to delete its links (cross-tenant IDOR).
+      const [revoked] = await tx
+        .update(googleOauthConnections)
+        .set({ revokedAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(googleOauthConnections.id, connectionId),
+            eq(googleOauthConnections.projectId, projectId),
+            isNull(googleOauthConnections.revokedAt),
+          ),
+        )
+        .returning({ id: googleOauthConnections.id });
+
+      if (!revoked) {
+        throw new NotFoundException('Google OAuth connection not found');
+      }
+
+      // Unlink any sites pointing at this connection's properties so the worker stops importing
+      // through a dead connection. The subquery is scoped to the same project as defense in depth.
+      await tx.delete(siteSearchConsoleLinks).where(
         inArray(
           siteSearchConsoleLinks.searchConsolePropertyId,
-          this.db
+          tx
             .select({ id: searchConsoleProperties.id })
             .from(searchConsoleProperties)
-            .where(eq(searchConsoleProperties.googleConnectionId, connectionId)),
+            .where(
+              and(
+                eq(searchConsoleProperties.googleConnectionId, revoked.id),
+                eq(searchConsoleProperties.projectId, projectId),
+              ),
+            ),
         ),
       );
+    });
     return { success: true };
   }
 

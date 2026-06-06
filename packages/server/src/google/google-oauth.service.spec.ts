@@ -43,12 +43,16 @@ function makeService(
   const set = jest.fn().mockReturnValue({ where: updateWhere });
   const deleteWhere = jest.fn().mockResolvedValue(undefined);
   const deleteFn = jest.fn().mockReturnValue({ where: deleteWhere });
+  const transaction = jest.fn();
   const db = {
     delete: deleteFn,
     insert: jest.fn().mockReturnValue({ values }),
     select: jest.fn().mockReturnValue({ from }),
     update: jest.fn().mockReturnValue({ set }),
+    transaction,
   };
+  // The transaction runs its callback against the same mock db (acting as the tx handle).
+  transaction.mockImplementation((callback: (tx: typeof db) => unknown) => callback(db));
   const config = overrides.config ?? CONFIG;
   const configService = { get: jest.fn((key: string) => config[key]) };
   const projectsService = { assertPermission: jest.fn().mockResolvedValue(undefined) };
@@ -247,6 +251,17 @@ describe('google oauth service', () => {
     expect(updateWhere).toHaveBeenCalledTimes(1);
     // The connection's site links are removed so the worker stops importing through it.
     expect(deleteWhere).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws and unlinks nothing when the connection does not belong to the project', async () => {
+    const { deleteWhere, service, updateReturning } = makeService();
+    // Project-scoped UPDATE matched no row (e.g. a connectionId from another project).
+    updateReturning.mockResolvedValueOnce([]);
+
+    await expect(
+      service.revokeConnection('project-1', 'connection-from-another-project', 'user-1'),
+    ).rejects.toThrow('Google OAuth connection not found');
+    expect(deleteWhere).not.toHaveBeenCalled();
   });
 
   it('returns the stored access token without refreshing when it is still valid', async () => {
