@@ -262,6 +262,32 @@ describe('authService', () => {
       expect(res.cookie).toHaveBeenCalledTimes(2);
       expect(redis.del).toHaveBeenCalledWith('auth:login:fail:a@b.c');
     });
+
+    it('fails open and still authenticates when Redis is unavailable', async () => {
+      // Lockout read + failure-record + clear all reject; login must proceed on
+      // the per-IP throttle + Argon2 rather than locking everyone out.
+      redis.get.mockRejectedValueOnce(new Error('redis down'));
+      redis.del.mockRejectedValueOnce(new Error('redis down'));
+      db.limit.mockResolvedValueOnce([
+        { id: 'u', email: 'a@b.c', name: 'A', passwordHash: 'hashed-pw' },
+      ]);
+
+      const result = await service.login(
+        { email: 'a@b.c', password: 'pw' },
+        makeResponse() as never,
+      );
+
+      expect(result.accessToken).toBe('jwt-token');
+    });
+
+    it('does not crash recording a failure when Redis is unavailable', async () => {
+      redis.incr.mockRejectedValueOnce(new Error('redis down'));
+      db.limit.mockResolvedValueOnce([]); // user not found -> records a failure
+
+      await expect(
+        service.login({ email: 'ghost@x.y', password: 'pw' }, makeResponse() as never),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
   });
 
   describe('refresh', () => {

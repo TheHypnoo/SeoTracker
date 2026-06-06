@@ -15,6 +15,7 @@ blockedRanges.addSubnet('10.0.0.0', 8); // private
 blockedRanges.addSubnet('172.16.0.0', 12); // private
 blockedRanges.addSubnet('192.168.0.0', 16); // private
 blockedRanges.addSubnet('169.254.0.0', 16); // link-local + cloud metadata (169.254.169.254)
+blockedRanges.addSubnet('100.64.0.0', 10); // carrier-grade NAT (reaches internal infra in some clouds)
 // IPv6
 blockedRanges.addAddress('::1', 'ipv6'); // loopback
 blockedRanges.addAddress('::', 'ipv6'); // unspecified

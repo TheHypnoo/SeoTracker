@@ -5,7 +5,7 @@ import { and, desc, eq, lt, sql } from 'drizzle-orm';
 
 import { assertPresent } from '../common/utils/assert';
 import { assertPublicHttpUrl } from '../common/utils/domain';
-import { safeFetch } from '../common/utils/safe-fetch';
+import { readBodyWithLimit, safeFetch } from '../common/utils/safe-fetch';
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import { outboundWebhookDeliveries, outboundWebhooks } from '../database/schema';
@@ -14,6 +14,10 @@ import { SystemLogsService } from '../system-logs/system-logs.service';
 import { ProjectsService } from '../projects/projects.service';
 
 export type OutboundDispatchPayload = Record<string, unknown>;
+
+// We persist at most 2000 chars of the receiver's response, so there is no
+// reason to buffer more than a small slice of it.
+const MAX_WEBHOOK_RESPONSE_BYTES = 64 * 1024;
 
 @Injectable()
 export class OutboundWebhooksService {
@@ -307,7 +311,11 @@ export class OutboundWebhooksService {
       });
       clearTimeout(timeoutId);
 
-      const text = await response.text().catch(() => '');
+      // Only the first 2000 chars are persisted, so cap the read well below
+      // that. A hostile receiver returning a huge (or gzip-bombed) body must not
+      // be buffered unbounded into the worker's heap. Oversize/read errors fall
+      // back to an empty body — delivery success is decided by response.ok.
+      const text = await readBodyWithLimit(response, MAX_WEBHOOK_RESPONSE_BYTES).catch(() => '');
       const truncated = text.length > 2000 ? `${text.slice(0, 2000)}…` : text;
 
       if (!response.ok) {

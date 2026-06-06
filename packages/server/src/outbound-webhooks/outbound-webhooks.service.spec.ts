@@ -548,11 +548,7 @@ describe('outboundWebhooksService', () => {
 
     it('posts the exact signed body, custom header and persists success metadata', async () => {
       const createdAt = new Date('2026-05-08T10:00:00.000Z');
-      safeFetchMock.mockResolvedValue({
-        ok: true,
-        status: 202,
-        text: jest.fn().mockResolvedValue('accepted'),
-      });
+      safeFetchMock.mockResolvedValue(new Response('accepted', { status: 202 }));
       db.where
         .mockReturnValueOnce(
           thenable([
@@ -628,11 +624,7 @@ describe('outboundWebhooksService', () => {
     });
 
     it('persists HTTP failures before the BullMQ retry error is rethrown', async () => {
-      safeFetchMock.mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: jest.fn().mockResolvedValue('receiver exploded'),
-      });
+      safeFetchMock.mockResolvedValue(new Response('receiver exploded', { status: 500 }));
       db.where
         .mockReturnValueOnce(
           thenable([
@@ -675,19 +667,19 @@ describe('outboundWebhooksService', () => {
       ]);
     });
 
-    it('truncates response bodies and tolerates response.text failures', async () => {
+    it('truncates long response bodies and tolerates oversized/unreadable bodies', async () => {
       const longBody = 'x'.repeat(2_100);
       safeFetchMock
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 204,
-          text: jest.fn().mockResolvedValue(longBody),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          text: jest.fn().mockRejectedValue(new Error('no body')),
-        });
+        // First delivery: a 2100-char body is read (under the cap) and truncated.
+        .mockResolvedValueOnce(new Response(longBody, { status: 200 }))
+        // Second delivery: Content-Length declares more than the cap, so
+        // readBodyWithLimit rejects up front and the body falls back to ''.
+        .mockResolvedValueOnce(
+          new Response('ignored', {
+            status: 200,
+            headers: { 'content-length': String(1024 * 1024) },
+          }),
+        );
       const delivery = {
         id: 'd1',
         outboundWebhookId: 'w1',

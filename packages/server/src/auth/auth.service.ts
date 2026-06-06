@@ -23,6 +23,7 @@ import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import { passwordResetTokens, refreshTokens, users } from '../database/schema';
 import { hashToken, randomToken, safeEqual } from '../common/utils/security';
+import { withTimeout } from '../common/utils/with-timeout';
 import { USER_REGISTERED_EVENT, type UserRegisteredEvent } from '../projects/onboarding.service';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
 import { UsersService } from '../users/users.service';
@@ -34,6 +35,9 @@ import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from './jwt.constants';
 // temporarily refuse logins once the threshold is crossed. Reset on success.
 const MAX_LOGIN_FAILURES = 10;
 const LOGIN_LOCKOUT_WINDOW_SECONDS = 15 * 60;
+// Redis is only a brute-force brake, never the primary credential gate, so we
+// cap how long a login may wait on it and fail open if it is slow/unreachable.
+const LOGIN_LOCKOUT_REDIS_TIMEOUT_MS = 1000;
 
 /**
  * Authentication service.
@@ -135,7 +139,20 @@ export class AuthService {
    * that the per-IP throttle alone cannot stop.
    */
   private async assertNotLockedOut(email: string): Promise<void> {
-    const raw = await this.redis.get(this.loginFailureKey(email));
+    let raw: string | null;
+    try {
+      raw = await withTimeout(
+        this.redis.get(this.loginFailureKey(email)),
+        'login-lockout',
+        LOGIN_LOCKOUT_REDIS_TIMEOUT_MS,
+      );
+    } catch (error) {
+      // Fail open: if Redis is unreachable the per-IP throttle + Argon2 still
+      // apply, but we must not lock every user out of the product.
+      this.logger.warn(`Login lockout check skipped (Redis unavailable): ${String(error)}`);
+      return;
+    }
+
     const failures = raw ? Number(raw) : 0;
     if (failures >= MAX_LOGIN_FAILURES) {
       throw new HttpException(
@@ -147,16 +164,36 @@ export class AuthService {
 
   private async recordLoginFailure(email: string): Promise<void> {
     const key = this.loginFailureKey(email);
-    const failures = await this.redis.incr(key);
-    if (failures === 1) {
-      // Start the sliding window on the first failure; it self-expires so a
-      // legitimate user is never permanently locked out.
-      await this.redis.expire(key, LOGIN_LOCKOUT_WINDOW_SECONDS);
+    try {
+      const failures = await withTimeout(
+        this.redis.incr(key),
+        'login-lockout',
+        LOGIN_LOCKOUT_REDIS_TIMEOUT_MS,
+      );
+      if (failures === 1) {
+        // Bound the window on the first failure; the key self-expires so a
+        // legitimate user is never permanently locked out.
+        await withTimeout(
+          this.redis.expire(key, LOGIN_LOCKOUT_WINDOW_SECONDS),
+          'login-lockout',
+          LOGIN_LOCKOUT_REDIS_TIMEOUT_MS,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(`Could not record login failure (Redis unavailable): ${String(error)}`);
     }
   }
 
   private async clearLoginFailures(email: string): Promise<void> {
-    await this.redis.del(this.loginFailureKey(email));
+    try {
+      await withTimeout(
+        this.redis.del(this.loginFailureKey(email)),
+        'login-lockout',
+        LOGIN_LOCKOUT_REDIS_TIMEOUT_MS,
+      );
+    } catch (error) {
+      this.logger.warn(`Could not clear login failures (Redis unavailable): ${String(error)}`);
+    }
   }
 
   /**
