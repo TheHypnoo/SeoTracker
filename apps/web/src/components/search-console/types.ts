@@ -59,6 +59,8 @@ export type TopPerformanceRow = {
   impressions: number;
   ctr: number;
   position: number;
+  /** Clicks in the comparison period, present only when a comparison is active. */
+  previousClicks?: number;
 };
 
 export type OpportunityRow = {
@@ -83,6 +85,10 @@ export type CannibalizationGroup = {
   clicks: number;
   impressions: number;
   pages: CannibalizationPage[];
+  /** Share of impressions held by the dominant URL (0-1). Lower = more evenly split = worse. */
+  dominantShare: number;
+  /** Conflict severity: impressions weighted by how evenly they split between URLs. */
+  severity: number;
 };
 
 export type DecayRow = {

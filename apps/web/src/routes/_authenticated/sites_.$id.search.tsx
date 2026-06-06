@@ -411,6 +411,7 @@ function TabPanels({ tab, gsc, siteId }: { tab: SearchTab; gsc: GscState; siteId
         startDate={gsc.startDate}
         endDate={gsc.endDate}
         keywords={gsc.trackedKeywords.data ?? []}
+        countries={(gsc.topCountries.data ?? []).map((row) => row.value)}
         loading={gsc.trackedKeywords.isLoading}
         trackPending={gsc.trackKeyword.isPending}
         onTrack={(query) => gsc.trackKeyword.mutate(query)}

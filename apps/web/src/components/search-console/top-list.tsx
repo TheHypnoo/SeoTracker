@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { Badge } from '#/components/badge';
 
+import { DeltaBadge } from './delta-badge';
 import { formatNumber, formatPercent, formatPosition } from './format';
 import type { TopPerformanceRow } from './types';
 
@@ -83,8 +84,13 @@ export function TopList({
                     <span>{formatPosition(row.position)} pos.</span>
                   </div>
                 </div>
-                <span className="shrink-0 text-xs font-black tabular-nums text-slate-900">
-                  {formatNumber(row.clicks)}
+                <span className="flex shrink-0 flex-col items-end gap-0.5">
+                  <span className="text-xs font-black tabular-nums text-slate-900">
+                    {formatNumber(row.clicks)}
+                  </span>
+                  {row.previousClicks !== undefined ? (
+                    <DeltaBadge current={row.clicks} previous={row.previousClicks} />
+                  ) : null}
                 </span>
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">

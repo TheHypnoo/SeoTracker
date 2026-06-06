@@ -8,8 +8,17 @@ import { EmptyState } from '#/components/empty-state';
 import { TextInput } from '#/components/text-input';
 import { useAuth } from '#/lib/auth-context';
 
-import { formatNumber, formatPercent, formatPosition, rangeParams } from './format';
+import {
+  formatCountry,
+  formatDevice,
+  formatNumber,
+  formatPercent,
+  formatPosition,
+  rangeParams,
+} from './format';
 import type { TimeseriesPoint, TrackedKeyword } from './types';
+
+const DEVICE_SEGMENTS = ['DESKTOP', 'MOBILE', 'TABLET'] as const;
 
 /**
  * SeoCrawl-style keyword tracking tab: pin queries and follow their position/clicks over time.
@@ -20,6 +29,7 @@ export function KeywordTracking({
   startDate,
   endDate,
   keywords,
+  countries,
   loading,
   trackPending,
   onTrack,
@@ -29,6 +39,7 @@ export function KeywordTracking({
   startDate: string;
   endDate: string;
   keywords: TrackedKeyword[];
+  countries: string[];
   loading: boolean;
   trackPending: boolean;
   onTrack: (query: string) => void;
@@ -146,6 +157,7 @@ export function KeywordTracking({
           query={selected}
           startDate={startDate}
           endDate={endDate}
+          countries={countries}
         />
       ) : null}
     </div>
@@ -157,21 +169,38 @@ function KeywordTimeseries({
   query,
   startDate,
   endDate,
+  countries,
 }: {
   siteId: string;
   query: string;
   startDate: string;
   endDate: string;
+  countries: string[];
 }) {
   const auth = useAuth();
+  // segment encodes the audience filter: 'all', 'device:MOBILE' or 'country:ESP'.
+  const [segment, setSegment] = useState('all');
+  const segmentParam = segment.startsWith('device:')
+    ? `&device=${segment.slice('device:'.length)}`
+    : segment.startsWith('country:')
+      ? `&country=${segment.slice('country:'.length)}`
+      : '';
+
   const series = useQuery({
-    queryKey: ['search-console-keyword-series', siteId, query, startDate, endDate] as const,
+    queryKey: [
+      'search-console-keyword-series',
+      siteId,
+      query,
+      startDate,
+      endDate,
+      segment,
+    ] as const,
     queryFn: () =>
       auth.api.get<TimeseriesPoint[]>(
         `/sites/${siteId}/search-console/performance/keyword-timeseries?${rangeParams(
           startDate,
           endDate,
-        )}&query=${encodeURIComponent(query)}`,
+        )}&query=${encodeURIComponent(query)}${segmentParam}`,
       ),
     enabled: Boolean(auth.accessToken && siteId && query),
   });
@@ -180,10 +209,36 @@ function KeywordTimeseries({
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-        <LineChart size={14} className="text-brand-500" aria-hidden="true" />
-        Evolución · {query}
-      </h3>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+          <LineChart size={14} className="text-brand-500" aria-hidden="true" />
+          Evolución · {query}
+        </h3>
+        <select
+          value={segment}
+          onChange={(event) => setSegment(event.target.value)}
+          className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+          aria-label="Segmentar por audiencia"
+        >
+          <option value="all">Todos los segmentos</option>
+          <optgroup label="Dispositivo">
+            {DEVICE_SEGMENTS.map((device) => (
+              <option key={device} value={`device:${device}`}>
+                {formatDevice(device)}
+              </option>
+            ))}
+          </optgroup>
+          {countries.length > 0 ? (
+            <optgroup label="País">
+              {countries.map((country) => (
+                <option key={country} value={`country:${country}`}>
+                  {formatCountry(country)}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+        </select>
+      </div>
       {series.isLoading ? (
         <div className="mt-3 h-[260px] w-full animate-pulse rounded-lg bg-slate-100" />
       ) : points.length === 0 ? (

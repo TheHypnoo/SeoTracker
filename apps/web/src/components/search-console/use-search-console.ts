@@ -45,14 +45,23 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     startDate,
     endDate,
     topLimit,
+    comparison,
   ] as const;
-  const topPagesKey = ['search-console-top-pages', siteId, startDate, endDate, topLimit] as const;
+  const topPagesKey = [
+    'search-console-top-pages',
+    siteId,
+    startDate,
+    endDate,
+    topLimit,
+    comparison,
+  ] as const;
   const topCountriesKey = [
     'search-console-top-countries',
     siteId,
     startDate,
     endDate,
     topLimit,
+    comparison,
   ] as const;
   const topDevicesKey = [
     'search-console-top-devices',
@@ -60,6 +69,7 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     startDate,
     endDate,
     topLimit,
+    comparison,
   ] as const;
 
   const enabled = Boolean(auth.accessToken && siteId);
@@ -76,8 +86,11 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
   const firstCandidateId = candidates.data?.properties[0]?.id ?? '';
   const activePropertyId = selectedPropertyId || recommendedId || firstCandidateId;
   const topEnabled = enabled && hasLink;
+  const compareSuffix = previousRange
+    ? `&compareStartDate=${previousRange.startDate}&compareEndDate=${previousRange.endDate}`
+    : '';
   const topUrl = (path: string) =>
-    `/sites/${siteId}/search-console/performance/${path}?${rangeParams(startDate, endDate)}&limit=${topLimit}`;
+    `/sites/${siteId}/search-console/performance/${path}?${rangeParams(startDate, endDate)}&limit=${topLimit}${compareSuffix}`;
 
   const summary = useQuery({
     queryKey: summaryKey,

@@ -53,6 +53,7 @@ function CannibalizationCard({ group }: { group: CannibalizationGroup }) {
             {group.query}
           </span>
           <Badge tone="warning">{group.pages.length} URLs</Badge>
+          <Badge tone="neutral">{Math.round((1 - group.dominantShare) * 100)}% repartido</Badge>
         </span>
         <span className="shrink-0 text-xs font-semibold text-slate-500">
           {formatNumber(group.clicks)} clicks · {formatNumber(group.impressions)} impr.

@@ -34,6 +34,9 @@ const DEFAULT_IMPORT_DIMENSIONS: SearchConsoleDimension[][] = [
   // compete for the same query. They never carry a country/device so they are excluded
   // from the single-dimension aggregates above.
   ['date', 'query', 'page'],
+  // query+country and query+device rows let tracked-keyword charts segment by audience.
+  ['date', 'query', 'country'],
+  ['date', 'query', 'device'],
 ];
 
 // searchAnalytics.query returns at most 25k rows per request; paginate beyond that.
@@ -41,20 +44,47 @@ const SEARCH_CONSOLE_ROW_LIMIT = 25_000;
 // Batch size for idempotent upserts so a backfill does not issue one round-trip per row.
 const GSC_UPSERT_CHUNK_SIZE = 500;
 
-// Striking-distance tuning. Queries need a floor of impressions to be worth surfacing; the target
-// CTR approximates a strong page-one result and drives the "potential clicks" estimate. The
+// Striking-distance tuning. Queries need a floor of impressions to be worth surfacing; the
 // candidate cap bounds the rows scored in memory before returning the requested limit.
 const OPPORTUNITY_MIN_IMPRESSIONS = 20;
-const OPPORTUNITY_TARGET_CTR = 0.1;
 const OPPORTUNITY_CANDIDATE_CAP = 200;
 
+// Approximate organic CTR by average position (industry-typical desktop+mobile blend). Used to
+// estimate the clicks a query would gain by climbing, instead of assuming a single flat target.
+const CTR_BY_POSITION: Record<number, number> = {
+  1: 0.28,
+  2: 0.15,
+  3: 0.11,
+  4: 0.08,
+  5: 0.06,
+  6: 0.05,
+  7: 0.04,
+  8: 0.032,
+  9: 0.028,
+  10: 0.025,
+};
+// Positions on page two convert far worse; treat anything past 10 as this flat low CTR.
+const CTR_PAGE_TWO = 0.015;
+
 // Cannibalization: a competing URL must clear this impression floor to count, and we scan up to
-// this many query+page rows before grouping by query in memory.
+// this many query+page rows before grouping by query in memory. Groups where a single URL owns
+// more than this share of impressions are not real conflicts (one page clearly wins).
 const CANNIBALIZATION_MIN_IMPRESSIONS = 10;
 const CANNIBALIZATION_ROW_CAP = 2_000;
+const CANNIBALIZATION_MAX_DOMINANT_SHARE = 0.9;
 
-// Content decay: a page needs this many clicks in the earlier half to be worth flagging a decline.
+// Content decay: a page needs this many clicks in the earlier half to be worth flagging, and must
+// have lost at least this share of them to count as a real decline (not noise).
 const DECAY_MIN_PREVIOUS_CLICKS = 5;
+const DECAY_MIN_DROP_RATIO = 0.2;
+
+type TopDimensionInput = {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  compareStartDate?: string;
+  compareEndDate?: string;
+};
 // Clicks-drop alert: minimum prior-week clicks before alerting, and the week-over-week drop ratio
 // (0.3 = a 30% fall) that triggers a notification to project members.
 const ALERT_MIN_PREVIOUS_CLICKS = 20;
@@ -412,35 +442,19 @@ export class SearchConsoleService {
       .orderBy(asc(gscDailyStats.date));
   }
 
-  async getTopQueries(
-    siteId: string,
-    userId: string,
-    input: { startDate?: string; endDate?: string; limit?: number } = {},
-  ) {
+  async getTopQueries(siteId: string, userId: string, input: TopDimensionInput = {}) {
     return this.getTopDimension(siteId, userId, 'query', input);
   }
 
-  async getTopPages(
-    siteId: string,
-    userId: string,
-    input: { startDate?: string; endDate?: string; limit?: number } = {},
-  ) {
+  async getTopPages(siteId: string, userId: string, input: TopDimensionInput = {}) {
     return this.getTopDimension(siteId, userId, 'page', input);
   }
 
-  async getTopCountries(
-    siteId: string,
-    userId: string,
-    input: { startDate?: string; endDate?: string; limit?: number } = {},
-  ) {
+  async getTopCountries(siteId: string, userId: string, input: TopDimensionInput = {}) {
     return this.getTopDimension(siteId, userId, 'country', input);
   }
 
-  async getTopDevices(
-    siteId: string,
-    userId: string,
-    input: { startDate?: string; endDate?: string; limit?: number } = {},
-  ) {
+  async getTopDevices(siteId: string, userId: string, input: TopDimensionInput = {}) {
     return this.getTopDimension(siteId, userId, 'device', input);
   }
 
@@ -492,21 +506,30 @@ export class SearchConsoleService {
       .map((row) => {
         const ctr = Number(row.ctr);
         const impressions = Number(row.impressions);
+        const position = Number(row.position);
+        // Realistic next step: page-two queries aim to break into page one (pos 10), page-one
+        // queries aim for the top (pos 3). Potential = impressions × CTR uplift at that target.
+        const targetPosition = position > 10 ? 10 : 3;
         const potentialClicks = Math.max(
           0,
-          Math.round(impressions * (OPPORTUNITY_TARGET_CTR - ctr)),
+          Math.round(impressions * (this.ctrForPosition(targetPosition) - ctr)),
         );
         return {
           clicks: Number(row.clicks),
           ctr,
           impressions,
-          position: Number(row.position),
+          position,
           potentialClicks,
           value: row.value,
         };
       })
       .sort((a, b) => b.potentialClicks - a.potentialClicks)
       .slice(0, limit);
+  }
+
+  private ctrForPosition(position: number) {
+    const rounded = Math.max(1, Math.round(position));
+    return CTR_BY_POSITION[rounded] ?? CTR_PAGE_TWO;
   }
 
   /**
@@ -590,7 +613,15 @@ export class SearchConsoleService {
 
     return [...groups.values()]
       .filter((group) => group.pages.length >= 2)
-      .sort((a, b) => b.impressions - a.impressions)
+      .map((group) => {
+        const topImpressions = Math.max(...group.pages.map((page) => page.impressions));
+        const dominantShare = group.impressions === 0 ? 1 : topImpressions / group.impressions;
+        // Severity rewards conflicts that are both high-volume and evenly split between URLs.
+        const severity = Math.round(group.impressions * (1 - dominantShare));
+        return { ...group, dominantShare, severity };
+      })
+      .filter((group) => group.dominantShare <= CANNIBALIZATION_MAX_DOMINANT_SHARE)
+      .sort((a, b) => b.severity - a.severity)
       .slice(0, limit);
   }
 
@@ -629,7 +660,7 @@ export class SearchConsoleService {
       )
       .groupBy(gscDailyStats.page)
       .having(
-        sql`${previousClicks} >= ${DECAY_MIN_PREVIOUS_CLICKS} and ${recentClicks} < ${previousClicks}`,
+        sql`${previousClicks} >= ${DECAY_MIN_PREVIOUS_CLICKS} and ${recentClicks} <= ${previousClicks} * (1 - ${DECAY_MIN_DROP_RATIO})`,
       )
       .orderBy(desc(sql`(${previousClicks} - ${recentClicks})`))
       .limit(limit);
@@ -731,14 +762,25 @@ export class SearchConsoleService {
     return { query, tracked: false };
   }
 
-  /** Daily clicks/impressions/CTR/position for a single query, to chart a tracked keyword. */
+  /**
+   * Daily clicks/impressions/CTR/position for a single query, to chart a tracked keyword.
+   * Optionally segments by a single country or device using the query+country / query+device rows.
+   */
   async getKeywordTimeseries(
     siteId: string,
     userId: string,
-    input: { query: string; startDate?: string; endDate?: string },
+    input: {
+      query: string;
+      startDate?: string;
+      endDate?: string;
+      country?: string;
+      device?: string;
+    },
   ) {
     const { link } = await this.getActiveLinkWithProperty(siteId, userId, Permission.SITE_READ);
     const { startDate, endDate } = this.resolveDateRange(input);
+    const country = input.country?.trim() ?? '';
+    const device = input.device?.trim() ?? '';
     return this.db
       .select({
         clicks: sql<number>`coalesce(sum(${gscDailyStats.clicks}), 0)::int`,
@@ -756,8 +798,8 @@ export class SearchConsoleService {
           lte(gscDailyStats.date, endDate),
           eq(gscDailyStats.query, input.query),
           eq(gscDailyStats.page, ''),
-          eq(gscDailyStats.country, ''),
-          eq(gscDailyStats.device, ''),
+          eq(gscDailyStats.country, country),
+          eq(gscDailyStats.device, device),
           eq(gscDailyStats.searchType, 'web'),
         ),
       )
@@ -973,7 +1015,7 @@ export class SearchConsoleService {
     siteId: string,
     userId: string,
     dimension: 'country' | 'device' | 'page' | 'query',
-    input: { startDate?: string; endDate?: string; limit?: number },
+    input: TopDimensionInput,
   ) {
     const { link } = await this.getActiveLinkWithProperty(siteId, userId, Permission.SITE_READ);
     const { startDate, endDate } = this.resolveDateRange(input);
@@ -984,8 +1026,18 @@ export class SearchConsoleService {
       query: gscDailyStats.query,
     }[dimension];
     const limit = Math.min(Math.max(input.limit ?? 20, 1), 100);
+    const dimensionFilter = and(
+      eq(gscDailyStats.siteId, link.siteId),
+      eq(gscDailyStats.searchConsolePropertyId, link.searchConsolePropertyId),
+      sql`${column} <> ''`,
+      dimension === 'query' ? sql`true` : eq(gscDailyStats.query, ''),
+      dimension === 'page' ? sql`true` : eq(gscDailyStats.page, ''),
+      dimension === 'country' ? sql`true` : eq(gscDailyStats.country, ''),
+      dimension === 'device' ? sql`true` : eq(gscDailyStats.device, ''),
+      eq(gscDailyStats.searchType, 'web'),
+    );
 
-    return this.db
+    const rows = await this.db
       .select({
         clicks: sql<number>`coalesce(sum(${gscDailyStats.clicks}), 0)::int`,
         ctr: sql<number>`case when coalesce(sum(${gscDailyStats.impressions}), 0) = 0 then 0 else coalesce(sum(${gscDailyStats.clicks}), 0)::float / sum(${gscDailyStats.impressions}) end`,
@@ -995,22 +1047,39 @@ export class SearchConsoleService {
       })
       .from(gscDailyStats)
       .where(
-        and(
-          eq(gscDailyStats.siteId, link.siteId),
-          eq(gscDailyStats.searchConsolePropertyId, link.searchConsolePropertyId),
-          gte(gscDailyStats.date, startDate),
-          lte(gscDailyStats.date, endDate),
-          sql`${column} <> ''`,
-          dimension === 'query' ? sql`true` : eq(gscDailyStats.query, ''),
-          dimension === 'page' ? sql`true` : eq(gscDailyStats.page, ''),
-          dimension === 'country' ? sql`true` : eq(gscDailyStats.country, ''),
-          dimension === 'device' ? sql`true` : eq(gscDailyStats.device, ''),
-          eq(gscDailyStats.searchType, 'web'),
-        ),
+        and(dimensionFilter, gte(gscDailyStats.date, startDate), lte(gscDailyStats.date, endDate)),
       )
       .groupBy(column)
       .orderBy(desc(sql`sum(${gscDailyStats.clicks})`))
       .limit(limit);
+
+    if (!input.compareStartDate || !input.compareEndDate || rows.length === 0) {
+      return rows;
+    }
+
+    // Pull the comparison-period clicks for exactly the returned values so each row can show a
+    // period-over-period delta without a second top-N selection drifting out of alignment.
+    const previousRows = await this.db
+      .select({
+        clicks: sql<number>`coalesce(sum(${gscDailyStats.clicks}), 0)::int`,
+        value: column,
+      })
+      .from(gscDailyStats)
+      .where(
+        and(
+          dimensionFilter,
+          gte(gscDailyStats.date, input.compareStartDate),
+          lte(gscDailyStats.date, input.compareEndDate),
+          inArray(
+            column,
+            rows.map((row) => row.value),
+          ),
+        ),
+      )
+      .groupBy(column);
+
+    const previousByValue = new Map(previousRows.map((row) => [row.value, Number(row.clicks)]));
+    return rows.map((row) => ({ ...row, previousClicks: previousByValue.get(row.value) ?? 0 }));
   }
 
   private baseStatsWhere(

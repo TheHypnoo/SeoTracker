@@ -13,6 +13,20 @@ export class SearchConsoleRangeQueryDto {
   @IsISO8601({ strict: true })
   endDate?: string;
 
+  @ApiPropertyOptional({
+    description: 'Comparison-period start date (YYYY-MM-DD); enables per-row deltas in top lists.',
+  })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  compareStartDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Comparison-period end date (YYYY-MM-DD) for per-row deltas.',
+  })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  compareEndDate?: string;
+
   @ApiPropertyOptional({ default: 20, maximum: 100, minimum: 1 })
   @IsOptional()
   @Type(() => Number)

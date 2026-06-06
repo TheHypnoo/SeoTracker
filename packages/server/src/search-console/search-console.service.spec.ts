@@ -673,6 +673,36 @@ describe('search console service', () => {
     expect(rows).toStrictEqual([{ value: 'seo tool', clicks: 50, impressions: 800 }]);
   });
 
+  it('adds per-row previous clicks when a comparison range is supplied', async () => {
+    const { db, service } = makeService();
+    const { site, link } = linkLookupRows();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([site] as never)
+      .mockResolvedValueOnce([{ link, property: { id: 'property-1' } }] as never)
+      .mockResolvedValueOnce([
+        { value: 'a', clicks: 50, ctr: 0.1, impressions: 800, position: 4 },
+        { value: 'b', clicks: 30, ctr: 0.05, impressions: 600, position: 6 },
+      ] as never);
+    jest.mocked(db.orderBy).mockReturnValue({ limit: db.limit } as never);
+    // First groupBy is the main top-N query (chains into orderBy/limit); the second groupBy is the
+    // comparison-clicks query, which is awaited directly and resolves the previous-period rows.
+    jest
+      .mocked(db.groupBy)
+      .mockReturnValueOnce({ having: db.having, orderBy: db.orderBy } as never)
+      .mockReturnValueOnce([{ value: 'a', clicks: 40 }] as never);
+
+    const rows = (await service.getTopQueries('site-1', 'user-1', {
+      compareEndDate: '2026-05-28',
+      compareStartDate: '2026-05-01',
+      endDate: '2026-06-04',
+      startDate: '2026-06-01',
+    })) as Array<{ value: string; previousClicks: number }>;
+
+    expect(rows[0]).toMatchObject({ previousClicks: 40, value: 'a' });
+    expect(rows[1]).toMatchObject({ previousClicks: 0, value: 'b' });
+  });
+
   it.each(['getTopPages', 'getTopCountries', 'getTopDevices'] as const)(
     'exposes %s through the shared dimension query',
     async (method) => {
@@ -710,9 +740,11 @@ describe('search console service', () => {
       startDate: '2026-06-01',
     });
 
-    // Sorted by potential clicks: a (80) > b (45) > c (0, already above target CTR).
+    // Sorted by potential clicks using the position CTR curve:
+    // a → target pos 3 (CTR 0.11): 1000×(0.11−0.02)=90; b → target pos 10 (CTR 0.025):
+    // 500×(0.025−0.01)≈8; c already above target CTR → 0.
     expect(rows.map((row) => row.value)).toStrictEqual(['a', 'b', 'c']);
-    expect(rows[0]).toMatchObject({ potentialClicks: 80, value: 'a' });
+    expect(rows[0]).toMatchObject({ potentialClicks: 90, value: 'a' });
     expect(rows[2]?.potentialClicks).toBe(0);
   });
 
@@ -729,6 +761,9 @@ describe('search console service', () => {
         { query: 'shoes', page: '/a', clicks: 10, ctr: 0.1, impressions: 100, position: 5 },
         { query: 'shoes', page: '/b', clicks: 5, ctr: 0.06, impressions: 80, position: 8 },
         { query: 'boots', page: '/c', clicks: 2, ctr: 0.04, impressions: 50, position: 3 },
+        // 'menu' has 2 pages but one URL owns ~99% of impressions → not a real conflict.
+        { query: 'menu', page: '/m1', clicks: 90, ctr: 0.09, impressions: 1000, position: 4 },
+        { query: 'menu', page: '/m2', clicks: 1, ctr: 0.1, impressions: 10, position: 30 },
       ] as never);
     jest.mocked(db.orderBy).mockReturnValue({ limit: db.limit } as never);
 
@@ -737,10 +772,10 @@ describe('search console service', () => {
       startDate: '2026-06-01',
     });
 
-    // Only multi-page queries survive, sorted by total impressions (shoes 180 > sandals 100).
+    // Single-page (boots) and dominant-share (menu) queries are dropped; the rest sort by severity.
     expect(groups.map((group) => group.query)).toStrictEqual(['shoes', 'sandals']);
     expect(groups[0]).toMatchObject({ query: 'shoes', clicks: 15, impressions: 180 });
-    expect(groups[0]?.pages).toHaveLength(2);
+    expect(groups[0]?.severity).toBeGreaterThan(groups[1]?.severity ?? 0);
   });
 
   it('lists decaying pages comparing the recent half against the previous half', async () => {
@@ -900,6 +935,29 @@ describe('search console service', () => {
     expect(series).toStrictEqual([
       { clicks: 4, ctr: 0.08, date: '2026-06-01', impressions: 50, position: 6 },
     ]);
+  });
+
+  it('segments a keyword timeseries by country', async () => {
+    const { db, service } = makeService();
+    const { site, link } = linkLookupRows();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([site] as never)
+      .mockResolvedValueOnce([{ link, property: { id: 'property-1' } }] as never);
+    jest
+      .mocked(db.orderBy)
+      .mockResolvedValueOnce([
+        { clicks: 2, ctr: 0.05, date: '2026-06-01', impressions: 40, position: 7 },
+      ] as never);
+
+    const series = await service.getKeywordTimeseries('site-1', 'user-1', {
+      country: ' ESP ',
+      endDate: '2026-06-04',
+      query: 'zapatillas',
+      startDate: '2026-06-01',
+    });
+
+    expect(series).toHaveLength(1);
   });
 
   it('rejects a range where the start date is after the end date', async () => {
