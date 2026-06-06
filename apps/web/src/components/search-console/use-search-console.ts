@@ -14,6 +14,7 @@ import type {
   PerformanceSummary,
   TimeseriesPoint,
   TopPerformanceRow,
+  TrackedKeyword,
 } from './types';
 
 /**
@@ -147,6 +148,34 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     placeholderData: keepPreviousData,
   });
 
+  const trackedKeywords = useQuery({
+    queryKey: ['search-console-keywords', siteId, startDate, endDate] as const,
+    queryFn: () =>
+      auth.api.get<TrackedKeyword[]>(
+        `/sites/${siteId}/search-console/keywords?${rangeParams(startDate, endDate)}`,
+      ),
+    enabled: topEnabled,
+    placeholderData: keepPreviousData,
+  });
+
+  const trackKeyword = useMutation({
+    mutationFn: (query: string) =>
+      auth.api.post(`/sites/${siteId}/search-console/keywords`, { query }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['search-console-keywords', siteId] });
+    },
+  });
+
+  const untrackKeyword = useMutation({
+    mutationFn: (query: string) =>
+      auth.api.delete(
+        `/sites/${siteId}/search-console/keywords?query=${encodeURIComponent(query)}`,
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['search-console-keywords', siteId] });
+    },
+  });
+
   // Previous-period summary used to render delta badges. Built by re-querying the existing
   // summary endpoint over the comparison range rather than widening the backend response.
   const previousSummary = useQuery({
@@ -223,6 +252,9 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     comparison,
     decay,
     endDate,
+    trackKeyword,
+    trackedKeywords,
+    untrackKeyword,
     hasLink,
     importPerformance,
     linked,

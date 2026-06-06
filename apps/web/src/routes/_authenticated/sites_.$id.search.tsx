@@ -43,6 +43,7 @@ import {
 } from '#/components/search-console/property-panels';
 import { CannibalizationGroups } from '#/components/search-console/cannibalization-groups';
 import { DecayTable } from '#/components/search-console/decay-table';
+import { KeywordTracking } from '#/components/search-console/keyword-tracking';
 import { OpportunitiesTable } from '#/components/search-console/opportunities-table';
 import { MetricCard, TopList } from '#/components/search-console/top-list';
 import { useSearchConsole } from '#/components/search-console/use-search-console';
@@ -60,6 +61,7 @@ type SearchTab =
   | 'pages'
   | 'opportunities'
   | 'cannibalization'
+  | 'keywords'
   | 'audience';
 
 const SEARCH_TABS: Array<{ id: SearchTab; label: string }> = [
@@ -68,6 +70,7 @@ const SEARCH_TABS: Array<{ id: SearchTab; label: string }> = [
   { id: 'pages', label: 'Páginas' },
   { id: 'opportunities', label: 'Oportunidades' },
   { id: 'cannibalization', label: 'Canibalización' },
+  { id: 'keywords', label: 'Keywords' },
   { id: 'audience', label: 'Audiencia' },
 ];
 
@@ -147,7 +150,7 @@ function SiteSearchConsolePage() {
                 onImport={() => gsc.importPerformance.mutate()}
               />
               <TabNav tab={tab} onChange={setTab} />
-              <TabPanels tab={tab} gsc={gsc} />
+              <TabPanels tab={tab} gsc={gsc} siteId={id} />
             </div>
           ) : data.properties.length > 0 ? (
             <PropertyLinkPanel
@@ -292,7 +295,7 @@ function TabNav({ tab, onChange }: { tab: SearchTab; onChange: (tab: SearchTab) 
 
 type GscState = ReturnType<typeof useSearchConsole>;
 
-function TabPanels({ tab, gsc }: { tab: SearchTab; gsc: GscState }) {
+function TabPanels({ tab, gsc, siteId }: { tab: SearchTab; gsc: GscState; siteId: string }) {
   const summary = gsc.summary.data;
   const topQueries = gsc.topQueries.data ?? [];
   const topPages = gsc.topPages.data ?? [];
@@ -399,6 +402,21 @@ function TabPanels({ tab, gsc }: { tab: SearchTab; gsc: GscState }) {
 
   if (tab === 'cannibalization') {
     return <CannibalizationGroups groups={gsc.cannibalization.data ?? []} />;
+  }
+
+  if (tab === 'keywords') {
+    return (
+      <KeywordTracking
+        siteId={siteId}
+        startDate={gsc.startDate}
+        endDate={gsc.endDate}
+        keywords={gsc.trackedKeywords.data ?? []}
+        loading={gsc.trackedKeywords.isLoading}
+        trackPending={gsc.trackKeyword.isPending}
+        onTrack={(query) => gsc.trackKeyword.mutate(query)}
+        onUntrack={(query) => gsc.untrackKeyword.mutate(query)}
+      />
+    );
   }
 
   return (

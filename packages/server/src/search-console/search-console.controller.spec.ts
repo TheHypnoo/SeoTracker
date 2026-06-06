@@ -46,6 +46,10 @@ describe('siteSearchConsoleController', () => {
     getOpportunities: jest.fn(() => Promise.resolve('opportunities')),
     getCannibalization: jest.fn(() => Promise.resolve('cannibalization')),
     getDecay: jest.fn(() => Promise.resolve('decay')),
+    listTrackedKeywords: jest.fn(() => Promise.resolve('keywords')),
+    trackKeyword: jest.fn(() => Promise.resolve({ query: 'kw', tracked: true })),
+    untrackKeyword: jest.fn(() => Promise.resolve({ query: 'kw', tracked: false })),
+    getKeywordTimeseries: jest.fn(() => Promise.resolve('keyword-series')),
   };
   const controller = new SiteSearchConsoleController(searchConsoleService as never);
   const user = { sub: 'user-1' };
@@ -100,6 +104,8 @@ describe('siteSearchConsoleController', () => {
     ['opportunities', 'getOpportunities', 'opportunities'],
     ['cannibalization', 'getCannibalization', 'cannibalization'],
     ['decay', 'getDecay', 'decay'],
+    ['listKeywords', 'listTrackedKeywords', 'keywords'],
+    ['keywordTimeseries', 'getKeywordTimeseries', 'keyword-series'],
   ] as const)(
     'delegates %s to the service with the range query',
     async (endpoint, serviceFn, expected) => {
@@ -107,4 +113,26 @@ describe('siteSearchConsoleController', () => {
       expect(searchConsoleService[serviceFn]).toHaveBeenCalledWith('site-1', 'user-1', range);
     },
   );
+
+  it('tracks a keyword from the request body', async () => {
+    await expect(
+      controller.trackKeyword(user, 'site-1', { query: 'zapatillas' }),
+    ).resolves.toMatchObject({ tracked: true });
+    expect(searchConsoleService.trackKeyword).toHaveBeenCalledWith(
+      'site-1',
+      'user-1',
+      'zapatillas',
+    );
+  });
+
+  it('untracks a keyword from the query string', async () => {
+    await expect(controller.untrackKeyword(user, 'site-1', 'zapatillas')).resolves.toMatchObject({
+      tracked: false,
+    });
+    expect(searchConsoleService.untrackKeyword).toHaveBeenCalledWith(
+      'site-1',
+      'user-1',
+      'zapatillas',
+    );
+  });
 });

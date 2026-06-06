@@ -93,6 +93,15 @@ export type DecayRow = {
   changeRatio: number;
 };
 
+export type TrackedKeyword = {
+  query: string;
+  createdAt: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+};
+
 export type ImportResponse = {
   importedRows: number;
   startDate: string;

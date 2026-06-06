@@ -6,8 +6,10 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UUID_V4_PIPE } from '../common/pipes/uuid-v4.pipe';
 import { ImportSearchConsoleDataDto } from './dto/import-search-console-data.dto';
 import { LinkSearchConsolePropertyDto } from './dto/link-search-console-property.dto';
+import { SearchConsoleKeywordQueryDto } from './dto/search-console-keyword.query.dto';
 import { SearchConsoleRangeQueryDto } from './dto/search-console-range.query.dto';
 import { SyncSearchConsolePropertiesDto } from './dto/sync-search-console-properties.dto';
+import { TrackKeywordDto } from './dto/track-keyword.dto';
 import { SearchConsoleService } from './search-console.service';
 
 @ApiTags('search-console')
@@ -167,5 +169,45 @@ export class SiteSearchConsoleController {
     @Query() query: SearchConsoleRangeQueryDto,
   ) {
     return this.searchConsoleService.getDecay(siteId, user.sub, query);
+  }
+
+  @Get('keywords')
+  @ApiOperation({ summary: 'List tracked keywords with their metrics for a linked site' })
+  listKeywords(
+    @CurrentUser() user: { sub: string },
+    @Param('siteId', UUID_V4_PIPE) siteId: string,
+    @Query() query: SearchConsoleRangeQueryDto,
+  ) {
+    return this.searchConsoleService.listTrackedKeywords(siteId, user.sub, query);
+  }
+
+  @Post('keywords')
+  @ApiOperation({ summary: 'Start tracking a Search Console query for a site' })
+  trackKeyword(
+    @CurrentUser() user: { sub: string },
+    @Param('siteId', UUID_V4_PIPE) siteId: string,
+    @Body() body: TrackKeywordDto,
+  ) {
+    return this.searchConsoleService.trackKeyword(siteId, user.sub, body.query);
+  }
+
+  @Delete('keywords')
+  @ApiOperation({ summary: 'Stop tracking a Search Console query for a site' })
+  untrackKeyword(
+    @CurrentUser() user: { sub: string },
+    @Param('siteId', UUID_V4_PIPE) siteId: string,
+    @Query('query') query: string,
+  ) {
+    return this.searchConsoleService.untrackKeyword(siteId, user.sub, query);
+  }
+
+  @Get('performance/keyword-timeseries')
+  @ApiOperation({ summary: 'Get the daily timeseries for a single tracked keyword' })
+  keywordTimeseries(
+    @CurrentUser() user: { sub: string },
+    @Param('siteId', UUID_V4_PIPE) siteId: string,
+    @Query() query: SearchConsoleKeywordQueryDto,
+  ) {
+    return this.searchConsoleService.getKeywordTimeseries(siteId, user.sub, query);
   }
 }

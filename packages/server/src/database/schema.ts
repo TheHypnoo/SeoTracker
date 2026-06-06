@@ -543,6 +543,29 @@ export const gscDailyStats = pgTable(
 );
 
 /**
+ * Search Console queries a user has pinned to follow over time (SeoCrawl-style keyword tracking).
+ * Position/clicks history comes from gsc_daily_stats; this table only records which queries matter.
+ */
+export const trackedKeywords = pgTable(
+  'tracked_keywords',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    siteId: uuid('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    query: text('query').notNull(),
+    createdByUserId: uuid('created_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('tracked_keywords_site_query_uk').on(table.siteId, table.query),
+    index('tracked_keywords_site_idx').on(table.siteId),
+  ],
+);
+
+/**
  * One execution of the SEO engine against a site. Carries final score, per-category breakdown,
  * and HTTP-level metadata. Issues, pages, metrics and events are normalised in dedicated tables.
  */

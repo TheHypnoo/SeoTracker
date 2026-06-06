@@ -64,6 +64,13 @@
       "when": 1780696500000,
       "tag": "0008_gsc_link_last_imported_at",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780696600000,
+      "tag": "0009_tracked_keywords",
+      "breakpoints": true
     }
   ]
 }

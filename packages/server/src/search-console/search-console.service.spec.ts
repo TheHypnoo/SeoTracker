@@ -9,7 +9,8 @@ function makeDb() {
   const limit = jest.fn();
   const returning = jest.fn();
   const onConflictDoUpdate = jest.fn().mockReturnValue({ returning });
-  const values = jest.fn().mockReturnValue({ onConflictDoUpdate });
+  const onConflictDoNothing = jest.fn().mockResolvedValue(undefined);
+  const values = jest.fn().mockReturnValue({ onConflictDoNothing, onConflictDoUpdate });
   const insert = jest.fn().mockReturnValue({ values });
   const orderBy = jest.fn();
   const having = jest.fn().mockReturnValue({ orderBy });
@@ -30,6 +31,7 @@ function makeDb() {
     innerJoin,
     insert,
     limit,
+    onConflictDoNothing,
     onConflictDoUpdate,
     orderBy,
     returning,
@@ -795,6 +797,109 @@ describe('search console service', () => {
 
   it('returns no alert when the previous week has too few clicks', async () => {
     await expect(setupDropAlert(2, 10).getClicksDropAlert('site-1')).resolves.toBeNull();
+  });
+
+  it('lists tracked keywords merging aggregated metrics and zero-filling the rest', async () => {
+    const { db, service } = makeService();
+    const { site, link } = linkLookupRows();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([site] as never)
+      .mockResolvedValueOnce([{ link, property: { id: 'property-1' } }] as never);
+    jest.mocked(db.orderBy).mockResolvedValueOnce([
+      { query: 'kw uno', createdAt: new Date('2026-06-01T00:00:00.000Z') },
+      { query: 'kw dos', createdAt: new Date('2026-06-02T00:00:00.000Z') },
+    ] as never);
+    jest
+      .mocked(db.groupBy)
+      .mockReturnValueOnce([
+        { query: 'kw uno', clicks: 10, ctr: 0.1, impressions: 100, position: 5 },
+      ] as never);
+
+    const rows = await service.listTrackedKeywords('site-1', 'user-1', {
+      endDate: '2026-06-04',
+      startDate: '2026-06-01',
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ clicks: 10, impressions: 100, query: 'kw uno' });
+    expect(rows[1]).toMatchObject({ clicks: 0, impressions: 0, query: 'kw dos' });
+  });
+
+  it('returns an empty list when the site has no tracked keywords', async () => {
+    const { db, service } = makeService();
+    const { site, link } = linkLookupRows();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([site] as never)
+      .mockResolvedValueOnce([{ link, property: { id: 'property-1' } }] as never);
+    jest.mocked(db.orderBy).mockResolvedValueOnce([] as never);
+
+    await expect(service.listTrackedKeywords('site-1', 'user-1')).resolves.toStrictEqual([]);
+  });
+
+  it('tracks a keyword, trimming whitespace and upserting idempotently', async () => {
+    const { db, service } = makeService();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([{ id: 'site-1', projectId: 'project-1' }] as never);
+
+    await expect(service.trackKeyword('site-1', 'user-1', '  zapatillas  ')).resolves.toStrictEqual(
+      { query: 'zapatillas', tracked: true },
+    );
+    expect(db.values).toHaveBeenCalledWith(
+      expect.objectContaining({ query: 'zapatillas', siteId: 'site-1' }),
+    );
+    expect(db.onConflictDoNothing).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects tracking an empty keyword', async () => {
+    const { db, service } = makeService();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([{ id: 'site-1', projectId: 'project-1' }] as never);
+
+    await expect(service.trackKeyword('site-1', 'user-1', '   ')).rejects.toThrow(
+      'must not be empty',
+    );
+  });
+
+  it('untracks a keyword for a site', async () => {
+    const { db, service } = makeService();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([{ id: 'site-1', projectId: 'project-1' }] as never);
+
+    await expect(service.untrackKeyword('site-1', 'user-1', 'zapatillas')).resolves.toStrictEqual({
+      query: 'zapatillas',
+      tracked: false,
+    });
+    expect(db.delete).toHaveBeenCalledTimes(1);
+    expect(db.deleteWhere).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a daily timeseries for a single tracked keyword', async () => {
+    const { db, service } = makeService();
+    const { site, link } = linkLookupRows();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([site] as never)
+      .mockResolvedValueOnce([{ link, property: { id: 'property-1' } }] as never);
+    jest
+      .mocked(db.orderBy)
+      .mockResolvedValueOnce([
+        { clicks: 4, ctr: 0.08, date: '2026-06-01', impressions: 50, position: 6 },
+      ] as never);
+
+    const series = await service.getKeywordTimeseries('site-1', 'user-1', {
+      endDate: '2026-06-04',
+      query: 'zapatillas',
+      startDate: '2026-06-01',
+    });
+
+    expect(series).toStrictEqual([
+      { clicks: 4, ctr: 0.08, date: '2026-06-01', impressions: 50, position: 6 },
+    ]);
   });
 
   it('rejects a range where the start date is after the end date', async () => {

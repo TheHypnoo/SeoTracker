@@ -20,6 +20,7 @@ const TABLE_EXPORTS = [
   'searchConsoleProperties',
   'siteSearchConsoleLinks',
   'gscDailyStats',
+  'trackedKeywords',
   'auditRuns',
   'auditPages',
   'auditUrlInspections',

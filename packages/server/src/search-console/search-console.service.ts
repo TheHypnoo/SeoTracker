@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Permission } from '@seotracker/shared-types';
-import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import type { Env } from '../config/env.schema';
 import { DRIZZLE } from '../database/database.constants';
@@ -11,6 +11,7 @@ import {
   searchConsoleProperties,
   sites,
   siteSearchConsoleLinks,
+  trackedKeywords,
 } from '../database/schema';
 import { GoogleOauthService } from '../google/google-oauth.service';
 import { ProjectsService } from '../projects/projects.service';
@@ -644,6 +645,124 @@ export class SearchConsoleService {
         value: row.value,
       };
     });
+  }
+
+  /**
+   * SeoCrawl-style keyword tracking: the queries pinned for a site, each with its aggregated
+   * clicks/impressions/CTR/position over the range. Queries with no data in the range come back
+   * with zeroes so the user still sees them in the list.
+   */
+  async listTrackedKeywords(
+    siteId: string,
+    userId: string,
+    input: { startDate?: string; endDate?: string } = {},
+  ) {
+    const { link } = await this.getActiveLinkWithProperty(siteId, userId, Permission.SITE_READ);
+    const { startDate, endDate } = this.resolveDateRange(input);
+    const tracked = await this.db
+      .select({ createdAt: trackedKeywords.createdAt, query: trackedKeywords.query })
+      .from(trackedKeywords)
+      .where(eq(trackedKeywords.siteId, siteId))
+      .orderBy(asc(trackedKeywords.query));
+
+    if (tracked.length === 0) {
+      return [];
+    }
+
+    const metrics = await this.db
+      .select({
+        clicks: sql<number>`coalesce(sum(${gscDailyStats.clicks}), 0)::int`,
+        ctr: sql<number>`case when coalesce(sum(${gscDailyStats.impressions}), 0) = 0 then 0 else coalesce(sum(${gscDailyStats.clicks}), 0)::float / sum(${gscDailyStats.impressions}) end`,
+        impressions: sql<number>`coalesce(sum(${gscDailyStats.impressions}), 0)::int`,
+        position: sql<number>`case when coalesce(sum(${gscDailyStats.impressions}), 0) = 0 then 0 else sum(${gscDailyStats.position} * ${gscDailyStats.impressions}) / sum(${gscDailyStats.impressions}) end`,
+        query: gscDailyStats.query,
+      })
+      .from(gscDailyStats)
+      .where(
+        and(
+          eq(gscDailyStats.siteId, link.siteId),
+          eq(gscDailyStats.searchConsolePropertyId, link.searchConsolePropertyId),
+          gte(gscDailyStats.date, startDate),
+          lte(gscDailyStats.date, endDate),
+          inArray(
+            gscDailyStats.query,
+            tracked.map((row) => row.query),
+          ),
+          eq(gscDailyStats.page, ''),
+          eq(gscDailyStats.country, ''),
+          eq(gscDailyStats.device, ''),
+          eq(gscDailyStats.searchType, 'web'),
+        ),
+      )
+      .groupBy(gscDailyStats.query);
+
+    const metricsByQuery = new Map(metrics.map((row) => [row.query, row]));
+    return tracked.map((row) => {
+      const metric = metricsByQuery.get(row.query);
+      return {
+        clicks: Number(metric?.clicks ?? 0),
+        createdAt: row.createdAt,
+        ctr: Number(metric?.ctr ?? 0),
+        impressions: Number(metric?.impressions ?? 0),
+        position: Number(metric?.position ?? 0),
+        query: row.query,
+      };
+    });
+  }
+
+  async trackKeyword(siteId: string, userId: string, query: string) {
+    await this.getSiteWithPermission(siteId, userId, Permission.SITE_WRITE);
+    const normalized = query.trim();
+    if (!normalized) {
+      throw new BadRequestException('Keyword query must not be empty');
+    }
+    await this.db
+      .insert(trackedKeywords)
+      .values({ createdByUserId: userId, query: normalized, siteId })
+      .onConflictDoNothing({ target: [trackedKeywords.siteId, trackedKeywords.query] });
+    return { query: normalized, tracked: true };
+  }
+
+  async untrackKeyword(siteId: string, userId: string, query: string) {
+    await this.getSiteWithPermission(siteId, userId, Permission.SITE_WRITE);
+    await this.db
+      .delete(trackedKeywords)
+      .where(and(eq(trackedKeywords.siteId, siteId), eq(trackedKeywords.query, query)));
+    return { query, tracked: false };
+  }
+
+  /** Daily clicks/impressions/CTR/position for a single query, to chart a tracked keyword. */
+  async getKeywordTimeseries(
+    siteId: string,
+    userId: string,
+    input: { query: string; startDate?: string; endDate?: string },
+  ) {
+    const { link } = await this.getActiveLinkWithProperty(siteId, userId, Permission.SITE_READ);
+    const { startDate, endDate } = this.resolveDateRange(input);
+    return this.db
+      .select({
+        clicks: sql<number>`coalesce(sum(${gscDailyStats.clicks}), 0)::int`,
+        ctr: sql<number>`case when coalesce(sum(${gscDailyStats.impressions}), 0) = 0 then 0 else coalesce(sum(${gscDailyStats.clicks}), 0)::float / sum(${gscDailyStats.impressions}) end`,
+        date: gscDailyStats.date,
+        impressions: sql<number>`coalesce(sum(${gscDailyStats.impressions}), 0)::int`,
+        position: sql<number>`case when coalesce(sum(${gscDailyStats.impressions}), 0) = 0 then 0 else sum(${gscDailyStats.position} * ${gscDailyStats.impressions}) / sum(${gscDailyStats.impressions}) end`,
+      })
+      .from(gscDailyStats)
+      .where(
+        and(
+          eq(gscDailyStats.siteId, link.siteId),
+          eq(gscDailyStats.searchConsolePropertyId, link.searchConsolePropertyId),
+          gte(gscDailyStats.date, startDate),
+          lte(gscDailyStats.date, endDate),
+          eq(gscDailyStats.query, input.query),
+          eq(gscDailyStats.page, ''),
+          eq(gscDailyStats.country, ''),
+          eq(gscDailyStats.device, ''),
+          eq(gscDailyStats.searchType, 'web'),
+        ),
+      )
+      .groupBy(gscDailyStats.date)
+      .orderBy(asc(gscDailyStats.date));
   }
 
   /**
