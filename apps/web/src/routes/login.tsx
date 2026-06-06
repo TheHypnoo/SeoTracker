@@ -11,6 +11,7 @@ import { AuthFooter, AuthPage } from '../components/auth-page';
 import { RedirectIfAuthed } from '../components/redirect-if-authed';
 import { useAuth } from '../lib/auth-context';
 import { displayFormError, useFormSubmitHandler } from '../lib/forms';
+import { safeRedirectPath } from '../lib/safe-redirect';
 
 type LoginSearch = { redirect?: string };
 
@@ -34,7 +35,7 @@ function LoginPage() {
     },
     onSubmit: async ({ value }) => {
       await auth.login(value);
-      await goToDashboard({ to: redirectTo ?? '/dashboard' });
+      await goToDashboard({ to: safeRedirectPath(redirectTo) });
     },
   });
   const { error, onSubmit } = useFormSubmitHandler(form, {

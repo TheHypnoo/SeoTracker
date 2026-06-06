@@ -11,15 +11,12 @@ import { scoreAudit } from './scoring';
 import { SeoEngineService } from './seo-engine.service';
 import { discoverSiteMetadata } from './sitemap-discovery';
 
-jest.mock<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch', () => {
-  class MockSsrfBlockedError extends Error {
-    override name = 'MockSsrfBlockedError';
-  }
-  return {
-    SsrfBlockedError: MockSsrfBlockedError,
-    safeFetch: jest.fn(),
-  };
-});
+jest.mock<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch', () => ({
+  // Keep the real readBodyWithLimit / ResponseTooLargeError / SsrfBlockedError;
+  // only the network call is stubbed.
+  ...jest.requireActual<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch'),
+  safeFetch: jest.fn(),
+}));
 
 jest.mock<typeof import('./homepage-html-analyzer')>('./homepage-html-analyzer', () => ({
   analyzeHomepageHtml: jest.fn(),
@@ -188,16 +185,18 @@ describe('seoEngineService', () => {
   });
 
   it('uses fallbacks for missing response URL and headers', async () => {
-    jest.mocked(safeFetch).mockResolvedValueOnce({
-      headers: { get: jest.fn(() => null) },
-      status: 200,
-      text: jest
-        .fn()
-        .mockResolvedValue(
-          '<html><head><link rel="canonical" href="/canonical"></head><body></body></html>',
+    // A binary body avoids Response's automatic text/plain content-type, so this
+    // exercises the undefined contentType/url/header fallbacks (url='' too).
+    jest
+      .mocked(safeFetch)
+      .mockResolvedValueOnce(
+        new Response(
+          new TextEncoder().encode(
+            '<html><head><link rel="canonical" href="/canonical"></head><body></body></html>',
+          ),
+          { status: 200 },
         ),
-      url: '',
-    } as never);
+      );
     const service = new SeoEngineService(configService as never);
 
     const result = await service.analyzeDomain('example.com');
@@ -208,6 +207,24 @@ describe('seoEngineService', () => {
       robotsDirective: undefined,
       xRobotsTag: undefined,
     });
+  });
+
+  it('treats an oversized homepage body as unreachable (decompression-bomb guard)', async () => {
+    // Content-Length declares far more than the 5 MiB cap, so readBodyWithLimit
+    // rejects up front before buffering the body.
+    jest.mocked(safeFetch).mockResolvedValueOnce(
+      new Response('<html></html>', {
+        headers: { 'content-length': String(50 * 1024 * 1024) },
+        status: 200,
+      }),
+    );
+    const service = new SeoEngineService(configService as never);
+
+    const result = await service.analyzeDomain('example.com');
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ issueCode: IssueCode.DOMAIN_UNREACHABLE }),
+    );
   });
 
   it('returns a critical unreachable issue when the homepage fetch is blocked', async () => {

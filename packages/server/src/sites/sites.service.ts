@@ -30,6 +30,14 @@ import type { CreateSiteDto } from './dto/create-site.dto';
 import type { UpdateSiteDto } from './dto/update-site.dto';
 import type { UpsertScheduleDto } from './dto/upsert-schedule.dto';
 
+// Escape LIKE/ILIKE metacharacters so a user-supplied search term is matched
+// literally: an unescaped `%` would match everything and a leading-wildcard
+// pattern can force expensive sequential scans. Backslash is Postgres's default
+// ILIKE escape char, so no explicit ESCAPE clause is required.
+export function escapeLikePattern(value: string): string {
+  return value.replaceAll(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 export type EnrichedProject = typeof sites.$inferSelect & {
   latestAuditStatus: AuditStatus | null;
   latestAuditTrigger: string | null;
@@ -124,7 +132,7 @@ export class SitesService {
     const { limit, offset } = filters.pagination ?? { limit: 50, offset: 0 };
 
     const search = filters.search?.trim();
-    const searchLike = search ? `%${search}%` : null;
+    const searchLike = search ? `%${escapeLikePattern(search)}%` : null;
 
     const whereClauses = [eq(sites.projectId, projectId)];
     if (searchLike) {

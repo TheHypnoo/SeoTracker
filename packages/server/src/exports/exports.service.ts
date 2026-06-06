@@ -16,6 +16,20 @@ import { pipeline } from 'node:stream/promises';
 
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// CSV / spreadsheet formula injection guard. Exported cells include crawled
+// third-party content (page titles, URLs, issue messages); a value beginning
+// with =, +, -, @ or a control char is interpreted as a formula by
+// Excel/Sheets/LibreOffice and can exfiltrate data or trigger DDE. Prefixing it
+// with a single quote forces the spreadsheet to treat it as literal text.
+const CSV_FORMULA_PREFIX_RE = /^[=+\-@\t\r]/;
+
+export function sanitizeCsvCell(cell: string | number): string | number {
+  if (typeof cell !== 'string' || cell.length === 0) {
+    return cell;
+  }
+  return CSV_FORMULA_PREFIX_RE.test(cell) ? `'${cell}` : cell;
+}
+
 import type { PaginationInput } from '../common/dto/pagination.dto';
 import { assertPresent } from '../common/utils/assert';
 import type { Env } from '../config/env.schema';
@@ -366,7 +380,7 @@ export class ExportsService {
     const stringifier = csvStringifyStream({ header: true, columns: data.headers });
     const writeStream = createWriteStream(storagePath, { encoding: 'utf-8' });
     for (const row of data.rows) {
-      stringifier.write(row);
+      stringifier.write(row.map(sanitizeCsvCell));
     }
     stringifier.end();
     return pipeline(stringifier, writeStream);

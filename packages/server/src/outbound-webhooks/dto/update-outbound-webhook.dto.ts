@@ -23,7 +23,7 @@ export class UpdateOutboundWebhookDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUrl({ require_protocol: true, require_tld: false })
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true, require_tld: true })
   url?: string;
 
   @ApiPropertyOptional()

@@ -47,6 +47,9 @@ export class HealthController {
     const redisOk = redisResult.status === 'fulfilled';
 
     if (!dbOk || !redisOk) {
+      // Log the raw driver error server-side only. The readiness endpoint is
+      // public (platform health checks, Caddy), so the response must not leak
+      // dependency error strings (host names, connection details, error codes).
       const failures: Record<string, string> = {};
       if (!dbOk) {
         failures.database = (dbResult as PromiseRejectedResult).reason?.message ?? 'unknown error';
@@ -60,7 +63,6 @@ export class HealthController {
           database: dbOk ? 'ok' : 'fail',
           redis: redisOk ? 'ok' : 'fail',
         },
-        failures,
         status: 'unavailable',
         timestamp: new Date().toISOString(),
       });

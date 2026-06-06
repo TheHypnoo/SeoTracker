@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { Agent } from 'undici';
 
 import { isPrivateHostname } from './domain';
 
@@ -13,6 +14,52 @@ export class SsrfBlockedError extends Error {
 }
 
 const DEFAULT_MAX_REDIRECTS = 5;
+
+type DispatcherLookupCallback = (
+  err: NodeJS.ErrnoException | null,
+  addresses: Array<{ address: string; family: number }>,
+) => void;
+
+/**
+ * DNS resolver handed to the SSRF-guarding dispatcher. undici invokes this with
+ * `options.all === true` and opens the socket against exactly the addresses we
+ * return, so the IP we validate here is the IP the connection uses. That closes
+ * the DNS-rebinding (TOCTOU) window: without it, `fetch()` performs its own
+ * second resolution after `assertSafeUrl` passed, and a hostile low-TTL record
+ * could flip a public IP to 169.254.169.254 between the two lookups. Pinning
+ * the resolution to a single validated result removes the second lookup.
+ */
+export function ssrfGuardLookup(
+  hostname: string,
+  _options: unknown,
+  callback: DispatcherLookupCallback,
+): void {
+  void (async () => {
+    try {
+      const addresses = await lookup(hostname, { all: true, verbatim: false });
+      const blocked = addresses.find((entry) => isPrivateHostname(entry.address));
+      if (blocked) {
+        callback(
+          new SsrfBlockedError(
+            `Private or link-local address blocked for ${hostname}: ${blocked.address}`,
+          ),
+          [],
+        );
+        return;
+      }
+      callback(
+        null,
+        addresses.map((entry) => ({ address: entry.address, family: entry.family })),
+      );
+    } catch (error) {
+      callback(error as NodeJS.ErrnoException, []);
+    }
+  })();
+}
+
+// Shared across all safeFetch calls: every connection re-resolves through
+// ssrfGuardLookup and connects only to a validated public address.
+const ssrfDispatcher = new Agent({ connect: { lookup: ssrfGuardLookup } });
 
 export async function assertSafeFetchUrl(input: string | URL): Promise<URL> {
   const url = input instanceof URL ? input : new URL(input);
@@ -59,7 +106,11 @@ export async function safeFetch(input: string, init: SafeFetchOptions = {}): Pro
   let currentUrl = await assertSafeFetchUrl(input);
 
   for (let hop = 0; hop <= maxRedirects; hop += 1) {
-    const response = await fetch(currentUrl, { ...rest, redirect: 'manual' });
+    const response = await fetch(currentUrl, {
+      ...rest,
+      redirect: 'manual',
+      dispatcher: ssrfDispatcher,
+    } as RequestInit);
 
     if (response.status < 300 || response.status >= 400) {
       Object.defineProperty(response, 'url', { value: currentUrl.toString() });
