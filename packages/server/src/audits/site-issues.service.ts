@@ -210,7 +210,7 @@ export class ProjectIssuesService {
   }
 
   async listForProject(siteId: string, userId: string, filters?: { state?: IssueState }) {
-    await this.sitesService.getById(siteId, userId);
+    await this.sitesService.getByIdWithPermission(siteId, userId, Permission.AUDIT_READ);
 
     const whereClauses = [eq(siteIssues.siteId, siteId)];
     if (filters?.state) {
