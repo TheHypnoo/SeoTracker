@@ -134,6 +134,19 @@ describe('fetchRobots', () => {
     expect(result.page.statusCode).toBe(404);
   });
 
+  it('returns status=INCONCLUSIVE on final transient HTTP statuses', async () => {
+    safeFetch
+      .mockResolvedValueOnce(textResponse(500, 'server down'))
+      .mockResolvedValueOnce(textResponse(500, 'still down'));
+
+    const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
+
+    expect(result.exists).toBe(false);
+    expect(result.status).toBe('INCONCLUSIVE');
+    expect(result.errorReason).toBe('http_500');
+    expect(result.page.statusCode).toBe(500);
+  });
+
   it('returns status=INCONCLUSIVE on fetch error (and a page with all undefined)', async () => {
     safeFetch.mockRejectedValue(new Error('econnrefused'));
     const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
@@ -238,7 +251,21 @@ describe('probeSitemap', () => {
     safeFetch.mockResolvedValueOnce(textResponse(404, 'not found'));
     const result = await probeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
     expect(result.isSitemap).toBe(false);
+    expect(result.status).toBe('not_found');
     expect(result.page.statusCode).toBe(404);
+  });
+
+  it('classifies final transient HTTP sitemap probe statuses as inconclusive', async () => {
+    safeFetch
+      .mockResolvedValueOnce(textResponse(503, 'temporarily down'))
+      .mockResolvedValueOnce(textResponse(503, 'still down'));
+
+    const result = await probeSitemap('https://x.test/sitemap.xml', 1000, 'UA');
+
+    expect(result.isSitemap).toBe(false);
+    expect(result.status).toBe('inconclusive');
+    expect(result.errorReason).toBe('http_503');
+    expect(result.page.statusCode).toBe(503);
   });
 
   it('returns isSitemap=false on fetch errors with an empty page result', async () => {
@@ -603,6 +630,20 @@ describe('existsUrl', () => {
       exists: false,
       status: 'INCONCLUSIVE',
       statusCode: 500,
+    });
+  });
+
+  it('returns status=INCONCLUSIVE for final rate-limited probe responses', async () => {
+    safeFetch
+      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+      .mockResolvedValueOnce(new Response('rate limited', { status: 429 }))
+      .mockResolvedValueOnce(new Response('rate limited', { status: 429 }));
+
+    await expect(existsUrl('https://x.test/page', 1000, 'UA')).resolves.toMatchObject({
+      exists: false,
+      status: 'INCONCLUSIVE',
+      statusCode: 429,
     });
   });
 

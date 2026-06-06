@@ -69,6 +69,10 @@ function describeError(error: unknown): string {
   return String(error);
 }
 
+function isInconclusiveHttpStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
 export type SitemapProbeStatus = 'found' | 'not_found' | 'not_sitemap' | 'inconclusive';
 
 export type SitemapProbeResult = {
@@ -154,6 +158,17 @@ export async function fetchRobots(
     };
 
     if (response.status >= 400) {
+      if (isInconclusiveHttpStatus(response.status)) {
+        return {
+          blockedAiBots: [],
+          disallowsAll: false,
+          errorReason: `http_${response.status}`,
+          exists: false,
+          page,
+          sitemaps: [],
+          status: 'INCONCLUSIVE',
+        };
+      }
       return {
         blockedAiBots: [],
         disallowsAll: false,
@@ -319,6 +334,14 @@ export async function probeSitemap(
       url,
     };
     if (response.status >= 400) {
+      if (isInconclusiveHttpStatus(response.status)) {
+        return {
+          errorReason: `http_${response.status}`,
+          isSitemap: false,
+          page,
+          status: 'inconclusive',
+        };
+      }
       return { isSitemap: false, page, status: 'not_found' };
     }
     const responseText = await readBodyPrefix(response, MAX_SITEMAP_PROBE_BYTES);
@@ -536,7 +559,7 @@ export async function existsUrl(url: string, timeoutMs: number, userAgent: strin
     const exists = response.status < 400;
     const status: UrlProbeStatus = exists
       ? 'FOUND'
-      : response.status >= 500
+      : isInconclusiveHttpStatus(response.status)
         ? 'INCONCLUSIVE'
         : 'MISSING';
 
