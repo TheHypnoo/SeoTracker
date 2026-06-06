@@ -26,6 +26,18 @@ async function readPlainJson(port: number, path: string) {
   return toPlainJson(value);
 }
 
+function closeServer(server: { close: (cb: (err?: Error) => void) => void }) {
+  return new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
 describe('startWorkerHttpServer', () => {
   const db = { execute: jest.fn() };
   const redis = { ping: jest.fn() };
@@ -167,5 +179,54 @@ describe('startWorkerHttpServer', () => {
     });
     expect(readinessStatus).toBe(503);
     expect(metricsStatus).toBe(500);
+  });
+
+  it('gates /metrics behind METRICS_TOKEN when one is configured', async () => {
+    const prevToken = process.env.METRICS_TOKEN;
+    process.env.METRICS_TOKEN = 'super-secret-token';
+    const server = await startWorkerHttpServer(app as never, { port: 0, serviceName: 'jobs' });
+    const port = (server.address() as AddressInfo).port;
+    let noHeader = 0;
+    let wrongToken = 0;
+    let okStatus = 0;
+    let okBody = '';
+    try {
+      noHeader = await request(port, '/metrics').then((res) => res.status);
+      wrongToken = await fetch(`http://127.0.0.1:${port}/metrics`, {
+        headers: { authorization: 'Bearer nope' },
+      }).then((res) => res.status);
+      const okResponse = await fetch(`http://127.0.0.1:${port}/metrics`, {
+        headers: { authorization: 'Bearer super-secret-token' },
+      });
+      okStatus = okResponse.status;
+      okBody = await okResponse.text();
+    } finally {
+      process.env.METRICS_TOKEN = prevToken;
+      await closeServer(server);
+    }
+
+    expect(noHeader).toBe(401);
+    expect(wrongToken).toBe(401);
+    expect(okStatus).toBe(200);
+    expect(okBody).toBe('metric_name 1\n');
+  });
+
+  it('returns 404 for /metrics in production when no token is configured', async () => {
+    const prevToken = process.env.METRICS_TOKEN;
+    const prevEnv = process.env.NODE_ENV;
+    delete process.env.METRICS_TOKEN;
+    process.env.NODE_ENV = 'production';
+    const server = await startWorkerHttpServer(app as never, { port: 0, serviceName: 'jobs' });
+    const port = (server.address() as AddressInfo).port;
+    let status = 0;
+    try {
+      status = await request(port, '/metrics').then((res) => res.status);
+    } finally {
+      process.env.METRICS_TOKEN = prevToken;
+      process.env.NODE_ENV = prevEnv;
+      await closeServer(server);
+    }
+
+    expect(status).toBe(404);
   });
 });

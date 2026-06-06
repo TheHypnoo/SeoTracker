@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { NotFoundException } from '@nestjs/common';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { OutboundDeliveryStatus, OutboundEvent, Permission } from '@seotracker/shared-types';
 import { createHmac } from 'node:crypto';
@@ -7,8 +7,17 @@ import { createHmac } from 'node:crypto';
 import { DRIZZLE } from '../database/database.constants';
 import { ProjectsService } from '../projects/projects.service';
 import { QueueService } from '../queue/queue.service';
+import { safeFetch } from '../common/utils/safe-fetch';
 import { SystemLogsService } from '../system-logs/system-logs.service';
 import { OutboundWebhooksService } from './outbound-webhooks.service';
+
+// Outbound deliveries go through safeFetch (SSRF guard + IP pinning). Mock it so
+// tests exercise the delivery bookkeeping without real DNS/network.
+jest.mock<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch', () => ({
+  ...jest.requireActual<typeof import('../common/utils/safe-fetch')>('../common/utils/safe-fetch'),
+  safeFetch: jest.fn(),
+}));
+const safeFetchMock: jest.Mock = jest.mocked(safeFetch) as never;
 
 function thenable<T>(rows: T) {
   return {
@@ -96,9 +105,9 @@ describe('outboundWebhooksService', () => {
   let projects: { assertOwner: jest.Mock; assertPermission: jest.Mock };
   let queue: { enqueueOutboundDelivery: jest.Mock };
   let systemLogs: { warn: jest.Mock; error: jest.Mock };
-  const originalFetch = global.fetch;
 
   beforeEach(async () => {
+    safeFetchMock.mockReset();
     db = makeDb();
     projects = {
       assertOwner: jest.fn().mockResolvedValue({}),
@@ -117,10 +126,6 @@ describe('outboundWebhooksService', () => {
       ],
     }).compile();
     service = moduleRef.get(OutboundWebhooksService);
-  });
-
-  afterEach(() => {
-    global.fetch = originalFetch;
   });
 
   it('can be constructed directly with service dependencies', () => {
@@ -187,6 +192,18 @@ describe('outboundWebhooksService', () => {
       expect(db.values).toHaveBeenCalledWith(
         expect.objectContaining({ headerName: null, headerValue: null }),
       );
+    });
+
+    it('rejects a URL pointing at an internal/link-local host (SSRF guard)', async () => {
+      await expect(
+        service.create('p1', 'u-owner', {
+          name: 'Evil',
+          url: 'http://169.254.169.254/latest/meta-data',
+          events: [OutboundEvent.AUDIT_COMPLETED],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(db.insert).not.toHaveBeenCalled();
     });
   });
 
@@ -290,6 +307,16 @@ describe('outboundWebhooksService', () => {
           url: 'https://fresh.test',
         }),
       );
+    });
+
+    it('rejects updating to an internal/link-local URL (SSRF guard)', async () => {
+      db.where.mockReturnValueOnce(thenable([{ id: 'w1', projectId: 'p1' }]));
+
+      await expect(
+        service.update('p1', 'w1', 'u-owner', { url: 'http://127.0.0.1:6379' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(db.update).not.toHaveBeenCalled();
     });
   });
 
@@ -469,7 +496,7 @@ describe('outboundWebhooksService', () => {
 
       await service.processDelivery('d1');
 
-      expect(global.fetch).toBe(originalFetch);
+      expect(safeFetchMock).not.toHaveBeenCalled();
       expect(db.update).not.toHaveBeenCalled();
     });
 
@@ -521,12 +548,11 @@ describe('outboundWebhooksService', () => {
 
     it('posts the exact signed body, custom header and persists success metadata', async () => {
       const createdAt = new Date('2026-05-08T10:00:00.000Z');
-      const fetchMock = jest.fn().mockResolvedValue({
+      safeFetchMock.mockResolvedValue({
         ok: true,
         status: 202,
         text: jest.fn().mockResolvedValue('accepted'),
       });
-      global.fetch = fetchMock as never;
       db.where
         .mockReturnValueOnce(
           thenable([
@@ -556,17 +582,16 @@ describe('outboundWebhooksService', () => {
 
       await service.processDelivery('d1');
 
-      expectSuccessfulDelivery(fetchMock, db, createdAt);
+      expectSuccessfulDelivery(safeFetchMock, db, createdAt);
     });
 
     it('aborts outbound fetches after the delivery timeout', async () => {
       jest.useFakeTimers();
       let signal: AbortSignal | undefined;
-      const fetchMock = jest.fn((_url: string, init: RequestInit) => {
+      safeFetchMock.mockImplementation((_url: string, init: RequestInit) => {
         signal = init.signal as AbortSignal;
         return new Promise<never>(() => {});
       });
-      global.fetch = fetchMock as never;
       db.where
         .mockReturnValueOnce(
           thenable([
@@ -603,12 +628,11 @@ describe('outboundWebhooksService', () => {
     });
 
     it('persists HTTP failures before the BullMQ retry error is rethrown', async () => {
-      const fetchMock = jest.fn().mockResolvedValue({
+      safeFetchMock.mockResolvedValue({
         ok: false,
         status: 500,
         text: jest.fn().mockResolvedValue('receiver exploded'),
       });
-      global.fetch = fetchMock as never;
       db.where
         .mockReturnValueOnce(
           thenable([
@@ -653,8 +677,7 @@ describe('outboundWebhooksService', () => {
 
     it('truncates response bodies and tolerates response.text failures', async () => {
       const longBody = 'x'.repeat(2_100);
-      const fetchMock = jest
-        .fn()
+      safeFetchMock
         .mockResolvedValueOnce({
           ok: true,
           status: 204,
@@ -665,7 +688,6 @@ describe('outboundWebhooksService', () => {
           status: 200,
           text: jest.fn().mockRejectedValue(new Error('no body')),
         });
-      global.fetch = fetchMock as never;
       const delivery = {
         id: 'd1',
         outboundWebhookId: 'w1',
@@ -711,8 +733,7 @@ describe('outboundWebhooksService', () => {
 
     it('persists fetch failures from non-Error throwables', async () => {
       jest.useFakeTimers();
-      const fetchMock = jest.fn().mockRejectedValue('network down');
-      global.fetch = fetchMock as never;
+      safeFetchMock.mockRejectedValue('network down');
       db.where
         .mockReturnValueOnce(
           thenable([

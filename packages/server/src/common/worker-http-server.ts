@@ -7,6 +7,7 @@ import type IORedis from 'ioredis';
 
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
+import { evaluateMetricsAccess } from '../metrics/metrics-auth';
 import { MetricsService } from '../metrics/metrics.service';
 import { REDIS_CONNECTION } from '../queue/queue.constants';
 import { withTimeout } from './utils/with-timeout';
@@ -66,6 +67,24 @@ export async function startWorkerHttpServer(
     }
 
     if (url === '/metrics') {
+      // Gate metrics behind METRICS_TOKEN exactly like the API's MetricsController
+      // so worker metrics aren't exposed unauthenticated if the worker port ever
+      // becomes publicly routable.
+      const decision = evaluateMetricsAccess({
+        nodeEnv: process.env.NODE_ENV ?? 'development',
+        configuredToken: process.env.METRICS_TOKEN,
+        authorization: req.headers.authorization,
+        metricsTokenHeader: req.headers['x-metrics-token'],
+      });
+      if (decision === 'not-found') {
+        res.writeHead(404).end();
+        return;
+      }
+      if (decision === 'unauthorized') {
+        res.writeHead(401).end();
+        return;
+      }
+
       try {
         const body = await metricsService.metrics();
         res.writeHead(200, { 'content-type': metricsService.contentType() }).end(body);

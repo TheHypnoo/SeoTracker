@@ -6,7 +6,7 @@ import { AuditStatus, AuditTrigger, ScheduleFrequency } from '@seotracker/shared
 
 import { DRIZZLE } from '../database/database.constants';
 import { ProjectsService } from '../projects/projects.service';
-import { SitesService } from './sites.service';
+import { escapeLikePattern, SitesService } from './sites.service';
 
 function thenable<T>(rows: T) {
   return {
@@ -152,6 +152,14 @@ describe('sitesService', () => {
     });
   });
 
+  describe('escapeLikePattern', () => {
+    it('escapes LIKE metacharacters so they match literally', () => {
+      expect(escapeLikePattern('50%_off')).toBe('50\\%\\_off');
+      expect(escapeLikePattern('a\\b')).toBe('a\\\\b');
+      expect(escapeLikePattern('plain')).toBe('plain');
+    });
+  });
+
   describe('listForProject', () => {
     it('returns an empty page without loading schedules or audit runs when the project has no sites', async () => {
       db.where.mockReturnValueOnce(thenable([{ total: 0 }])).mockReturnValueOnce(thenable([]));
@@ -239,7 +247,7 @@ describe('sitesService', () => {
     it('applies search filters and falls back to zero total without a total row', async () => {
       db.where.mockReturnValueOnce(thenable([])).mockReturnValueOnce(thenable([]));
 
-      const out = await service.listForProject('p1', 'u1', { search: '  Example  ' });
+      const out = await service.listForProject('p1', 'u1', { search: '  50%_off\\x  ' });
 
       expect(out).toStrictEqual({ items: [], limit: 50, offset: 0, total: 0 });
       expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u1', expect.any(String));

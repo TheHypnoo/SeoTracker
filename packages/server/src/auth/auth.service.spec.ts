@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  HttpException,
+  HttpStatus,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
@@ -8,6 +13,7 @@ import { Test } from '@nestjs/testing';
 import { DRIZZLE } from '../database/database.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 import { USER_REGISTERED_EVENT } from '../projects/onboarding.service';
+import { REDIS_CONNECTION } from '../queue/queue.constants';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 
@@ -71,12 +77,19 @@ describe('authService', () => {
   let notifications: { enqueueEmailDelivery: jest.Mock };
   let jwt: { signAsync: jest.Mock; verifyAsync: jest.Mock };
   let config: { get: jest.Mock };
+  let redis: { get: jest.Mock; incr: jest.Mock; expire: jest.Mock; del: jest.Mock };
 
   beforeEach(async () => {
     db = makeDbMock();
     eventEmitter = { emitAsync: jest.fn().mockResolvedValue([]) };
     users = { findByEmail: jest.fn().mockResolvedValue([]) };
     notifications = { enqueueEmailDelivery: jest.fn().mockResolvedValue(undefined) };
+    redis = {
+      get: jest.fn().mockResolvedValue(null),
+      incr: jest.fn().mockResolvedValue(1),
+      expire: jest.fn().mockResolvedValue(1),
+      del: jest.fn().mockResolvedValue(1),
+    };
     jwt = {
       signAsync: jest.fn().mockResolvedValue('jwt-token'),
       verifyAsync: jest.fn(),
@@ -108,6 +121,7 @@ describe('authService', () => {
         { provide: UsersService, useValue: users },
         { provide: NotificationsService, useValue: notifications },
         { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: REDIS_CONNECTION, useValue: redis },
       ],
     }).compile();
 
@@ -193,26 +207,49 @@ describe('authService', () => {
   });
 
   describe('login', () => {
-    it('throws UnauthorizedException when the user does not exist', async () => {
+    it('throws UnauthorizedException and records a failure when the user does not exist', async () => {
       db.limit.mockResolvedValueOnce([]);
 
       await expect(
         service.login({ email: 'nope@x.y', password: 'pw' }, makeResponse() as never),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      // First failure starts the sliding window.
+      expect(redis.incr).toHaveBeenCalledWith('auth:login:fail:nope@x.y');
+      expect(redis.expire).toHaveBeenCalledWith('auth:login:fail:nope@x.y', 15 * 60);
     });
 
-    it('throws UnauthorizedException when the password is wrong', async () => {
+    it('throws UnauthorizedException and records a failure when the password is wrong', async () => {
       db.limit.mockResolvedValueOnce([
         { id: 'u', email: 'a@b.c', name: 'A', passwordHash: 'hashed-pw' },
       ]);
       argon2.verify.mockResolvedValueOnce(false);
+      // Not the first failure in the window — the TTL is already set, so no expire.
+      redis.incr.mockResolvedValueOnce(3);
 
       await expect(
         service.login({ email: 'a@b.c', password: 'wrong' }, makeResponse() as never),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      expect(redis.incr).toHaveBeenCalledWith('auth:login:fail:a@b.c');
+      expect(redis.expire).not.toHaveBeenCalled();
     });
 
-    it('issues a session on valid credentials', async () => {
+    it('refuses login once the per-account failure threshold is reached', async () => {
+      redis.get.mockResolvedValueOnce('10');
+
+      const thrown = await service
+        .login({ email: 'victim@x.y', password: 'pw' }, makeResponse() as never)
+        .catch((error: unknown) => error);
+
+      expect(thrown).toBeInstanceOf(HttpException);
+      expect((thrown as HttpException).getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+      // Locked out before touching the DB or hashing.
+      expect(db.limit).not.toHaveBeenCalled();
+      expect(argon2.verify).not.toHaveBeenCalled();
+    });
+
+    it('issues a session and clears failures on valid credentials', async () => {
       db.limit.mockResolvedValueOnce([
         { id: 'u', email: 'a@b.c', name: 'A', passwordHash: 'hashed-pw' },
       ]);
@@ -223,6 +260,7 @@ describe('authService', () => {
       expect(argon2.verify).toHaveBeenCalledWith('hashed-pw', 'pw');
       expect(result.accessToken).toBe('jwt-token');
       expect(res.cookie).toHaveBeenCalledTimes(2);
+      expect(redis.del).toHaveBeenCalledWith('auth:login:fail:a@b.c');
     });
   });
 
@@ -497,6 +535,8 @@ describe('authService', () => {
 
       expect(out).toStrictEqual({ success: true });
       expect(users.findByEmail).toHaveBeenCalledWith('a@b.c');
+      // Older still-unused reset tokens are invalidated before a new one is issued.
+      expect(db.set).toHaveBeenCalledWith(expect.objectContaining({ usedAt: expect.any(Date) }));
       expect(db.values).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'u1',

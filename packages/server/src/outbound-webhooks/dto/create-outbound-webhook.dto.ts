@@ -21,7 +21,7 @@ export class CreateOutboundWebhookDto {
   name!: string;
 
   @ApiProperty({ example: 'https://hooks.example.com/seotracker' })
-  @IsUrl({ require_protocol: true, require_tld: false })
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true, require_tld: true })
   url!: string;
 
   @ApiPropertyOptional({ example: 'Authorization' })

@@ -1,5 +1,7 @@
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   Logger,
@@ -12,6 +14,7 @@ import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'node:crypto';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Response } from 'express';
+import type IORedis from 'ioredis';
 
 import { assertPresent } from '../common/utils/assert';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -21,8 +24,16 @@ import type { Db } from '../database/database.types';
 import { passwordResetTokens, refreshTokens, users } from '../database/schema';
 import { hashToken, randomToken, safeEqual } from '../common/utils/security';
 import { USER_REGISTERED_EVENT, type UserRegisteredEvent } from '../projects/onboarding.service';
+import { REDIS_CONNECTION } from '../queue/queue.constants';
 import { UsersService } from '../users/users.service';
 import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from './jwt.constants';
+
+// Per-account brute-force / credential-stuffing brake. The IP throttle on
+// /auth/login (5/min) does not stop an attacker who rotates IPs against a
+// single account, so we additionally count failures per email in Redis and
+// temporarily refuse logins once the threshold is crossed. Reset on success.
+const MAX_LOGIN_FAILURES = 10;
+const LOGIN_LOCKOUT_WINDOW_SECONDS = 15 * 60;
 
 /**
  * Authentication service.
@@ -43,6 +54,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly notificationsService: NotificationsService,
     private readonly eventEmitter: EventEmitter2,
+    @Inject(REDIS_CONNECTION) private readonly redis: IORedis,
   ) {}
 
   /**
@@ -88,6 +100,9 @@ export class AuthService {
    */
   async login(input: { email: string; password: string }, response: Response) {
     const normalizedEmail = input.email.toLowerCase().trim();
+
+    await this.assertNotLockedOut(normalizedEmail);
+
     const [user] = await this.db
       .select()
       .from(users)
@@ -95,15 +110,53 @@ export class AuthService {
       .limit(1);
 
     if (!user) {
+      await this.recordLoginFailure(normalizedEmail);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const validPassword = await verify(user.passwordHash, input.password);
     if (!validPassword) {
+      await this.recordLoginFailure(normalizedEmail);
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    await this.clearLoginFailures(normalizedEmail);
+
     return this.issueSession({ id: user.id, email: user.email, name: user.name }, response);
+  }
+
+  private loginFailureKey(email: string): string {
+    return `auth:login:fail:${email}`;
+  }
+
+  /**
+   * Reject the login outright once an account has accumulated too many recent
+   * failures, independent of source IP. Defeats distributed credential stuffing
+   * that the per-IP throttle alone cannot stop.
+   */
+  private async assertNotLockedOut(email: string): Promise<void> {
+    const raw = await this.redis.get(this.loginFailureKey(email));
+    const failures = raw ? Number(raw) : 0;
+    if (failures >= MAX_LOGIN_FAILURES) {
+      throw new HttpException(
+        'Too many failed login attempts. Try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  private async recordLoginFailure(email: string): Promise<void> {
+    const key = this.loginFailureKey(email);
+    const failures = await this.redis.incr(key);
+    if (failures === 1) {
+      // Start the sliding window on the first failure; it self-expires so a
+      // legitimate user is never permanently locked out.
+      await this.redis.expire(key, LOGIN_LOCKOUT_WINDOW_SECONDS);
+    }
+  }
+
+  private async clearLoginFailures(email: string): Promise<void> {
+    await this.redis.del(this.loginFailureKey(email));
   }
 
   /**
@@ -272,6 +325,14 @@ export class AuthService {
     if (user) {
       const rawToken = randomToken(32);
       const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+
+      // Single active token: invalidate any previously-issued, still-unused reset
+      // tokens for this user so an older link (forwarded email, proxy log) can no
+      // longer be redeemed once a fresh one is requested.
+      await this.db
+        .update(passwordResetTokens)
+        .set({ usedAt: new Date() })
+        .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
 
       await this.db.insert(passwordResetTokens).values({
         userId: user.id,

@@ -5,9 +5,24 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ExportsService } from './exports.service';
+import { ExportsService, sanitizeCsvCell } from './exports.service';
 
 const VALID_EXPORT_ID = '11111111-1111-4111-8111-111111111111';
+
+describe('sanitizeCsvCell', () => {
+  it('prefixes cells that start with a formula trigger', () => {
+    expect(sanitizeCsvCell('=1+1')).toBe("'=1+1");
+    expect(sanitizeCsvCell('+cmd')).toBe("'+cmd");
+    expect(sanitizeCsvCell('-2')).toBe("'-2");
+    expect(sanitizeCsvCell('@x')).toBe('@x'.replace('@', "'@"));
+  });
+
+  it('leaves numbers, empty strings and benign text untouched', () => {
+    expect(sanitizeCsvCell(42)).toBe(42);
+    expect(sanitizeCsvCell('')).toBe('');
+    expect(sanitizeCsvCell('Example')).toBe('Example');
+  });
+});
 
 function selectRows(rows: unknown[]) {
   return {
@@ -559,13 +574,36 @@ describe('exportsService', () => {
     try {
       await (
         service as unknown as { writeCsv: (path: string, data: unknown) => Promise<void> }
-      ).writeCsv(storagePath, { headers: ['Name'], rows: [{ Name: 'Example' }] });
+      ).writeCsv(storagePath, { headers: ['Name'], rows: [['Example']] });
       content = await readFile(storagePath, 'utf-8');
     } finally {
       await rm(dir, { force: true, recursive: true });
     }
 
     expect(content).toContain('Name\nExample');
+  });
+
+  it('neutralizes CSV formula-injection cells when writing', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'seotracker-csv-'));
+    const storagePath = path.join(dir, 'export.csv');
+    const { service } = makeService({} as never);
+
+    let content = '';
+    try {
+      await (
+        service as unknown as { writeCsv: (path: string, data: unknown) => Promise<void> }
+      ).writeCsv(storagePath, {
+        headers: ['Title'],
+        rows: [['=HYPERLINK("http://evil","x")'], ['Safe title']],
+      });
+      content = await readFile(storagePath, 'utf-8');
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+
+    // The formula cell is prefixed with a single quote; benign cells untouched.
+    expect(content).toContain(`'=HYPERLINK`);
+    expect(content).toContain('Safe title');
   });
 
   it('rejects unsupported export kinds when no CSV strategy is registered', async () => {
