@@ -3,6 +3,7 @@ import { IssueCode } from '@seotracker/shared-types';
 import { load } from 'cheerio';
 
 import {
+  analyzeAndSampleSitemap,
   analyzeInternalPage,
   analyzeSitemap,
   analyzeJsonLdBlocks,
@@ -124,18 +125,21 @@ describe('fetchRobots', () => {
     expect(result.blockedAiBots.sort()).toStrictEqual(['claudebot', 'gptbot']);
   });
 
-  it('returns exists=false on 4xx (no body parse)', async () => {
+  it('returns status=MISSING on 4xx (no body parse)', async () => {
     safeFetch.mockResolvedValueOnce(textResponse(404, 'not found'));
     const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
     expect(result.exists).toBe(false);
+    expect(result.status).toBe('MISSING');
     expect(result.sitemaps).toStrictEqual([]);
     expect(result.page.statusCode).toBe(404);
   });
 
-  it('returns exists=false on fetch error (and a page with all undefined)', async () => {
-    safeFetch.mockRejectedValueOnce(new Error('econnrefused'));
+  it('returns status=INCONCLUSIVE on fetch error (and a page with all undefined)', async () => {
+    safeFetch.mockRejectedValue(new Error('econnrefused'));
     const result = await fetchRobots('https://x.test/robots.txt', 1000, 'UA');
     expect(result.exists).toBe(false);
+    expect(result.status).toBe('INCONCLUSIVE');
+    expect(result.errorReason).toBeTruthy();
     expect(result.page.statusCode).toBeUndefined();
   });
 });
@@ -486,6 +490,61 @@ describe('extractSitemapUrls', () => {
       extractSitemapUrls('https://x.test/sitemap.xml', 1000, 'UA', 10),
     ).resolves.toStrictEqual([]);
     expect(safeFetch).toHaveBeenCalledTimes(8);
+  });
+});
+
+describe('analyzeAndSampleSitemap', () => {
+  beforeEach(() => safeFetch.mockReset());
+
+  it('validates and samples a flat sitemap with a single root download', async () => {
+    safeFetch.mockResolvedValueOnce(
+      xmlResponse(
+        200,
+        `<urlset>
+          <url><loc>https://x.test/a</loc></url>
+          <url><loc>https://x.test/b</loc></url>
+        </urlset>`,
+      ),
+    );
+
+    const result = await analyzeAndSampleSitemap('https://x.test/sitemap.xml', 1000, 'UA', 100);
+
+    expect(result).toStrictEqual({
+      invalid: false,
+      urlCount: 2,
+      urls: ['https://x.test/a', 'https://x.test/b'],
+    });
+    // The root sitemap is downloaded once and reused for both analysis and
+    // extraction (no duplicate GET).
+    expect(safeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses the root body and only refetches child sitemaps of an index', async () => {
+    safeFetch
+      .mockResolvedValueOnce(
+        xmlResponse(
+          200,
+          `<sitemapindex><sitemap><loc>https://x.test/sub.xml</loc></sitemap></sitemapindex>`,
+        ),
+      )
+      .mockResolvedValueOnce(
+        xmlResponse(200, `<urlset><url><loc>https://x.test/page-1</loc></url></urlset>`),
+      );
+
+    const result = await analyzeAndSampleSitemap('https://x.test/sitemap.xml', 1000, 'UA', 50);
+
+    expect(result.urls).toStrictEqual(['https://x.test/page-1']);
+    // Root (index) + one child = 2 fetches, not 3 (no separate analyze GET).
+    expect(safeFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not extract urls from an invalid sitemap', async () => {
+    safeFetch.mockResolvedValueOnce(xmlResponse(200, 'not xml at all'));
+
+    const result = await analyzeAndSampleSitemap('https://x.test/sitemap.xml', 1000, 'UA', 50);
+
+    expect(result).toStrictEqual({ invalid: true, urlCount: null, urls: [] });
+    expect(safeFetch).toHaveBeenCalledTimes(1);
   });
 });
 

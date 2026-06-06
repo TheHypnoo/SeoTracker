@@ -151,6 +151,27 @@ describe('seoEngineService', () => {
     expectCoordinatedAnalysis(result);
   });
 
+  it('retries a transient homepage failure instead of marking the domain unreachable', async () => {
+    jest
+      .mocked(safeFetch)
+      .mockRejectedValueOnce(Object.assign(new Error('timed out'), { name: 'TimeoutError' }))
+      .mockResolvedValueOnce(
+        new Response('<html><head></head><body>ok</body></html>', {
+          headers: { 'content-type': 'text/html' },
+          status: 200,
+        }),
+      );
+    const service = new SeoEngineService(configService as never);
+
+    const result = await service.analyzeDomain('example.com');
+
+    expect(safeFetch).toHaveBeenCalledTimes(2);
+    expect(result.httpStatus).toBe(200);
+    expect(result.issues).not.toContainEqual(
+      expect.objectContaining({ issueCode: IssueCode.DOMAIN_UNREACHABLE }),
+    );
+  });
+
   it('folds blog issues and config-derived crawl limits into the audit result', async () => {
     jest.mocked(safeFetch).mockResolvedValueOnce(
       new Response('<html><head></head><body>post</body></html>', {

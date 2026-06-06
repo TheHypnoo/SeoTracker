@@ -1,3 +1,4 @@
+import type { ScoreBreakdown } from '@seotracker/shared-types';
 import { Gauge, Minus, TrendingDown, TrendingUp } from 'lucide-react';
 
 import { CATEGORY_LABELS } from '../../lib/issue-codes';
@@ -116,7 +117,11 @@ export function ScoreContextPanel({
     'seoScore' | 'crawlConfidenceScore' | 'criticalRisk' | 'scoreBreakdown' | 'scoringModelVersion'
   >;
 }) {
-  const breakdown = run.scoreBreakdown;
+  // Older audits may carry a legacy `score_breakdown` shape (perSeverity /
+  // totalDeduction) or an empty `{}`. Only treat it as the active-model
+  // breakdown when the discriminating fields are actually present, so we never
+  // read `.criticalRisk.level` off a legacy payload.
+  const breakdown = asModelBreakdown(run.scoreBreakdown);
   if (!breakdown && run.seoScore === null && run.crawlConfidenceScore === null) {
     return null;
   }
@@ -222,6 +227,30 @@ function ContextMetric({
       {hint ? <p className="mt-1 text-xs text-amber-700">{hint}</p> : null}
     </div>
   );
+}
+
+/**
+ * Returns the breakdown only when it matches the active score model. Legacy
+ * payloads (perSeverity/totalDeduction) or an empty `{}` return null, so the
+ * panel falls back to the scalar columns instead of crashing on missing fields.
+ */
+function asModelBreakdown(value: unknown): ScoreBreakdown | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Record<string, unknown>;
+  const criticalRisk = candidate.criticalRisk as Record<string, unknown> | undefined;
+  if (
+    typeof candidate.modelVersion !== 'string' ||
+    typeof candidate.seoScore !== 'number' ||
+    !criticalRisk ||
+    typeof criticalRisk.level !== 'string' ||
+    !Array.isArray(criticalRisk.reasons) ||
+    typeof candidate.confidenceAdjustment !== 'object' ||
+    candidate.confidenceAdjustment === null ||
+    !Array.isArray(candidate.topDeductions)
+  ) {
+    return null;
+  }
+  return value as ScoreBreakdown;
 }
 
 function criticalRiskLabel(risk: string | null): string {

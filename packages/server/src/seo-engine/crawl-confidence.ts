@@ -5,6 +5,7 @@ export type CrawlConfidenceInput = {
   maxDepth: number;
   sitemapUrls: string[];
   sitemapDiscoveryStatus?: 'FOUND' | 'MISSING' | 'INCONCLUSIVE' | undefined;
+  robotsDiscoveryStatus?: 'FOUND' | 'MISSING' | 'INCONCLUSIVE' | undefined;
   crawlCandidateCount: number;
   totalAnalyzed: number;
   analyzedPages: SeoPageResult[];
@@ -16,6 +17,7 @@ export function computeCrawlConfidence(input: CrawlConfidenceInput): SeoMetric[]
     maxDepth,
     sitemapUrls,
     sitemapDiscoveryStatus,
+    robotsDiscoveryStatus,
     crawlCandidateCount,
     totalAnalyzed,
     analyzedPages,
@@ -28,13 +30,15 @@ export function computeCrawlConfidence(input: CrawlConfidenceInput): SeoMetric[]
   const depthSignal = maxDepth >= 2 && totalAnalyzed > 1 ? 8 : 0;
   const samplingSignal = sampledEnough ? 5 : 0;
   const sitemapDiscoveryPenalty = sitemapDiscoveryStatus === 'INCONCLUSIVE' ? 8 : 0;
+  const robotsDiscoveryPenalty = robotsDiscoveryStatus === 'INCONCLUSIVE' ? 5 : 0;
   const confidenceScore = Math.round(
     coverageRatio * 60 +
       successfulPageRatio * 15 +
       sitemapSignal +
       depthSignal +
       samplingSignal -
-      sitemapDiscoveryPenalty,
+      sitemapDiscoveryPenalty -
+      robotsDiscoveryPenalty,
   );
 
   return [
@@ -45,6 +49,9 @@ export function computeCrawlConfidence(input: CrawlConfidenceInput): SeoMetric[]
     { key: 'crawl_candidates_found', valueNum: crawlCandidateCount },
     ...(sitemapDiscoveryPenalty > 0
       ? [{ key: 'crawl_confidence_sitemap_penalty', valueNum: sitemapDiscoveryPenalty }]
+      : []),
+    ...(robotsDiscoveryPenalty > 0
+      ? [{ key: 'crawl_confidence_robots_penalty', valueNum: robotsDiscoveryPenalty }]
       : []),
   ];
 }

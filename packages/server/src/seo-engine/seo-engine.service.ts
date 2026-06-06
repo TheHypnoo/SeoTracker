@@ -4,7 +4,8 @@ import { IssueCode, Severity } from '@seotracker/shared-types';
 import { load } from 'cheerio';
 
 import { normalizeDomain } from '../common/utils/domain';
-import { readBodyWithLimit, safeFetch, SsrfBlockedError } from '../common/utils/safe-fetch';
+import { readBodyWithLimit, SsrfBlockedError } from '../common/utils/safe-fetch';
+import { safeFetchWithRetry } from './fetch-with-retry';
 import { computeCrawlConfidence } from './crawl-confidence';
 import type { Env } from '../config/env.schema';
 import { runBlogChecks } from './content-checks';
@@ -86,10 +87,13 @@ export class SeoEngineService {
     const homepageFetchStart = performance.now();
     try {
       const startedAt = performance.now();
-      response = await safeFetch(homepageUrl, {
-        headers: { 'User-Agent': userAgent },
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      // Retry transient homepage failures (timeout/5xx) before declaring the
+      // domain unreachable — a single hiccup must not zero the whole audit.
+      response = await safeFetchWithRetry(
+        homepageUrl,
+        { headers: { 'User-Agent': userAgent } },
+        timeoutMs,
+      );
       responseMs = Math.round(performance.now() - startedAt);
       // Bound the body: fetch transparently decompresses gzip, so a small
       // response can expand to GBs (decompression bomb) and OOM the worker.
@@ -202,6 +206,7 @@ export class SeoEngineService {
     pushTelemetry(telemetry, discoveryStart, 'site_discovery', 'success', {
       issuesFound: discovery.issues.length,
       pagesDiscovered: discovery.pages.length,
+      robotsDiscoveryStatus: discovery.robotsDiscoveryStatus,
       sitemapDiscoveryStatus: discovery.sitemapDiscoveryStatus,
       sitemapUrls: discovery.sitemapUrls.length,
     });
@@ -254,6 +259,7 @@ export class SeoEngineService {
       crawlCandidateCount: linkGraph.crawlCandidateCount,
       maxDepth,
       maxPages,
+      robotsDiscoveryStatus: discovery.robotsDiscoveryStatus,
       sitemapDiscoveryStatus: discovery.sitemapDiscoveryStatus,
       sitemapUrls: discovery.sitemapUrls,
       totalAnalyzed: crawl.totalAnalyzed,

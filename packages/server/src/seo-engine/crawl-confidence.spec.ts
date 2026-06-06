@@ -79,4 +79,19 @@ describe('computeCrawlConfidence', () => {
     expect(metrics).toContainEqual({ key: 'crawl_confidence_sitemap_penalty', valueNum: 8 });
     expect(metrics).toContainEqual({ key: 'crawl_confidence_score', valueNum: 72 });
   });
+
+  it('reduces confidence when the robots probe is inconclusive', () => {
+    const metrics = computeCrawlConfidence({
+      analyzedPages: [{ statusCode: 200, url: 'https://x.test/' }],
+      crawlCandidateCount: 0,
+      maxDepth: 1,
+      maxPages: 1,
+      robotsDiscoveryStatus: 'INCONCLUSIVE',
+      sitemapUrls: [],
+      totalAnalyzed: 1,
+    });
+
+    expect(metrics).toContainEqual({ key: 'crawl_confidence_robots_penalty', valueNum: 5 });
+    expect(metrics).toContainEqual({ key: 'crawl_confidence_score', valueNum: 75 });
+  });
 });

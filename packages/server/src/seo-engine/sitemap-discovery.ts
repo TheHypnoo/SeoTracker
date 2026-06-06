@@ -2,11 +2,10 @@ import { IssueCode, Severity } from '@seotracker/shared-types';
 import type { CheerioAPI } from 'cheerio';
 
 import {
-  analyzeSitemap,
+  analyzeAndSampleSitemap,
   checkSoft404,
   existsUrl,
   extractSitemapHintsFromHtml,
-  extractSitemapUrls,
   fetchRobots,
   probeSitemap,
 } from './crawler';
@@ -23,6 +22,7 @@ export type DiscoveryResult = {
   /** Sample of URLs harvested from the sitemap (already capped at sample max). */
   sitemapUrls: string[];
   sitemapDiscoveryStatus: 'FOUND' | 'MISSING' | 'INCONCLUSIVE';
+  robotsDiscoveryStatus: 'FOUND' | 'MISSING' | 'INCONCLUSIVE';
 };
 
 type DiscoverInput = {
@@ -66,7 +66,24 @@ export async function discoverSiteMetadata(input: DiscoverInput): Promise<Discov
   const robotsUrl = `${homepageUrl}/robots.txt`;
   const robotsResult = await fetchRobots(robotsUrl, timeoutMs, userAgent);
   pages.push(robotsResult.page);
-  if (!robotsResult.exists) {
+  // A transient/inconclusive robots probe must NOT be treated as "missing":
+  // emitting MISSING_ROBOTS would penalise real SEO for a timeout. We only
+  // lower crawl confidence (mirrors the sitemap INCONCLUSIVE handling below).
+  const robotsDiscoveryStatus: 'FOUND' | 'MISSING' | 'INCONCLUSIVE' =
+    robotsResult.status === 'INCONCLUSIVE'
+      ? 'INCONCLUSIVE'
+      : robotsResult.exists
+        ? 'FOUND'
+        : 'MISSING';
+  metrics.push({ key: 'robots_discovery_status', valueText: robotsDiscoveryStatus });
+  if (robotsDiscoveryStatus === 'INCONCLUSIVE') {
+    if (robotsResult.errorReason) {
+      metrics.push({
+        key: 'robots_probe_inconclusive_reason',
+        valueText: robotsResult.errorReason,
+      });
+    }
+  } else if (robotsDiscoveryStatus === 'MISSING') {
     issues.push({
       issueCode: IssueCode.MISSING_ROBOTS,
       category: getIssueCategory(IssueCode.MISSING_ROBOTS),
@@ -179,7 +196,14 @@ export async function discoverSiteMetadata(input: DiscoverInput): Promise<Discov
     sitemapDiscoveryStatus = 'FOUND';
     metrics.push({ key: 'sitemap_discovery_status', valueText: 'FOUND' });
     metrics.push({ key: 'sitemap_found_url', valueText: sitemapFoundUrl });
-    const sitemapAnalysis = await analyzeSitemap(sitemapFoundUrl, timeoutMs, userAgent);
+    // Single fetch: validate the root sitemap and harvest the URL sample in one
+    // download instead of analyzing and extracting in two separate GETs.
+    const sitemapAnalysis = await analyzeAndSampleSitemap(
+      sitemapFoundUrl,
+      timeoutMs,
+      userAgent,
+      sitemapSampleMax,
+    );
     if (sitemapAnalysis.urlCount !== null) {
       metrics.push({ key: 'sitemap_urls', valueNum: sitemapAnalysis.urlCount });
     }
@@ -200,14 +224,9 @@ export async function discoverSiteMetadata(input: DiscoverInput): Promise<Discov
         resourceUrl: sitemapFoundUrl,
       });
     } else {
-      sitemapUrls = await extractSitemapUrls(
-        sitemapFoundUrl,
-        timeoutMs,
-        userAgent,
-        sitemapSampleMax,
-      );
+      sitemapUrls = sitemapAnalysis.urls;
     }
   }
 
-  return { issues, metrics, pages, sitemapDiscoveryStatus, sitemapUrls };
+  return { issues, metrics, pages, robotsDiscoveryStatus, sitemapDiscoveryStatus, sitemapUrls };
 }
