@@ -555,6 +555,7 @@ describe('existsUrl', () => {
     safeFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
     const result = await existsUrl('https://x.test/page', 1000, 'UA');
     expect(result.exists).toBe(true);
+    expect(result.status).toBe('FOUND');
     expect(result.statusCode).toBe(200);
     // Single fetch — no GET fallback when HEAD already 2xx.
     expect(safeFetch).toHaveBeenCalledTimes(1);
@@ -566,6 +567,7 @@ describe('existsUrl', () => {
       .mockResolvedValueOnce(new Response('body', { status: 200 }));
     const result = await existsUrl('https://x.test/page', 1000, 'UA');
     expect(result.exists).toBe(true);
+    expect(result.status).toBe('FOUND');
     expect(safeFetch).toHaveBeenCalledTimes(2);
   });
 
@@ -575,7 +577,20 @@ describe('existsUrl', () => {
       .mockResolvedValueOnce(new Response('body', { status: 200 }));
     const result = await existsUrl('https://x.test/page', 1000, 'UA');
     expect(result.exists).toBe(true);
+    expect(result.status).toBe('FOUND');
     expect(safeFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns status=MISSING for confirmed 4xx GET fallback failures', async () => {
+    safeFetch
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response('not found', { status: 404 }));
+
+    await expect(existsUrl('https://x.test/page', 1000, 'UA')).resolves.toMatchObject({
+      exists: false,
+      status: 'MISSING',
+      statusCode: 404,
+    });
   });
 
   it('returns exists=false for GET fallback failures', async () => {
@@ -586,6 +601,7 @@ describe('existsUrl', () => {
       .mockResolvedValueOnce(new Response('still down', { status: 500 }));
     await expect(existsUrl('https://x.test/page', 1000, 'UA')).resolves.toMatchObject({
       exists: false,
+      status: 'INCONCLUSIVE',
       statusCode: 500,
     });
   });
@@ -594,6 +610,20 @@ describe('existsUrl', () => {
     safeFetch.mockRejectedValueOnce(new Error('boom'));
     const result = await existsUrl('https://x.test/page', 1000, 'UA');
     expect(result.exists).toBe(false);
+    expect(result.status).toBe('INCONCLUSIVE');
+    expect(result.errorReason).toBe('Error');
+    expect(result.statusCode).toBeUndefined();
+  });
+
+  it('returns status=INCONCLUSIVE when the probe times out', async () => {
+    const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    safeFetch.mockRejectedValue(timeout);
+
+    const result = await existsUrl('https://x.test/page', 1000, 'UA');
+
+    expect(result.exists).toBe(false);
+    expect(result.status).toBe('INCONCLUSIVE');
+    expect(result.errorReason).toBe('timeout');
     expect(result.statusCode).toBeUndefined();
   });
 });

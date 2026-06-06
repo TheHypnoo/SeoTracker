@@ -52,7 +52,17 @@ export async function discoverSiteMetadata(input: DiscoverInput): Promise<Discov
   if (!hasFaviconLink) {
     const faviconCheck = await existsUrl(`${homepageUrl}/favicon.ico`, timeoutMs, userAgent);
     pages.push(faviconCheck.page);
-    if (!faviconCheck.exists) {
+    metrics.push({
+      key: 'favicon_probe_status',
+      valueText: faviconCheck.status,
+    });
+    if (faviconCheck.status === 'INCONCLUSIVE' && faviconCheck.errorReason) {
+      metrics.push({
+        key: 'favicon_probe_inconclusive_reason',
+        valueText: faviconCheck.errorReason,
+      });
+    }
+    if (faviconCheck.status === 'MISSING') {
       issues.push({
         issueCode: IssueCode.MISSING_FAVICON,
         category: getIssueCategory(IssueCode.MISSING_FAVICON),

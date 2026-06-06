@@ -506,6 +506,8 @@ export async function extractSitemapUrls(
   return collected;
 }
 
+export type UrlProbeStatus = 'FOUND' | 'MISSING' | 'INCONCLUSIVE';
+
 export async function existsUrl(url: string, timeoutMs: number, userAgent: string) {
   try {
     const startedAt = performance.now();
@@ -531,8 +533,16 @@ export async function existsUrl(url: string, timeoutMs: number, userAgent: strin
 
     const responseMs = Math.round(performance.now() - startedAt);
 
+    const exists = response.status < 400;
+    const status: UrlProbeStatus = exists
+      ? 'FOUND'
+      : response.status >= 500
+        ? 'INCONCLUSIVE'
+        : 'MISSING';
+
     return {
-      exists: response.status < 400,
+      exists,
+      status,
       page: {
         url,
         statusCode: response.status,
@@ -545,7 +555,9 @@ export async function existsUrl(url: string, timeoutMs: number, userAgent: strin
   } catch (error) {
     logger.warn(`existsUrl failed for ${url}: ${describeError(error)}`);
     return {
+      errorReason: classifyFetchError(error),
       exists: false,
+      status: 'INCONCLUSIVE' as const,
       page: {
         url,
         statusCode: undefined,

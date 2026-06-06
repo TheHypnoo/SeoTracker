@@ -57,7 +57,12 @@ describe('discoverSiteMetadata', () => {
   }
 
   it('emits MISSING_FAVICON when probe says not exists and HTML had no <link rel=icon>', async () => {
-    existsUrlMock.mockResolvedValueOnce({ page: fakePage('fav'), exists: false, statusCode: 404 });
+    existsUrlMock.mockResolvedValueOnce({
+      page: fakePage('fav'),
+      exists: false,
+      status: 'MISSING',
+      statusCode: 404,
+    });
     fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
     checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
     probeSitemapMock.mockResolvedValue({ page: fakePage('s'), isSitemap: false });
@@ -76,7 +81,12 @@ describe('discoverSiteMetadata', () => {
   });
 
   it('does not emit a favicon issue when the fallback favicon exists', async () => {
-    existsUrlMock.mockResolvedValueOnce({ page: fakePage('fav'), exists: true, statusCode: 200 });
+    existsUrlMock.mockResolvedValueOnce({
+      page: fakePage('fav'),
+      exists: true,
+      status: 'FOUND',
+      statusCode: 200,
+    });
     fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
     checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
     probeSitemapMock.mockResolvedValue({ page: fakePage('s'), isSitemap: false });
@@ -92,6 +102,38 @@ describe('discoverSiteMetadata', () => {
 
     expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_FAVICON)).toBeUndefined();
     expect(result.pages).toContainEqual(fakePage('fav'));
+  });
+
+  it('does not emit a favicon issue when the fallback favicon probe is inconclusive', async () => {
+    existsUrlMock.mockResolvedValueOnce({
+      page: fakePage('fav'),
+      exists: false,
+      status: 'INCONCLUSIVE',
+      statusCode: undefined,
+      errorReason: 'timeout',
+    });
+    fetchRobotsMock.mockResolvedValueOnce(defaultRobots());
+    checkSoft404Mock.mockResolvedValueOnce({ page: null, isSoft404: false, probedUrl: '' });
+    probeSitemapMock.mockResolvedValue({ page: fakePage('s'), isSitemap: false });
+
+    const result = await discoverSiteMetadata({
+      homepageUrl: 'https://x.test',
+      $: cheerio.load('<html></html>'),
+      hasFaviconLink: false,
+      timeoutMs: 1000,
+      userAgent: 'ua',
+      sitemapSampleMax: 100,
+    });
+
+    expect(result.issues.find((i) => i.issueCode === IssueCode.MISSING_FAVICON)).toBeUndefined();
+    expect(result.metrics).toContainEqual({
+      key: 'favicon_probe_status',
+      valueText: 'INCONCLUSIVE',
+    });
+    expect(result.metrics).toContainEqual({
+      key: 'favicon_probe_inconclusive_reason',
+      valueText: 'timeout',
+    });
   });
 
   it('does NOT probe favicon when HTML has <link rel=icon>', async () => {
