@@ -40,6 +40,13 @@ const SEARCH_CONSOLE_ROW_LIMIT = 25_000;
 // Batch size for idempotent upserts so a backfill does not issue one round-trip per row.
 const GSC_UPSERT_CHUNK_SIZE = 500;
 
+// Striking-distance tuning. Queries need a floor of impressions to be worth surfacing; the target
+// CTR approximates a strong page-one result and drives the "potential clicks" estimate. The
+// candidate cap bounds the rows scored in memory before returning the requested limit.
+const OPPORTUNITY_MIN_IMPRESSIONS = 20;
+const OPPORTUNITY_TARGET_CTR = 0.1;
+const OPPORTUNITY_CANDIDATE_CAP = 200;
+
 @Injectable()
 export class SearchConsoleService {
   private readonly logger = new Logger(SearchConsoleService.name);
@@ -422,6 +429,71 @@ export class SearchConsoleService {
     input: { startDate?: string; endDate?: string; limit?: number } = {},
   ) {
     return this.getTopDimension(siteId, userId, 'device', input);
+  }
+
+  /**
+   * "Striking distance" opportunities: queries whose weighted average position sits between 5 and
+   * 20, ranked by the extra clicks they could win if their CTR reached a page-one target. These
+   * are the cheapest wins — already ranking, just not high enough to convert impressions.
+   */
+  async getOpportunities(
+    siteId: string,
+    userId: string,
+    input: { startDate?: string; endDate?: string; limit?: number } = {},
+  ) {
+    const { link } = await this.getActiveLinkWithProperty(siteId, userId, Permission.SITE_READ);
+    const { startDate, endDate } = this.resolveDateRange(input);
+    const limit = Math.min(Math.max(input.limit ?? 20, 1), 100);
+    const positionExpr = sql<number>`sum(${gscDailyStats.position} * ${gscDailyStats.impressions}) / nullif(sum(${gscDailyStats.impressions}), 0)`;
+
+    const rows = await this.db
+      .select({
+        clicks: sql<number>`coalesce(sum(${gscDailyStats.clicks}), 0)::int`,
+        ctr: sql<number>`case when coalesce(sum(${gscDailyStats.impressions}), 0) = 0 then 0 else coalesce(sum(${gscDailyStats.clicks}), 0)::float / sum(${gscDailyStats.impressions}) end`,
+        impressions: sql<number>`coalesce(sum(${gscDailyStats.impressions}), 0)::int`,
+        position: positionExpr,
+        value: gscDailyStats.query,
+      })
+      .from(gscDailyStats)
+      .where(
+        and(
+          eq(gscDailyStats.siteId, link.siteId),
+          eq(gscDailyStats.searchConsolePropertyId, link.searchConsolePropertyId),
+          gte(gscDailyStats.date, startDate),
+          lte(gscDailyStats.date, endDate),
+          sql`${gscDailyStats.query} <> ''`,
+          eq(gscDailyStats.page, ''),
+          eq(gscDailyStats.country, ''),
+          eq(gscDailyStats.device, ''),
+          eq(gscDailyStats.searchType, 'web'),
+        ),
+      )
+      .groupBy(gscDailyStats.query)
+      .having(
+        sql`sum(${gscDailyStats.impressions}) >= ${OPPORTUNITY_MIN_IMPRESSIONS} and (${positionExpr}) >= 5 and (${positionExpr}) <= 20`,
+      )
+      .orderBy(desc(sql`sum(${gscDailyStats.impressions})`))
+      .limit(OPPORTUNITY_CANDIDATE_CAP);
+
+    return rows
+      .map((row) => {
+        const ctr = Number(row.ctr);
+        const impressions = Number(row.impressions);
+        const potentialClicks = Math.max(
+          0,
+          Math.round(impressions * (OPPORTUNITY_TARGET_CTR - ctr)),
+        );
+        return {
+          clicks: Number(row.clicks),
+          ctr,
+          impressions,
+          position: Number(row.position),
+          potentialClicks,
+          value: row.value,
+        };
+      })
+      .sort((a, b) => b.potentialClicks - a.potentialClicks)
+      .slice(0, limit);
   }
 
   private async upsertProperty(input: typeof searchConsoleProperties.$inferInsert) {

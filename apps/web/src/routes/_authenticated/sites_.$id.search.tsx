@@ -41,6 +41,7 @@ import {
   LinkedPropertyBanner,
   PropertyLinkPanel,
 } from '#/components/search-console/property-panels';
+import { OpportunitiesTable } from '#/components/search-console/opportunities-table';
 import { MetricCard, TopList } from '#/components/search-console/top-list';
 import { useSearchConsole } from '#/components/search-console/use-search-console';
 import { useAuth } from '#/lib/auth-context';
@@ -51,12 +52,13 @@ export const Route = createFileRoute('/_authenticated/sites_/$id/search')({
 
 type Site = { id: string; name: string; domain: string; projectId: string };
 
-type SearchTab = 'overview' | 'queries' | 'pages' | 'audience';
+type SearchTab = 'overview' | 'queries' | 'pages' | 'opportunities' | 'audience';
 
 const SEARCH_TABS: Array<{ id: SearchTab; label: string }> = [
   { id: 'overview', label: 'Resumen' },
   { id: 'queries', label: 'Consultas' },
   { id: 'pages', label: 'Páginas' },
+  { id: 'opportunities', label: 'Oportunidades' },
   { id: 'audience', label: 'Audiencia' },
 ];
 
@@ -375,6 +377,10 @@ function TabPanels({ tab, gsc }: { tab: SearchTab; gsc: GscState }) {
 
   if (tab === 'pages') {
     return <TopList title="URLs" rows={topPages} empty="Sin URLs importadas." icon={Globe2} />;
+  }
+
+  if (tab === 'opportunities') {
+    return <OpportunitiesTable rows={gsc.opportunities.data ?? []} />;
   }
 
   return (

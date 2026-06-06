@@ -12,7 +12,8 @@ function makeDb() {
   const values = jest.fn().mockReturnValue({ onConflictDoUpdate });
   const insert = jest.fn().mockReturnValue({ values });
   const orderBy = jest.fn();
-  const groupBy = jest.fn().mockReturnValue({ orderBy });
+  const having = jest.fn().mockReturnValue({ orderBy });
+  const groupBy = jest.fn().mockReturnValue({ having, orderBy });
   const updateWhere = jest.fn().mockResolvedValue(undefined);
   const set = jest.fn().mockReturnValue({ where: updateWhere });
   const update = jest.fn().mockReturnValue({ set });
@@ -25,6 +26,7 @@ function makeDb() {
     deleteWhere,
     from,
     groupBy,
+    having,
     innerJoin,
     insert,
     limit,
@@ -686,6 +688,31 @@ describe('search console service', () => {
       ]);
     },
   );
+
+  it('ranks striking-distance opportunities by potential clicks', async () => {
+    const { db, service } = makeService();
+    const { site, link } = linkLookupRows();
+    jest
+      .mocked(db.limit)
+      .mockResolvedValueOnce([site] as never)
+      .mockResolvedValueOnce([{ link, property: { id: 'property-1' } }] as never)
+      .mockResolvedValueOnce([
+        { value: 'b', clicks: 5, ctr: 0.01, impressions: 500, position: 12 },
+        { value: 'a', clicks: 20, ctr: 0.02, impressions: 1000, position: 8 },
+        { value: 'c', clicks: 200, ctr: 0.2, impressions: 1000, position: 6 },
+      ] as never);
+    jest.mocked(db.orderBy).mockReturnValue({ limit: db.limit } as never);
+
+    const rows = await service.getOpportunities('site-1', 'user-1', {
+      endDate: '2026-06-04',
+      startDate: '2026-06-01',
+    });
+
+    // Sorted by potential clicks: a (80) > b (45) > c (0, already above target CTR).
+    expect(rows.map((row) => row.value)).toStrictEqual(['a', 'b', 'c']);
+    expect(rows[0]).toMatchObject({ potentialClicks: 80, value: 'a' });
+    expect(rows[2]?.potentialClicks).toBe(0);
+  });
 
   it('rejects a range where the start date is after the end date', async () => {
     const { db, service } = makeService();

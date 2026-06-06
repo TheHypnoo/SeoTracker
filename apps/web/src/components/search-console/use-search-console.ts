@@ -8,6 +8,7 @@ import { type ComparisonMode, comparisonRange, defaultDateRange, rangeParams } f
 import type {
   CandidatesResponse,
   ImportResponse,
+  OpportunityRow,
   PerformanceSummary,
   TimeseriesPoint,
   TopPerformanceRow,
@@ -123,6 +124,13 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     placeholderData: keepPreviousData,
   });
 
+  const opportunities = useQuery({
+    queryKey: ['search-console-opportunities', siteId, startDate, endDate, topLimit] as const,
+    queryFn: () => auth.api.get<OpportunityRow[]>(topUrl('opportunities')),
+    enabled: topEnabled,
+    placeholderData: keepPreviousData,
+  });
+
   // Previous-period summary used to render delta badges. Built by re-querying the existing
   // summary endpoint over the comparison range rather than widening the backend response.
   const previousSummary = useQuery({
@@ -201,6 +209,7 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     importPerformance,
     linked,
     linkProperty,
+    opportunities,
     previousRange,
     previousSummary,
     refreshing,

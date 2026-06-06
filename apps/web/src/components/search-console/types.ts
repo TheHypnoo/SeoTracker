@@ -61,6 +61,15 @@ export type TopPerformanceRow = {
   position: number;
 };
 
+export type OpportunityRow = {
+  value: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+  potentialClicks: number;
+};
+
 export type ImportResponse = {
   importedRows: number;
   startDate: string;

@@ -138,4 +138,14 @@ export class SiteSearchConsoleController {
   ) {
     return this.searchConsoleService.getTopDevices(siteId, user.sub, query);
   }
+
+  @Get('performance/opportunities')
+  @ApiOperation({ summary: 'Get striking-distance keyword opportunities for a linked site' })
+  opportunities(
+    @CurrentUser() user: { sub: string },
+    @Param('siteId', UUID_V4_PIPE) siteId: string,
+    @Query() query: SearchConsoleRangeQueryDto,
+  ) {
+    return this.searchConsoleService.getOpportunities(siteId, user.sub, query);
+  }
 }
