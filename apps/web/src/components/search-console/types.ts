@@ -45,6 +45,14 @@ export type PerformanceSummary = {
   position: number;
 };
 
+export type TimeseriesPoint = {
+  date: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+};
+
 export type TopPerformanceRow = {
   value: string;
   clicks: number;

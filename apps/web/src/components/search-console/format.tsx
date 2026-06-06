@@ -157,6 +157,33 @@ export function isDateOnly(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`));
 }
 
+export type ComparisonMode = 'none' | 'previous' | 'yoy';
+
+/**
+ * Resolves the date range a comparison period covers. `previous` is the contiguous block of the
+ * same length immediately before the current range; `yoy` shifts the range back one year.
+ */
+export function comparisonRange(
+  startDate: string,
+  endDate: string,
+  mode: Exclude<ComparisonMode, 'none'>,
+) {
+  if (mode === 'yoy') {
+    return { endDate: shiftYears(endDate, -1), startDate: shiftYears(startDate, -1) };
+  }
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T00:00:00.000Z`);
+  const lengthDays = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  const previousEnd = daysBefore(startDate, 1);
+  return { endDate: previousEnd, startDate: daysBefore(previousEnd, lengthDays - 1) };
+}
+
+function shiftYears(dateOnly: string, years: number) {
+  const date = new Date(`${dateOnly}T00:00:00.000Z`);
+  date.setUTCFullYear(date.getUTCFullYear() + years);
+  return date.toISOString().slice(0, 10);
+}
+
 export function parseDateOnly(value: string) {
   const [year = '0', month = '1', day = '1'] = value.split('-');
   return new Date(Number(year), Number(month) - 1, Number(day));

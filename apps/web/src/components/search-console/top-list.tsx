@@ -10,10 +10,12 @@ export function MetricCard({
   label,
   value,
   icon: Icon,
+  delta,
 }: {
   label: string;
   value: string;
   icon: LucideIcon;
+  delta?: ReactNode;
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -23,7 +25,10 @@ export function MetricCard({
         </span>
         {label}
       </div>
-      <div className="mt-2 text-2xl font-black tabular-nums text-slate-950">{value}</div>
+      <div className="mt-2 flex items-baseline justify-between gap-2">
+        <span className="text-2xl font-black tabular-nums text-slate-950">{value}</span>
+        {delta}
+      </div>
     </div>
   );
 }

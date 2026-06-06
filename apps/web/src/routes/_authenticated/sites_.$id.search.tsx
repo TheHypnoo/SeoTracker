@@ -15,13 +15,16 @@ import { useState } from 'react';
 
 import { Badge } from '#/components/badge';
 import { Button } from '#/components/button';
+import { ClicksImpressionsChart } from '#/components/charts/clicks-impressions-chart';
 import { Notice } from '#/components/notice';
 import { QueryState } from '#/components/query-state';
+import { DeltaBadge } from '#/components/search-console/delta-badge';
 import {
   DateRangePickerButton,
   RANGE_PRESETS,
 } from '#/components/search-console/date-range-picker';
 import {
+  type ComparisonMode,
   CountryFlag,
   DeviceIcon,
   daysAgo,
@@ -124,6 +127,8 @@ function SiteSearchConsolePage() {
                 endDate={gsc.endDate}
                 refreshing={gsc.refreshing}
                 importPending={gsc.importPerformance.isPending}
+                comparison={gsc.comparison}
+                onComparisonChange={gsc.setComparison}
                 onApplyRange={(range) => {
                   gsc.setStartDate(range.startDate);
                   gsc.setEndDate(range.endDate);
@@ -154,11 +159,19 @@ function SiteSearchConsolePage() {
   );
 }
 
+const COMPARISON_OPTIONS: Array<{ id: ComparisonMode; label: string }> = [
+  { id: 'none', label: 'Sin comparar' },
+  { id: 'previous', label: 'Periodo anterior' },
+  { id: 'yoy', label: 'Año anterior' },
+];
+
 function PeriodControls({
   startDate,
   endDate,
   refreshing,
   importPending,
+  comparison,
+  onComparisonChange,
   onApplyRange,
   onImport,
 }: {
@@ -166,6 +179,8 @@ function PeriodControls({
   endDate: string;
   refreshing: boolean;
   importPending: boolean;
+  comparison: ComparisonMode;
+  onComparisonChange: (mode: ComparisonMode) => void;
   onApplyRange: (range: { startDate: string; endDate: string }) => void;
   onImport: () => void;
 }) {
@@ -204,12 +219,40 @@ function PeriodControls({
           ))}
         </div>
       </div>
-      <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,18rem)_auto] md:items-end md:justify-start">
-        <DateRangePickerButton startDate={startDate} endDate={endDate} onApply={onApplyRange} />
-        <Button type="button" loading={importPending} disabled={!dateRangeValid} onClick={onImport}>
-          <DatabaseZap size={14} aria-hidden="true" />
-          Importar ahora
-        </Button>
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,18rem)_auto] sm:items-end">
+          <DateRangePickerButton startDate={startDate} endDate={endDate} onApply={onApplyRange} />
+          <Button
+            type="button"
+            loading={importPending}
+            disabled={!dateRangeValid}
+            onClick={onImport}
+          >
+            <DatabaseZap size={14} aria-hidden="true" />
+            Importar ahora
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            Comparar
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {COMPARISON_OPTIONS.map((option) => (
+              <button
+                type="button"
+                key={option.id}
+                onClick={() => onComparisonChange(option.id)}
+                className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold transition ${
+                  comparison === option.id
+                    ? 'border-brand-500 bg-brand-50 text-brand-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:text-brand-700'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -246,6 +289,8 @@ function TabPanels({ tab, gsc }: { tab: SearchTab; gsc: GscState }) {
   const topDevices = gsc.topDevices.data ?? [];
 
   if (tab === 'overview') {
+    const previous = gsc.comparison === 'none' ? undefined : gsc.previousSummary.data;
+    const timeseries = gsc.timeseries.data ?? [];
     return (
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -253,19 +298,52 @@ function TabPanels({ tab, gsc }: { tab: SearchTab; gsc: GscState }) {
             label="Clicks"
             value={formatNumber(summary?.clicks ?? 0)}
             icon={MousePointerClick}
+            delta={<DeltaBadge current={summary?.clicks ?? 0} previous={previous?.clicks} />}
           />
           <MetricCard
             label="Impresiones"
             value={formatNumber(summary?.impressions ?? 0)}
             icon={TrendingUp}
+            delta={
+              <DeltaBadge current={summary?.impressions ?? 0} previous={previous?.impressions} />
+            }
           />
-          <MetricCard label="CTR" value={formatPercent(summary?.ctr ?? 0)} icon={Target} />
+          <MetricCard
+            label="CTR"
+            value={formatPercent(summary?.ctr ?? 0)}
+            icon={Target}
+            delta={<DeltaBadge current={summary?.ctr ?? 0} previous={previous?.ctr} />}
+          />
           <MetricCard
             label="Posición"
             value={formatPosition(summary?.position ?? 0)}
             icon={BarChart3}
+            delta={
+              <DeltaBadge
+                current={summary?.position ?? 0}
+                previous={previous?.position}
+                lowerIsBetter
+              />
+            }
           />
         </div>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+            <TrendingUp size={14} className="text-brand-500" aria-hidden="true" />
+            Clicks e impresiones
+          </h3>
+          {timeseries.length === 0 ? (
+            <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+              Sin datos en el periodo. Importa Search Console para ver la evolución.
+            </p>
+          ) : (
+            <div className="mt-3">
+              <ClicksImpressionsChart points={timeseries} />
+            </div>
+          )}
+        </section>
+
         <div className="grid gap-3 lg:grid-cols-2">
           <TopList
             title="Top consultas"

@@ -4,11 +4,12 @@ import { useMemo, useState } from 'react';
 import { useToast } from '#/components/toast';
 import { useAuth } from '#/lib/auth-context';
 
-import { defaultDateRange, rangeParams } from './format';
+import { type ComparisonMode, comparisonRange, defaultDateRange, rangeParams } from './format';
 import type {
   CandidatesResponse,
   ImportResponse,
   PerformanceSummary,
+  TimeseriesPoint,
   TopPerformanceRow,
 } from './types';
 
@@ -24,9 +25,13 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
   const queryClient = useQueryClient();
   const toast = useToast();
   const [selectedPropertyId, setSelectedPropertyId] = useState('');
+  const [comparison, setComparison] = useState<ComparisonMode>('none');
   const { defaultStartDate, defaultEndDate } = useMemo(() => defaultDateRange(), []);
   const [startDate, setStartDate] = useState(defaultStartDate);
   const [endDate, setEndDate] = useState(defaultEndDate);
+
+  const previousRange =
+    comparison === 'none' ? null : comparisonRange(startDate, endDate, comparison);
 
   const candidatesKey = ['search-console-candidates', siteId] as const;
   const summaryKey = ['search-console-summary', siteId, startDate, endDate] as const;
@@ -108,6 +113,31 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
     placeholderData: keepPreviousData,
   });
 
+  const timeseries = useQuery({
+    queryKey: ['search-console-timeseries', siteId, startDate, endDate] as const,
+    queryFn: () =>
+      auth.api.get<TimeseriesPoint[]>(
+        `/sites/${siteId}/search-console/performance/timeseries?${rangeParams(startDate, endDate)}`,
+      ),
+    enabled: topEnabled,
+    placeholderData: keepPreviousData,
+  });
+
+  // Previous-period summary used to render delta badges. Built by re-querying the existing
+  // summary endpoint over the comparison range rather than widening the backend response.
+  const previousSummary = useQuery({
+    queryKey: ['search-console-summary', siteId, previousRange?.startDate, previousRange?.endDate],
+    queryFn: () =>
+      auth.api.get<PerformanceSummary>(
+        `/sites/${siteId}/search-console/performance/summary?${rangeParams(
+          previousRange?.startDate ?? startDate,
+          previousRange?.endDate ?? endDate,
+        )}`,
+      ),
+    enabled: topEnabled && previousRange !== null,
+    placeholderData: keepPreviousData,
+  });
+
   const invalidatePerformance = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ['search-console-summary', siteId] }),
@@ -165,18 +195,23 @@ export function useSearchConsole(siteId: string, options: { topLimit?: number } 
   return {
     activePropertyId,
     candidates,
+    comparison,
     endDate,
     hasLink,
     importPerformance,
     linked,
     linkProperty,
+    previousRange,
+    previousSummary,
     refreshing,
     selectedPropertyId,
+    setComparison,
     setEndDate,
     setSelectedPropertyId,
     setStartDate,
     startDate,
     summary,
+    timeseries,
     topCountries,
     topDevices,
     topPages,
