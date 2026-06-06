@@ -486,6 +486,9 @@ export const siteSearchConsoleLinks = pgTable(
       .references(() => users.id, { onDelete: 'restrict' }),
     active: boolean('active').notNull().default(true),
     linkedAt: timestamp('linked_at', { withTimezone: true }).defaultNow().notNull(),
+    // Last time a performance import (manual, scheduled, or backfill) completed for this link.
+    // Drives the freshness indicator in the UI and lets the daily cron skip recently-synced sites.
+    lastImportedAt: timestamp('last_imported_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

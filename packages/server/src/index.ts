@@ -22,6 +22,7 @@ export { OutboundWebhooksModule } from './outbound-webhooks/outbound-webhooks.mo
 export { OutboundWebhooksProcessor } from './outbound-webhooks/outbound-webhooks.processor';
 export { OutboundWebhooksService } from './outbound-webhooks/outbound-webhooks.service';
 export { PublicBadgesModule } from './public-badges/public-badges.module';
+export { GscImportProcessor } from './search-console/gsc-import.processor';
 export { SearchConsoleModule } from './search-console/search-console.module';
 export { SearchConsoleService } from './search-console/search-console.service';
 export { SitesModule } from './sites/sites.module';

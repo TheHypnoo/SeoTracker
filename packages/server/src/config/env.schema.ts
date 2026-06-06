@@ -64,6 +64,11 @@ const commonShape = {
   OUTBOUND_QUEUE_ATTEMPTS: z.coerce.number().int().positive().default(5),
   EMAIL_CONCURRENCY: z.coerce.number().int().positive().default(3),
   EMAIL_QUEUE_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  GSC_IMPORT_CONCURRENCY: z.coerce.number().int().positive().default(2),
+  GSC_IMPORT_QUEUE_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  // How many months back the one-off backfill pulls when a property is linked.
+  // Google retains ~16 months of Search Console data.
+  GSC_BACKFILL_MONTHS: z.coerce.number().int().positive().max(16).default(16),
   AUDIT_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   AUDIT_MAX_LINKS: z.coerce.number().int().positive().default(20),
   AUDIT_MAX_PAGES: z.coerce.number().int().positive().default(12),
@@ -102,6 +107,11 @@ const commonShape = {
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url().optional(),
   OTEL_SERVICE_NAME: z.string().optional(),
   GOOGLE_TOKEN_ENCRYPTION_KEY: z.preprocess(emptyStringToUndefined, z.string().min(32).optional()),
+  // Shared by API (OAuth flow) and worker (token refresh during scheduled GSC imports),
+  // so they live in the common shape rather than apiEnvSchema.
+  GOOGLE_CLIENT_ID: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  GOOGLE_CLIENT_SECRET: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  GOOGLE_OAUTH_REDIRECT_URI: z.preprocess(emptyStringToUndefined, z.url().optional()),
 } as const;
 
 export const commonEnvSchema = z.object(commonShape);
@@ -125,9 +135,6 @@ export const apiEnvSchema = z.object({
   //  - Railway only:         1
   //  - Railway + Cloudflare: 2
   TRUST_PROXY: z.coerce.number().int().nonnegative().default(0),
-  GOOGLE_CLIENT_ID: z.preprocess(emptyStringToUndefined, z.string().optional()),
-  GOOGLE_CLIENT_SECRET: z.preprocess(emptyStringToUndefined, z.string().optional()),
-  GOOGLE_OAUTH_REDIRECT_URI: z.preprocess(emptyStringToUndefined, z.url().optional()),
 });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 

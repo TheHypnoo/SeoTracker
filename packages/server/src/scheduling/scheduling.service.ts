@@ -14,6 +14,8 @@ import { ExportsService } from '../exports/exports.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OutboundWebhooksService } from '../outbound-webhooks/outbound-webhooks.service';
 import { DistributedLockService } from '../queue/distributed-lock.service';
+import { QueueService } from '../queue/queue.service';
+import { SearchConsoleService } from '../search-console/search-console.service';
 import { SystemLogsService } from '../system-logs/system-logs.service';
 
 interface DueSchedule {
@@ -76,6 +78,8 @@ export class SchedulingService implements OnModuleInit {
     private readonly notificationsService: NotificationsService,
     private readonly exportsService: ExportsService,
     private readonly outboundWebhooksService: OutboundWebhooksService,
+    private readonly searchConsoleService: SearchConsoleService,
+    private readonly queueService: QueueService,
   ) {}
 
   onModuleInit() {
@@ -209,5 +213,58 @@ export class SchedulingService implements OnModuleInit {
     if (executed === null) {
       this.logger.debug('Skipping queued-work reconciliation because another instance owns it');
     }
+  }
+
+  /**
+   * Daily Search Console import. Fans out one queued import job per active site↔property link so
+   * each site keeps a fresh rolling window (Google finalises data with a ~2-3 day lag, so we
+   * re-pull the last few days). Heavy fetching happens in the gsc-import worker, not here.
+   */
+  @Cron('0 4 * * *')
+  async importSearchConsoleData() {
+    const lockKey = `${this.configService.get('SCHEDULER_LOCK_KEY', {
+      infer: true,
+    })}:gsc-import`;
+    const lockTtlMs = this.configService.get('SCHEDULER_LOCK_TTL_MS', { infer: true });
+
+    const executed = await this.distributedLockService.withLock(lockKey, lockTtlMs, async () => {
+      const links = await this.searchConsoleService.listActiveLinks();
+      for (const link of links) {
+        try {
+          await this.queueService.enqueueGscImport({
+            siteId: link.siteId,
+            startDate: this.recentImportStartDate(),
+            endDate: this.recentImportEndDate(),
+          });
+        } catch (error) {
+          this.logger.warn(
+            `Failed to enqueue GSC import for site ${link.siteId}: ${String(error)}`,
+          );
+          await this.systemLogsService.error(
+            SchedulingService.name,
+            'Scheduled GSC import enqueue failed',
+            error,
+            { siteId: link.siteId },
+          );
+        }
+      }
+      if (links.length > 0) {
+        this.logger.log(`Enqueued ${links.length} Search Console imports`);
+      }
+    });
+
+    if (executed === null) {
+      this.logger.debug('Skipping GSC import tick because another instance owns the lock');
+    }
+  }
+
+  private recentImportEndDate() {
+    const date = DateTime.utc().minus({ days: 2 });
+    return date.toISODate() ?? '';
+  }
+
+  private recentImportStartDate() {
+    const date = DateTime.utc().minus({ days: 5 });
+    return date.toISODate() ?? '';
   }
 }

@@ -1,7 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Permission } from '@seotracker/shared-types';
 import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
 
+import type { Env } from '../config/env.schema';
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import {
@@ -12,8 +14,10 @@ import {
 } from '../database/schema';
 import { GoogleOauthService } from '../google/google-oauth.service';
 import { ProjectsService } from '../projects/projects.service';
+import { QueueService } from '../queue/queue.service';
 import { SEARCH_CONSOLE_UNVERIFIED_PERMISSION } from './search-console.constants';
 import {
+  type SearchAnalyticsRow,
   type SearchConsoleDimension,
   type SearchConsoleDimensionFilterGroup,
   SearchConsoleClient,
@@ -25,15 +29,28 @@ const DEFAULT_IMPORT_DIMENSIONS: SearchConsoleDimension[][] = [
   ['date', 'page'],
   ['date', 'country'],
   ['date', 'device'],
+  // query+page rows (per date) power keyword cannibalization detection: which URLs
+  // compete for the same query. They never carry a country/device so they are excluded
+  // from the single-dimension aggregates above.
+  ['date', 'query', 'page'],
 ];
+
+// searchAnalytics.query returns at most 25k rows per request; paginate beyond that.
+const SEARCH_CONSOLE_ROW_LIMIT = 25_000;
+// Batch size for idempotent upserts so a backfill does not issue one round-trip per row.
+const GSC_UPSERT_CHUNK_SIZE = 500;
 
 @Injectable()
 export class SearchConsoleService {
+  private readonly logger = new Logger(SearchConsoleService.name);
+
   constructor(
     @Inject(DRIZZLE) private readonly db: Db,
     private readonly projectsService: ProjectsService,
     private readonly googleOauthService: GoogleOauthService,
     private readonly searchConsoleClient: SearchConsoleClient,
+    private readonly queueService: QueueService,
+    private readonly configService: ConfigService<Env, true>,
   ) {}
 
   async syncProperties(projectId: string, userId: string, googleConnectionId: string) {
@@ -166,6 +183,20 @@ export class SearchConsoleService {
       throw new Error('Search Console link upsert did not return a row');
     }
 
+    // Kick off a one-off historical backfill so the new section has data immediately.
+    // Best-effort: a Redis hiccup must not fail the linking request — the daily cron recovers.
+    try {
+      const backfillMonths = this.configService.get('GSC_BACKFILL_MONTHS', { infer: true });
+      await this.queueService.enqueueGscImport({
+        siteId: site.id,
+        startDate: this.monthsAgo(backfillMonths),
+        endDate: this.daysAgo(2),
+        backfill: true,
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to enqueue GSC backfill for site ${site.id}: ${String(error)}`);
+    }
+
     return {
       active: link.active,
       linkedAt: link.linkedAt,
@@ -182,16 +213,49 @@ export class SearchConsoleService {
     return { success: true };
   }
 
+  /**
+   * Imports Search Console performance for a site the caller has SITE_WRITE on.
+   * The cron uses {@link runScheduledImport} instead, which skips the permission check.
+   */
   async importPerformance(
     siteId: string,
     userId: string,
     input: { startDate?: string; endDate?: string } = {},
   ) {
-    const { link, property, site } = await this.getActiveLinkWithProperty(
-      siteId,
-      userId,
-      Permission.SITE_WRITE,
-    );
+    const context = await this.getActiveLinkWithProperty(siteId, userId, Permission.SITE_WRITE);
+    return this.importPerformanceForLink(context, input);
+  }
+
+  /**
+   * System-context import used by the daily cron and the backfill job. Resolves the active link
+   * without a user/permission check (the worker runs as the platform, not a member).
+   */
+  async runScheduledImport(siteId: string, input: { startDate?: string; endDate?: string } = {}) {
+    const context = await this.getActiveLinkBySiteId(siteId);
+    return this.importPerformanceForLink(context, input);
+  }
+
+  /** Active Search Console links across all sites, for the scheduler to fan out daily imports. */
+  async listActiveLinks() {
+    return this.db
+      .select({
+        siteId: siteSearchConsoleLinks.siteId,
+        lastImportedAt: siteSearchConsoleLinks.lastImportedAt,
+      })
+      .from(siteSearchConsoleLinks)
+      .innerJoin(sites, eq(sites.id, siteSearchConsoleLinks.siteId))
+      .where(and(eq(siteSearchConsoleLinks.active, true), eq(sites.active, true)));
+  }
+
+  private async importPerformanceForLink(
+    context: {
+      link: typeof siteSearchConsoleLinks.$inferSelect;
+      property: typeof searchConsoleProperties.$inferSelect;
+      site: typeof sites.$inferSelect;
+    },
+    input: { startDate?: string; endDate?: string },
+  ) {
+    const { link, property, site } = context;
     const { startDate, endDate } = this.resolveDateRange(input);
     const { accessToken } = await this.googleOauthService.getValidAccessToken(
       property.projectId,
@@ -205,48 +269,79 @@ export class SearchConsoleService {
     let importedRows = 0;
     const imports = await Promise.all(
       DEFAULT_IMPORT_DIMENSIONS.map(async (dimensions) => {
-        const rows = await this.searchConsoleClient.querySearchAnalytics(
-          accessToken,
-          property.siteUrl,
-          {
-            dimensions,
-            endDate,
-            dimensionFilterGroups,
-            searchType: 'web',
-            startDate,
-          },
-        );
-        const saved = await Promise.all(
-          rows.map((row) =>
-            this.upsertGscStat({
-              clicks: Math.round(row.clicks),
-              ctr: row.ctr,
-              date: this.dimensionValue(dimensions, row.keys, 'date') ?? startDate,
-              device: this.dimensionValue(dimensions, row.keys, 'device') ?? '',
-              impressions: Math.round(row.impressions),
-              page: this.dimensionValue(dimensions, row.keys, 'page') ?? '',
-              position: row.position,
-              query: this.dimensionValue(dimensions, row.keys, 'query') ?? '',
-              country: this.dimensionValue(dimensions, row.keys, 'country') ?? '',
-              searchConsolePropertyId: property.id,
-              searchType: 'web',
-              siteId: link.siteId,
-            }),
-          ),
-        );
-        importedRows += saved.length;
-        return { dimensions, rows: saved.length };
+        const rows = await this.fetchAllSearchAnalyticsRows(accessToken, property.siteUrl, {
+          dimensions,
+          dimensionFilterGroups,
+          endDate,
+          startDate,
+        });
+        const values = rows.map((row) => ({
+          clicks: Math.round(row.clicks),
+          ctr: row.ctr,
+          date: this.dimensionValue(dimensions, row.keys, 'date') || startDate,
+          device: this.dimensionValue(dimensions, row.keys, 'device'),
+          impressions: Math.round(row.impressions),
+          page: this.dimensionValue(dimensions, row.keys, 'page'),
+          position: row.position,
+          query: this.dimensionValue(dimensions, row.keys, 'query'),
+          country: this.dimensionValue(dimensions, row.keys, 'country'),
+          searchConsolePropertyId: property.id,
+          searchType: 'web' as const,
+          siteId: link.siteId,
+        }));
+        const saved = await this.upsertGscStats(values);
+        importedRows += saved;
+        return { dimensions, rows: saved };
       }),
     );
+
+    await this.db
+      .update(siteSearchConsoleLinks)
+      .set({ lastImportedAt: new Date(), updatedAt: new Date() })
+      .where(eq(siteSearchConsoleLinks.siteId, link.siteId));
 
     return {
       endDate,
       importedRows,
       imports,
       searchConsolePropertyId: property.id,
-      siteId,
+      siteId: link.siteId,
       startDate,
     };
+  }
+
+  /** Pages through searchAnalytics.query until a partial page signals the end of the result set. */
+  private async fetchAllSearchAnalyticsRows(
+    accessToken: string,
+    siteUrl: string,
+    params: {
+      dimensions: SearchConsoleDimension[];
+      dimensionFilterGroups: SearchConsoleDimensionFilterGroup[] | undefined;
+      startDate: string;
+      endDate: string;
+    },
+  ): Promise<SearchAnalyticsRow[]> {
+    const all: SearchAnalyticsRow[] = [];
+    let startRow = 0;
+
+    for (;;) {
+      const page = await this.searchConsoleClient.querySearchAnalytics(accessToken, siteUrl, {
+        dimensions: params.dimensions,
+        dimensionFilterGroups: params.dimensionFilterGroups,
+        endDate: params.endDate,
+        rowLimit: SEARCH_CONSOLE_ROW_LIMIT,
+        searchType: 'web',
+        startDate: params.startDate,
+        startRow,
+      });
+      all.push(...page);
+      if (page.length < SEARCH_CONSOLE_ROW_LIMIT) {
+        break;
+      }
+      startRow += SEARCH_CONSOLE_ROW_LIMIT;
+    }
+
+    return all;
   }
 
   async getPerformanceSummary(
@@ -352,37 +447,45 @@ export class SearchConsoleService {
     return property;
   }
 
-  private async upsertGscStat(input: typeof gscDailyStats.$inferInsert) {
-    const now = new Date();
-    const [row] = await this.db
-      .insert(gscDailyStats)
-      .values({ ...input, updatedAt: now })
-      .onConflictDoUpdate({
-        target: [
-          gscDailyStats.siteId,
-          gscDailyStats.searchConsolePropertyId,
-          gscDailyStats.date,
-          gscDailyStats.query,
-          gscDailyStats.page,
-          gscDailyStats.country,
-          gscDailyStats.device,
-          gscDailyStats.searchType,
-        ],
-        set: {
-          clicks: sql`excluded.clicks`,
-          ctr: sql`excluded.ctr`,
-          impressions: sql`excluded.impressions`,
-          position: sql`excluded.position`,
-          updatedAt: now,
-        },
-      })
-      .returning();
-
-    if (!row) {
-      throw new Error('GSC daily stat upsert did not return a row');
+  /** Idempotent batch upsert of GSC rows, chunked to keep backfills off a per-row round-trip. */
+  private async upsertGscStats(inputs: (typeof gscDailyStats.$inferInsert)[]): Promise<number> {
+    if (inputs.length === 0) {
+      return 0;
     }
 
-    return row;
+    const now = new Date();
+    let saved = 0;
+    for (let offset = 0; offset < inputs.length; offset += GSC_UPSERT_CHUNK_SIZE) {
+      const chunk = inputs
+        .slice(offset, offset + GSC_UPSERT_CHUNK_SIZE)
+        .map((input) => ({ ...input, updatedAt: now }));
+      const rows = await this.db
+        .insert(gscDailyStats)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: [
+            gscDailyStats.siteId,
+            gscDailyStats.searchConsolePropertyId,
+            gscDailyStats.date,
+            gscDailyStats.query,
+            gscDailyStats.page,
+            gscDailyStats.country,
+            gscDailyStats.device,
+            gscDailyStats.searchType,
+          ],
+          set: {
+            clicks: sql`excluded.clicks`,
+            ctr: sql`excluded.ctr`,
+            impressions: sql`excluded.impressions`,
+            position: sql`excluded.position`,
+            updatedAt: now,
+          },
+        })
+        .returning({ id: gscDailyStats.id });
+      saved += rows.length;
+    }
+
+    return saved;
   }
 
   private async getSiteWithPermission(siteId: string, userId: string, permission: Permission) {
@@ -419,6 +522,35 @@ export class SearchConsoleService {
 
   private async getActiveLinkWithProperty(siteId: string, userId: string, permission: Permission) {
     const site = await this.getSiteWithPermission(siteId, userId, permission);
+    const [row] = await this.db
+      .select({
+        link: siteSearchConsoleLinks,
+        property: searchConsoleProperties,
+      })
+      .from(siteSearchConsoleLinks)
+      .innerJoin(
+        searchConsoleProperties,
+        eq(siteSearchConsoleLinks.searchConsolePropertyId, searchConsoleProperties.id),
+      )
+      .where(
+        and(eq(siteSearchConsoleLinks.siteId, site.id), eq(siteSearchConsoleLinks.active, true)),
+      )
+      .limit(1);
+
+    if (!row) {
+      throw new BadRequestException('Site is not linked to a Search Console property');
+    }
+
+    return { ...row, site };
+  }
+
+  /** Resolves the active link + property + site for a site without a permission check (cron use). */
+  private async getActiveLinkBySiteId(siteId: string) {
+    const [site] = await this.db.select().from(sites).where(eq(sites.id, siteId)).limit(1);
+    if (!site) {
+      throw new NotFoundException('Site not found');
+    }
+
     const [row] = await this.db
       .select({
         link: siteSearchConsoleLinks,
@@ -536,6 +668,12 @@ export class SearchConsoleService {
   private daysBefore(dateOnly: string, days: number) {
     const date = new Date(`${dateOnly}T00:00:00.000Z`);
     date.setUTCDate(date.getUTCDate() - days);
+    return date.toISOString().slice(0, 10);
+  }
+
+  private monthsAgo(months: number) {
+    const date = new Date();
+    date.setUTCMonth(date.getUTCMonth() - months);
     return date.toISOString().slice(0, 10);
   }
 

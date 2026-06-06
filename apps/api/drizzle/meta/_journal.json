@@ -57,6 +57,13 @@
       "when": 1780696400376,
       "tag": "0007_gsc_daily_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780696500000,
+      "tag": "0008_gsc_link_last_imported_at",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ import {
   EmailDeliveriesProcessor,
   ExportsModule,
   ExportsProcessor,
+  GscImportProcessor,
   LoggerWorkerModule,
   MetricsModule,
   NotificationsModule,
@@ -16,6 +17,7 @@ import {
   OutboundWebhooksProcessor,
   QueueModule,
   SchedulingModule,
+  SearchConsoleModule,
   SystemLogsModule,
   workerEnvSchema,
 } from '@seotracker/server';
@@ -38,6 +40,7 @@ import {
     ExportsModule,
     OutboundWebhooksModule,
     NotificationsModule,
+    SearchConsoleModule,
     SchedulingModule,
   ],
   providers: [
@@ -45,6 +48,7 @@ import {
     ExportsProcessor,
     OutboundWebhooksProcessor,
     EmailDeliveriesProcessor,
+    GscImportProcessor,
   ],
 })
 export class WorkerModule {}
