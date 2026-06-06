@@ -8,7 +8,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Permission } from '@seotracker/shared-types';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { and, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 
 import { assertPresent } from '../common/utils/assert';
 import type { Env } from '../config/env.schema';
@@ -16,6 +17,7 @@ import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import {
   googleOauthConnections,
+  googleOauthStates,
   searchConsoleProperties,
   siteSearchConsoleLinks,
 } from '../database/schema';
@@ -32,6 +34,9 @@ interface GoogleOauthConfig {
   tokenEncryptionKey: string;
 }
 
+// How long a started Google connect flow stays valid before the nonce expires.
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
 @Injectable()
 export class GoogleOauthService {
   constructor(
@@ -46,8 +51,17 @@ export class GoogleOauthService {
   async buildAuthorizationUrl(projectId: string, userId: string) {
     await this.projectsService.assertPermission(projectId, userId, Permission.OUTBOUND_WRITE);
     const config = this.requireConfig();
+    // Persist a single-use nonce server-side; it is both signed into `state` and (by the
+    // controller) set as an HttpOnly cookie so the callback can prove it is the same browser.
+    const nonce = randomBytes(32).toString('base64url');
+    await this.db.insert(googleOauthStates).values({
+      expiresAt: new Date(Date.now() + OAUTH_STATE_TTL_MS),
+      nonce,
+      projectId,
+      userId,
+    });
     const state = this.stateService.create(
-      { projectId, userId },
+      { nonce, projectId, ttlMs: OAUTH_STATE_TTL_MS, userId },
       this.configService.get('JWT_ACCESS_SECRET', { infer: true }),
     );
     const url = new URL(GOOGLE_OAUTH_AUTH_URL);
@@ -59,10 +73,10 @@ export class GoogleOauthService {
     url.searchParams.set('prompt', 'consent');
     url.searchParams.set('state', state);
 
-    return { authorizationUrl: url.toString() };
+    return { authorizationUrl: url.toString(), stateNonce: nonce };
   }
 
-  async completeCallback(input: { code: string; state: string }) {
+  async completeCallback(input: { code: string; state: string; stateCookie?: string }) {
     if (!input.code) {
       throw new BadRequestException('Missing OAuth code');
     }
@@ -71,10 +85,36 @@ export class GoogleOauthService {
     }
 
     const config = this.requireConfig();
-    const state = this.stateService.verify(
+    const payload = this.stateService.verify(
       input.state,
       this.configService.get('JWT_ACCESS_SECRET', { infer: true }),
     );
+
+    // Browser binding: the cookie set when the flow started must carry the same nonce. This stops
+    // an attacker's signed state from being completed in a victim's browser (account-linking CSRF).
+    if (!input.stateCookie || !this.nonceMatches(input.stateCookie, payload.nonce)) {
+      throw new BadRequestException('OAuth state does not match this browser session');
+    }
+
+    // Single-use: atomically consume the server-side nonce (also enforces expiry). The stored
+    // project/user are the source of truth for who started the flow.
+    const [consumed] = await this.db
+      .update(googleOauthStates)
+      .set({ consumedAt: new Date() })
+      .where(
+        and(
+          eq(googleOauthStates.nonce, payload.nonce),
+          isNull(googleOauthStates.consumedAt),
+          gt(googleOauthStates.expiresAt, new Date()),
+        ),
+      )
+      .returning({ projectId: googleOauthStates.projectId, userId: googleOauthStates.userId });
+
+    if (!consumed) {
+      throw new BadRequestException('OAuth state is invalid or already used');
+    }
+
+    const state = { projectId: consumed.projectId, userId: consumed.userId };
     await this.projectsService.assertPermission(
       state.projectId,
       state.userId,
@@ -302,6 +342,12 @@ export class GoogleOauthService {
     if (!expiresAt) return false;
     const refreshSkewMs = 60_000;
     return expiresAt.getTime() - refreshSkewMs <= Date.now();
+  }
+
+  private nonceMatches(cookieNonce: string, stateNonce: string): boolean {
+    const left = Buffer.from(cookieNonce);
+    const right = Buffer.from(stateNonce);
+    return left.length === right.length && timingSafeEqual(left, right);
   }
 
   private requireConfig(): GoogleOauthConfig {

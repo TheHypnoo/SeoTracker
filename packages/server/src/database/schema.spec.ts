@@ -17,6 +17,7 @@ const TABLE_EXPORTS = [
   'webhookEndpoints',
   'webhookSecrets',
   'googleOauthConnections',
+  'googleOauthStates',
   'searchConsoleProperties',
   'siteSearchConsoleLinks',
   'gscDailyStats',

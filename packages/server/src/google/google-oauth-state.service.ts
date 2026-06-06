@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export interface GoogleOauthStatePayload {
   projectId: string;
@@ -11,13 +11,13 @@ export interface GoogleOauthStatePayload {
 @Injectable()
 export class GoogleOauthStateService {
   create(
-    input: { projectId: string; userId: string; ttlMs?: number },
+    input: { projectId: string; userId: string; nonce: string; ttlMs?: number },
     signingSecret: string,
   ): string {
     const payload: GoogleOauthStatePayload = {
       projectId: input.projectId,
       userId: input.userId,
-      nonce: randomBytes(16).toString('base64url'),
+      nonce: input.nonce,
       expiresAt: Date.now() + (input.ttlMs ?? 10 * 60 * 1000),
     };
     const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64url');

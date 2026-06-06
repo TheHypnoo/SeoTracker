@@ -16,6 +16,7 @@ function connectionRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'connection-1',
     projectId: 'project-1',
+    userId: 'user-1',
     connectedByUserId: 'user-1',
     googleAccountEmail: 'owner@example.com',
     accessTokenEncrypted: 'encrypted:stored-access',
@@ -58,7 +59,9 @@ function makeService(
   const projectsService = { assertPermission: jest.fn().mockResolvedValue(undefined) };
   const stateService = {
     create: jest.fn().mockReturnValue('signed-state'),
-    verify: jest.fn().mockReturnValue({ projectId: 'project-1', userId: 'user-1' }),
+    verify: jest
+      .fn()
+      .mockReturnValue({ nonce: 'nonce-123', projectId: 'project-1', userId: 'user-1' }),
   };
   const oauthClient = {
     exchangeCode: jest.fn().mockResolvedValue({
@@ -117,7 +120,11 @@ describe('google oauth service', () => {
       Permission.OUTBOUND_WRITE,
     );
     expect(stateService.create).toHaveBeenCalledWith(
-      { projectId: 'project-1', userId: 'user-1' },
+      expect.objectContaining({
+        projectId: 'project-1',
+        userId: 'user-1',
+        nonce: expect.any(String),
+      }),
       CONFIG.JWT_ACCESS_SECRET,
     );
     expect(url.searchParams.get('scope')).toContain(GOOGLE_OAUTH_SCOPE);
@@ -136,7 +143,11 @@ describe('google oauth service', () => {
   it('stores encrypted Google tokens and normalized account email on callback', async () => {
     const { oauthClient, projectsService, service, tokenEncryptionService, values } = makeService();
 
-    const result = await service.completeCallback({ code: 'oauth-code', state: 'signed-state' });
+    const result = await service.completeCallback({
+      code: 'oauth-code',
+      state: 'signed-state',
+      stateCookie: 'nonce-123',
+    });
 
     expect(projectsService.assertPermission).toHaveBeenCalledWith(
       'project-1',
@@ -176,8 +187,45 @@ describe('google oauth service', () => {
     oauthClient.getUserInfo.mockResolvedValueOnce({ email: undefined } as never);
 
     await expect(
-      service.completeCallback({ code: 'oauth-code', state: 'signed-state' }),
+      service.completeCallback({
+        code: 'oauth-code',
+        state: 'signed-state',
+        stateCookie: 'nonce-123',
+      }),
     ).rejects.toThrow('did not include an email');
+  });
+
+  it('rejects a callback with no browser-binding cookie', async () => {
+    const { oauthClient, service } = makeService();
+
+    await expect(
+      service.completeCallback({ code: 'oauth-code', state: 'signed-state' }),
+    ).rejects.toThrow('does not match this browser session');
+    // The code is never exchanged when the browser binding fails.
+    expect(oauthClient.exchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects a callback whose cookie nonce does not match the state nonce', async () => {
+    const { oauthClient, service } = makeService();
+
+    await expect(
+      service.completeCallback({ code: 'oauth-code', state: 'signed-state', stateCookie: 'other' }),
+    ).rejects.toThrow('does not match this browser session');
+    expect(oauthClient.exchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects a callback whose state was already consumed or expired', async () => {
+    const { oauthClient, service, updateReturning } = makeService();
+    updateReturning.mockResolvedValueOnce([]); // atomic consume matched no row
+
+    await expect(
+      service.completeCallback({
+        code: 'oauth-code',
+        state: 'signed-state',
+        stateCookie: 'nonce-123',
+      }),
+    ).rejects.toThrow('invalid or already used');
+    expect(oauthClient.exchangeCode).not.toHaveBeenCalled();
   });
 
   it('refreshes tokens on an existing connection when a new refresh token is returned', async () => {
@@ -185,11 +233,16 @@ describe('google oauth service', () => {
       existingConnections: [connectionRow()],
     });
 
-    await service.completeCallback({ code: 'oauth-code', state: 'signed-state' });
+    await service.completeCallback({
+      code: 'oauth-code',
+      state: 'signed-state',
+      stateCookie: 'nonce-123',
+    });
 
-    // Existing connection is updated, not inserted.
+    // Existing connection is updated, not inserted. updateWhere fires twice: once to consume the
+    // OAuth state nonce, once to update the connection.
     expect(values).not.toHaveBeenCalled();
-    expect(updateWhere).toHaveBeenCalledTimes(1);
+    expect(updateWhere).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the stored refresh token when the callback omits a new one', async () => {
@@ -200,7 +253,11 @@ describe('google oauth service', () => {
       scope: GOOGLE_OAUTH_SCOPE,
     } as never);
 
-    await service.completeCallback({ code: 'oauth-code', state: 'signed-state' });
+    await service.completeCallback({
+      code: 'oauth-code',
+      state: 'signed-state',
+      stateCookie: 'nonce-123',
+    });
 
     // The update set does not touch refreshTokenEncrypted in this branch.
     expect(set).toHaveBeenCalledWith(
@@ -215,7 +272,11 @@ describe('google oauth service', () => {
       refresh_token: 'raw-refresh-token',
     } as never);
 
-    await service.completeCallback({ code: 'oauth-code', state: 'signed-state' });
+    await service.completeCallback({
+      code: 'oauth-code',
+      state: 'signed-state',
+      stateCookie: 'nonce-123',
+    });
 
     expect(values).toHaveBeenCalledWith(
       expect.objectContaining({ expiresAt: null, scopes: [GOOGLE_OAUTH_SCOPE] }),

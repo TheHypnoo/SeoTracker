@@ -469,6 +469,25 @@ export const searchConsoleProperties = pgTable(
 );
 
 /**
+ * Single-use, browser-bound OAuth state for the Google connect flow. The nonce is signed into the
+ * `state` query param AND set as an HttpOnly cookie; the callback requires both to match and
+ * consumes the row, preventing account-linking CSRF (a state minted by one user being completed in
+ * another browser).
+ */
+export const googleOauthStates = pgTable('google_oauth_states', {
+  nonce: text('nonce').primaryKey(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
  * Active Search Console property linked to a SEOTracker site. MVP keeps one property per site;
  * changing the link replaces this row through an upsert.
  */
