@@ -14,7 +14,7 @@ seotracker/
 │   └── web/           # TanStack Start + React + Tailwind v4 frontend
 ├── packages/
 │   ├── server/        # Shared backend runtime (Drizzle schema, Nest modules, queue, lock)
-│   ├── shared-types/  # Enums + ApiError + PaginatedResponse shared by backend and frontend
+│   ├── shared-types/  # Enums + DTOs shared by backend and frontend
 │   └── config-typescript/  # Shared TS preset
 ├── infra/
 │   ├── docker/        # Dockerfiles + docker-compose dev stack
@@ -40,7 +40,7 @@ The frontend is in Spanish (the target audience is Spanish-speaking). Code, comm
 ## Requirements
 
 - Node.js 22+
-- pnpm 10+
+- pnpm 11.0.8 (use Corepack: `corepack enable && corepack prepare pnpm@11.0.8 --activate`)
 - Docker (for the local Postgres/Redis/Mailhog stack)
 
 ## Quick start
@@ -63,7 +63,7 @@ openssl rand -base64 48  # → JWT_REFRESH_SECRET
 # Start local infrastructure
 docker compose -f infra/docker/docker-compose.yml up -d postgres redis mailhog
 
-# Apply database migrations (one-shot)
+# Apply migrations up front (recommended; the API also checks them at boot)
 pnpm db:migrate
 
 # Run every workspace in dev mode
@@ -84,7 +84,7 @@ pnpm dev
 ## Available scripts (root)
 
 ```bash
-pnpm dev            # turbo run dev --parallel
+pnpm dev            # turbo run dev
 pnpm build
 pnpm lint
 pnpm typecheck
@@ -97,6 +97,12 @@ pnpm db:generate    # drizzle-kit generate (apps/api)
 pnpm db:migrate     # drizzle-kit migrate (apps/api)
 pnpm db:studio      # drizzle-kit studio
 ```
+
+## Operational observability
+
+SEOTracker includes an internal SEO-engine telemetry system. Every audit records per-stage duration, status and diagnostic details in `audit_engine_telemetry`; platform administrators can inspect audit waterfalls and aggregate engine health from the web UI (`/engine-health`, site-level engine health) or the API (`/api/v1/engine-health*`). Access is gated by `PLATFORM_ADMIN_EMAILS`.
+
+The backend also ships a score-calibration benchmark corpus with **216 public websites** in `packages/server/scripts/score-calibration-domains.txt`. Run it with `pnpm --filter @seotracker/server score:calibrate` and optionally compare against Google PageSpeed/Lighthouse SEO scores with `--with-pagespeed`.
 
 ## Linting and formatting
 
@@ -133,7 +139,7 @@ See `.github/workflows/`.
 
 ## Database migrations
 
-Migrations are owned by the API workspace and live in `apps/api/drizzle/`. They are **not** executed at process boot — run them as a one-shot deploy step:
+Migrations are owned by the API workspace and live in `apps/api/drizzle/`. The API applies pending migrations during bootstrap as a safety net; running them explicitly before starting/scaling services is still recommended:
 
 ```bash
 pnpm db:migrate

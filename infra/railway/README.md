@@ -40,6 +40,10 @@ API_PROXY_TARGET=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:4000
 SERVER_API_URL=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:4000/api/v1
 ```
 
+## Database migrations
+
+Run `pnpm db:migrate` as a controlled deploy step before scaling the API service. The API bootstrap also applies pending migrations from `apps/api/drizzle` as a safety net, but relying on concurrent API starts for DDL can create noisy deploys. The worker service never runs migrations.
+
 ## Export file storage (object storage)
 
 Generated export files (CSV/…) are produced by the `worker` and downloaded

@@ -58,9 +58,9 @@ export class ProjectsService {
 
     const savedProject = assertPresent(project, 'Project creation did not return a row');
 
-    // Drizzle 1.0 (beta + rc) emits a literal `default` keyword in INSERTs for
-    // any column whose value is omitted, which Postgres rejects when the
-    // default is a SQL expression. Pass every column explicitly to bypass.
+    // Drizzle can emit a literal `default` keyword in INSERTs for omitted
+    // columns, which Postgres rejects when the schema-side default is a SQL
+    // expression. Pass every column explicitly to bypass.
     await this.db.insert(projectMembers).values({
       projectId: savedProject.id,
       userId: ownerUserId,

@@ -5,7 +5,7 @@ Guía práctica de cómo trabajar con el repo. Para entender la arquitectura y p
 ## Prerrequisitos
 
 - **Node 22+** (`node --version`)
-- **pnpm 10+** (`corepack enable && corepack use pnpm@latest`)
+- **pnpm 11.0.8** (`corepack enable && corepack prepare pnpm@11.0.8 --activate`)
 - **Docker** (para Postgres + Redis + Mailhog en local)
 
 ## Quick start
@@ -14,7 +14,12 @@ Guía práctica de cómo trabajar con el repo. Para entender la arquitectura y p
 # Una sola vez por checkout
 pnpm install
 cp apps/api/.env.example apps/api/.env
+cp apps/worker/.env.example apps/worker/.env
 cp apps/web/.env.example apps/web/.env
+
+# Genera secretos JWT reales y pégalos en apps/api/.env y apps/worker/.env
+openssl rand -base64 48  # JWT_ACCESS_SECRET
+openssl rand -base64 48  # JWT_REFRESH_SECRET
 
 # Stack local (Postgres + Redis + Mailhog)
 docker compose -f infra/docker/docker-compose.yml up -d postgres redis mailhog
@@ -22,7 +27,7 @@ docker compose -f infra/docker/docker-compose.yml up -d postgres redis mailhog
 # Migraciones (la primera vez y después de cada migración nueva)
 pnpm --filter api db:migrate
 
-# Dev — todo en paralelo (api, jobs, scheduler, web)
+# Dev — todo en paralelo (api, worker, web)
 pnpm dev
 ```
 
@@ -37,7 +42,7 @@ URLs por defecto:
 
 | Comando             | Qué hace                                                                                  |
 | ------------------- | ----------------------------------------------------------------------------------------- |
-| `pnpm dev`          | Levanta los 4 servicios en paralelo con watch mode (Turbo)                                |
+| `pnpm dev`          | Levanta API, worker y web en paralelo con watch mode (Turbo)                              |
 | `pnpm build`        | Compila todo a `dist/` y `.output/`                                                       |
 | `pnpm lint`         | `oxlint` desde la configuración raíz                                                      |
 | `pnpm format`       | Reescribe ficheros con `oxfmt`                                                            |
@@ -51,7 +56,7 @@ URLs por defecto:
 | `pnpm db:migrate`   | Aplica migraciones al Postgres conectado                                                  |
 | `pnpm db:studio`    | Abre Drizzle Studio para inspeccionar la DB                                               |
 
-Filtrar a un package: `pnpm --filter <name>` (los nombres están en `package.json` de cada one — `api`, `jobs`, `scheduler`, `web`, `@seotracker/server`, etc).
+Filtrar a un package: `pnpm --filter <name>` (los nombres están en `package.json`: `api`, `worker`, `web`, `@seotracker/server`, `@seotracker/shared-types`, etc.).
 
 ## Lint y formato
 
@@ -77,10 +82,8 @@ Las reglas de estilo más ruidosas se gestionan en el `rules` del config raíz. 
 1. Edita el schema: [packages/server/src/database/schema.ts](packages/server/src/database/schema.ts).
 2. Genera la migración: `pnpm db:generate`. Crea `apps/api/drizzle/000X_*.sql` y `meta/000X_snapshot.json`.
 3. Revisa el SQL generado. Si es destructivo (DROP COLUMN, RENAME), sé extra cuidadoso.
-4. Aplica en local: `pnpm db:migrate`.
-5. Commitea ambos: el `.sql` + el `_snapshot.json` + el `_journal.json` actualizado.
-
-> ⚠️ **Estado actual del proyecto**: la rama beta de `drizzle-kit` (1.0.0-beta.22) reporta que el folder de migraciones está en formato outdated y bloquea `db:generate`. Hay que ejecutar `pnpm exec drizzle-kit up` antes de poder generar nuevas. Esto está pendiente en el plan de mejoras.
+4. Aplica en local: `pnpm db:migrate`. La API también comprueba migraciones al arrancar, pero no lo uses como sustituto de revisar/aplicar el cambio de schema conscientemente.
+5. Commitea el `.sql`, el `meta/000X_snapshot.json` y el `meta/_journal.json` actualizado.
 
 ### Un módulo NestJS
 
@@ -252,7 +255,7 @@ Para saltar un hook puntualmente: `git push --no-verify`. **Hazlo solo en emerge
 
 Cosas que han parecido raras durante revisiones y tienen un motivo:
 
-- **`drizzle-orm` en `1.0.0-beta.22`** y no en la latest stable (0.45.x): la rama v1 tiene mejoras de TS que queremos. Aceptamos breaking changes hasta que salga estable.
+- **`drizzle-orm` fijado en `0.45.2`**: mantener la versión alineada entre `apps/api` y `@seotracker/server`; cualquier upgrade debe regenerar/validar migraciones y tests de schema.
 - **`nitro: npm:nitro-nightly@…`**: necesario para el plugin Vite de Nitro 3 que permite el proxy same-origin. Sin esto, el bug de auth con cookies cross-origin vuelve.
 - **Backend con `;`, frontend sin `;`**: idiomas de cada subequipo. No tocar.
 - **`refresh_token` HttpOnly + `csrf_token` legible + `accessToken` en memoria**: estándar de OWASP para SaaS B2B. Ver ARCHITECTURE.md → Auth.
