@@ -885,7 +885,7 @@ function AlertsCard({
                       scoreDropThreshold: Number(event.target.value) || 1,
                     }))
                   }
-                  className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 outline-none transition focus:border-brand-500 focus-visible:ring-1 focus-visible:ring-brand-200"
+                  className="w-16 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 outline-none transition focus:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/15"
                 />
                 <span>puntos</span>
               </div>

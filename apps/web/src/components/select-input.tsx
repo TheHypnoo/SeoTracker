@@ -45,7 +45,7 @@ function SelectInputInner({
         aria-describedby={field?.describedBy}
         aria-required={field?.required || undefined}
         className={cn(
-          'flex w-full items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-4 py-2.5 text-left text-sm font-medium text-slate-800 transition hover:border-slate-300 focus-visible:border-brand-500 focus-visible:ring-1 focus-visible:ring-brand-200 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70 aria-invalid:border-rose-400',
+          'flex w-full items-center justify-between gap-3 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-left text-sm font-medium text-slate-800 transition hover:border-slate-400 focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/15 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70 aria-invalid:border-rose-400',
           triggerClassName,
         )}
       >

@@ -358,7 +358,7 @@ function ProjectProjectsPage() {
       </Modal>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm transition focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-200 sm:max-w-md">
+        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm transition focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/15 sm:max-w-md">
           <Search size={14} className="text-slate-400" aria-hidden="true" />
           <input
             className="w-full bg-transparent text-slate-800 outline-none placeholder:text-slate-400"

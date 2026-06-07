@@ -133,17 +133,15 @@ a {
   color: inherit;
 }
 
-/* Global focus ring aligned to brand colour. */
-:focus-visible {
-  outline: 2px solid var(--color-brand-500);
-  outline-offset: 2px;
-  border-radius: var(--radius-xs);
-}
-
-.app-text-input:focus-visible {
-  outline: none;
-  box-shadow: none;
-  border-radius: 0.5rem;
+/* Global focus ring aligned to brand colour. Placed in the `base` layer so
+   per-component focus styles (e.g. `focus-visible:outline-none` on inputs) can
+   override it — an unlayered rule would beat every Tailwind utility. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
 }
 
 .score-trend-chart .recharts-wrapper:focus,
