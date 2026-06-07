@@ -216,6 +216,30 @@ export class SchedulingService implements OnModuleInit {
   }
 
   /**
+   * Hourly sweep that deletes expired export files from object storage and marks the rows EXPIRED.
+   * Keeps the bucket from accumulating stale exports forever. Held under its own lock so it runs
+   * at most once per hour across replicas.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async reapExpiredExports() {
+    const lockKey = `${this.configService.get('SCHEDULER_LOCK_KEY', {
+      infer: true,
+    })}:expired-exports`;
+    const lockTtlMs = this.configService.get('SCHEDULER_LOCK_TTL_MS', { infer: true });
+
+    const executed = await this.distributedLockService.withLock(lockKey, lockTtlMs, async () => {
+      const result = await this.exportsService.reapExpiredExports();
+      if (result.reaped > 0) {
+        this.logger.log(`Reaped ${result.reaped} expired exports`);
+      }
+    });
+
+    if (executed === null) {
+      this.logger.debug('Skipping expired-export reaping because another instance owns the lock');
+    }
+  }
+
+  /**
    * Daily Search Console import. Fans out one queued import job per active site↔property link so
    * each site keeps a fresh rolling window (Google finalises data with a ~2-3 day lag, so we
    * re-pull the last few days). Heavy fetching happens in the gsc-import worker, not here.

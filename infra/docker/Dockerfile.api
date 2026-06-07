@@ -19,6 +19,11 @@ COPY --from=builder --chown=node:node /app/apps/api/dist ./dist
 COPY --from=builder --chown=node:node /app/apps/api/package.json ./package.json
 COPY --from=builder --chown=node:node /app/apps/api/drizzle ./drizzle
 
+# Local-storage driver writes exports here. Pre-create it owned by `node` so a
+# mounted named volume (docker-compose) inherits writable ownership. On Railway
+# the S3 driver is used and this directory stays empty.
+RUN mkdir -p /app/storage && chown node:node /app/storage
+
 USER node
 EXPOSE 4000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \

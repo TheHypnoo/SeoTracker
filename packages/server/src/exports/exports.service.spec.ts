@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ExportFormat, ExportKind, ExportStatus, Permission } from '@seotracker/shared-types';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 
 import { ExportsService, sanitizeCsvCell } from './exports.service';
 
@@ -65,11 +62,19 @@ function updateChain() {
   };
 }
 
+function makeStorage() {
+  return {
+    delete: jest.fn<(keys: string[]) => Promise<void>>().mockResolvedValue(undefined),
+    exists: jest.fn<(key: string) => Promise<boolean>>().mockResolvedValue(true),
+    getStream: jest.fn(),
+    put: jest.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined),
+  };
+}
+
 function makeService(db: Record<string, jest.Mock>) {
   const configService = {
     get: jest.fn((key: string) => {
       const values: Record<string, unknown> = {
-        EXPORT_STORAGE_DIR: '/tmp/seotracker-test-exports',
         EXPORT_TTL_HOURS: 48,
       };
       return values[key];
@@ -79,10 +84,11 @@ function makeService(db: Record<string, jest.Mock>) {
   const projectsService = { assertPermission: jest.fn() };
   const queueService = { enqueueExport: jest.fn() };
   const systemLogsService = { error: jest.fn(), info: jest.fn(), warn: jest.fn() };
+  const storage = makeStorage();
   const strategy = {
     build: jest.fn().mockResolvedValue({
       headers: ['Name'],
-      rows: [{ Name: 'Example' }],
+      rows: [['Example']],
     }),
     kind: ExportKind.HISTORY,
   };
@@ -94,6 +100,7 @@ function makeService(db: Record<string, jest.Mock>) {
     projectsService as never,
     queueService as never,
     systemLogsService as never,
+    storage as never,
     [strategy] as never,
   );
 
@@ -103,6 +110,7 @@ function makeService(db: Record<string, jest.Mock>) {
     queueService,
     service,
     sitesService,
+    storage,
     strategy,
     systemLogsService,
   };
@@ -291,37 +299,63 @@ describe('exportsService', () => {
     );
   });
 
-  it('resolves a ready, non-expired download to its stored path', async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'seotracker-export-'));
-    const storagePath = path.join(dir, 'history.csv');
-    let resolved: Awaited<ReturnType<ExportsService['resolveDownload']>>;
+  it('resolves a ready, non-expired download to its storage key after an existence check', async () => {
+    const storageKey = 'exports/site-1/abc/history.csv';
+    const db = {
+      select: jest.fn().mockReturnValueOnce(
+        selectRows([
+          {
+            fileName: 'history.csv',
+            id: VALID_EXPORT_ID,
+            siteId: 'site-1',
+            status: ExportStatus.COMPLETED,
+            storagePath: storageKey,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ]),
+      ),
+    };
+    const { service, storage } = makeService(db);
 
-    try {
-      await writeFile(storagePath, 'Name\nExample\n', 'utf-8');
-      const db = {
-        select: jest.fn().mockReturnValueOnce(
-          selectRows([
-            {
-              fileName: 'history.csv',
-              id: VALID_EXPORT_ID,
-              siteId: 'site-1',
-              status: ExportStatus.COMPLETED,
-              storagePath,
-              expiresAt: new Date(Date.now() + 60_000),
-            },
-          ]),
-        ),
-      };
-      const { service } = makeService(db);
-      resolved = await service.resolveDownload(VALID_EXPORT_ID, 'user-1');
-    } finally {
-      await rm(dir, { force: true, recursive: true });
-    }
-
-    expect(resolved).toStrictEqual({
+    await expect(service.resolveDownload(VALID_EXPORT_ID, 'user-1')).resolves.toStrictEqual({
       fileName: 'history.csv',
-      storagePath,
+      storageKey,
     });
+    expect(storage.exists).toHaveBeenCalledWith(storageKey);
+  });
+
+  it('rejects a download whose backing object is missing from storage', async () => {
+    const db = {
+      select: jest.fn().mockReturnValueOnce(
+        selectRows([
+          {
+            fileName: 'history.csv',
+            id: VALID_EXPORT_ID,
+            siteId: 'site-1',
+            status: ExportStatus.COMPLETED,
+            storagePath: 'exports/site-1/abc/history.csv',
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ]),
+      ),
+    };
+    const { service, storage } = makeService(db);
+    storage.exists.mockResolvedValueOnce(false);
+
+    await expect(service.resolveDownload(VALID_EXPORT_ID, 'user-1')).rejects.toThrow(
+      'Export is not ready',
+    );
+  });
+
+  it('opens a download stream through object storage', async () => {
+    const { service, storage } = makeService({});
+    const stream = Symbol('stream');
+    storage.getStream.mockResolvedValueOnce(stream);
+
+    await expect(service.openDownloadStream('exports/site-1/abc/history.csv')).resolves.toBe(
+      stream,
+    );
+    expect(storage.getStream).toHaveBeenCalledWith('exports/site-1/abc/history.csv');
   });
 
   it('rejects downloads that are not ready or already expired', async () => {
@@ -469,6 +503,48 @@ describe('exportsService', () => {
     );
   });
 
+  it('reaps expired exports, deleting their files and marking them EXPIRED', async () => {
+    const db = {
+      select: jest.fn().mockReturnValueOnce(
+        selectRows([
+          { id: 'exp-1', siteId: 'site-1', storagePath: 'exports/site-1/exp-1/history.csv' },
+          { id: 'exp-2', siteId: 'site-1', storagePath: null },
+        ]),
+      ),
+      update: jest.fn().mockReturnValue(updateChain()),
+    };
+    const { service, storage } = makeService(db);
+
+    await expect(service.reapExpiredExports()).resolves.toStrictEqual({ reaped: 2 });
+    // Only the row with a stored object touches storage; the null one is skipped.
+    expect(storage.delete).toHaveBeenCalledTimes(1);
+    expect(storage.delete).toHaveBeenCalledWith(['exports/site-1/exp-1/history.csv']);
+    expect(db.update).toHaveBeenCalledTimes(2);
+  });
+
+  it('logs and keeps reaping when an expired export cannot be deleted', async () => {
+    const db = {
+      select: jest
+        .fn()
+        .mockReturnValueOnce(
+          selectRows([
+            { id: 'exp-1', siteId: 'site-1', storagePath: 'exports/site-1/exp-1/history.csv' },
+          ]),
+        ),
+      update: jest.fn().mockReturnValue(updateChain()),
+    };
+    const { service, storage, systemLogsService } = makeService(db);
+    storage.delete.mockRejectedValueOnce(new Error('s3 down'));
+
+    await expect(service.reapExpiredExports({ limit: 5 })).resolves.toStrictEqual({ reaped: 0 });
+    expect(systemLogsService.error).toHaveBeenCalledWith(
+      ExportsService.name,
+      'Expired export could not be reaped',
+      expect.any(Error),
+      { exportId: 'exp-1', siteId: 'site-1' },
+    );
+  });
+
   it('processes queued exports and persists generated file metadata', async () => {
     const exportRecord = {
       id: VALID_EXPORT_ID,
@@ -480,12 +556,16 @@ describe('exportsService', () => {
       select: jest.fn().mockReturnValueOnce(selectRows([exportRecord])),
       update: jest.fn().mockReturnValue(updateChain()),
     };
-    const { service, systemLogsService } = makeService(db);
-    jest.spyOn(service as never, 'writeCsv').mockResolvedValue(undefined);
+    const { service, storage, systemLogsService } = makeService(db);
 
     await service.processQueuedExport(VALID_EXPORT_ID);
 
     expect(db.update).toHaveBeenCalledTimes(2);
+    expect(storage.put).toHaveBeenCalledWith(
+      `exports/site-1/${VALID_EXPORT_ID}/history-${VALID_EXPORT_ID}.csv`,
+      expect.any(Buffer),
+      { contentType: 'text/csv; charset=utf-8' },
+    );
     expect(systemLogsService.info).toHaveBeenCalledWith(
       ExportsService.name,
       'Export generated successfully',
@@ -564,42 +644,26 @@ describe('exportsService', () => {
     ).rejects.toThrow('Audit run not found in site');
   });
 
-  it('writes CSV files through the private stream helper', async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'seotracker-csv-'));
-    const storagePath = path.join(dir, 'export.csv');
-    const db = {};
-    const { service } = makeService(db as never);
-
-    let content = '';
-    try {
-      await (
-        service as unknown as { writeCsv: (path: string, data: unknown) => Promise<void> }
-      ).writeCsv(storagePath, { headers: ['Name'], rows: [['Example']] });
-      content = await readFile(storagePath, 'utf-8');
-    } finally {
-      await rm(dir, { force: true, recursive: true });
-    }
-
-    expect(content).toContain('Name\nExample');
-  });
-
-  it('neutralizes CSV formula-injection cells when writing', async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'seotracker-csv-'));
-    const storagePath = path.join(dir, 'export.csv');
+  it('renders CSV content through the private buffer helper', async () => {
     const { service } = makeService({} as never);
 
-    let content = '';
-    try {
-      await (
-        service as unknown as { writeCsv: (path: string, data: unknown) => Promise<void> }
-      ).writeCsv(storagePath, {
-        headers: ['Title'],
-        rows: [['=HYPERLINK("http://evil","x")'], ['Safe title']],
-      });
-      content = await readFile(storagePath, 'utf-8');
-    } finally {
-      await rm(dir, { force: true, recursive: true });
-    }
+    const buffer = await (
+      service as unknown as { renderCsv: (data: unknown) => Promise<Buffer> }
+    ).renderCsv({ headers: ['Name'], rows: [['Example']] });
+
+    expect(buffer.toString('utf-8')).toContain('Name\nExample');
+  });
+
+  it('neutralizes CSV formula-injection cells when rendering', async () => {
+    const { service } = makeService({} as never);
+
+    const buffer = await (
+      service as unknown as { renderCsv: (data: unknown) => Promise<Buffer> }
+    ).renderCsv({
+      headers: ['Title'],
+      rows: [['=HYPERLINK("http://evil","x")'], ['Safe title']],
+    });
+    const content = buffer.toString('utf-8');
 
     // The formula cell is prefixed with a single quote; benign cells untouched.
     expect(content).toContain(`'=HYPERLINK`);
@@ -614,6 +678,7 @@ describe('exportsService', () => {
       { assertPermission: jest.fn() } as never,
       { enqueueExport: jest.fn() } as never,
       { error: jest.fn(), info: jest.fn(), warn: jest.fn() } as never,
+      makeStorage() as never,
       [] as never,
     );
 

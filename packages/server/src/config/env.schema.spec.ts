@@ -210,6 +210,42 @@ describe('apiEnvSchema', () => {
       }),
     ).toThrow(/Too small/);
   });
+
+  it('defaults the storage driver to fs and needs no S3 credentials', () => {
+    const env = envConfig.apiEnvSchema.parse(BASE_ENV);
+    expect(env.STORAGE_DRIVER).toBe('fs');
+    expect(env.STORAGE_FS_DIR).toBe('./storage');
+    expect(env.STORAGE_S3_REGION).toBe('auto');
+    expect(env.STORAGE_S3_FORCE_PATH_STYLE).toBe(false);
+  });
+
+  it('coerces STORAGE_S3_FORCE_PATH_STYLE from a "true" string', () => {
+    const env = envConfig.apiEnvSchema.parse({
+      ...BASE_ENV,
+      STORAGE_S3_FORCE_PATH_STYLE: 'true',
+    });
+    expect(env.STORAGE_S3_FORCE_PATH_STYLE).toBe(true);
+  });
+
+  it('requires bucket and credentials when STORAGE_DRIVER=s3', () => {
+    expect(() => envConfig.apiEnvSchema.parse({ ...BASE_ENV, STORAGE_DRIVER: 's3' })).toThrow(
+      /STORAGE_S3_BUCKET is required when STORAGE_DRIVER=s3/,
+    );
+  });
+
+  it('accepts a fully configured S3 driver', () => {
+    const env = envConfig.apiEnvSchema.parse({
+      ...BASE_ENV,
+      STORAGE_DRIVER: 's3',
+      STORAGE_S3_BUCKET: 'seotracker-exports',
+      STORAGE_S3_ACCESS_KEY_ID: 'AKIAEXAMPLE',
+      STORAGE_S3_SECRET_ACCESS_KEY: 'secret',
+      STORAGE_S3_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
+    });
+    expect(env.STORAGE_DRIVER).toBe('s3');
+    expect(env.STORAGE_S3_BUCKET).toBe('seotracker-exports');
+    expect(env.STORAGE_S3_ENDPOINT).toBe('https://account.r2.cloudflarestorage.com');
+  });
 });
 
 describe('workerEnvSchema', () => {
@@ -252,6 +288,12 @@ describe('workerEnvSchema', () => {
     expect(() =>
       envConfig.workerEnvSchema.parse({ ...BASE_ENV, JWT_ACCESS_SECRET: 'too-short' }),
     ).toThrow(/JWT_ACCESS_SECRET must be at least 32 chars/);
+  });
+
+  it('enforces the S3 driver credential check just like the API schema', () => {
+    expect(() => envConfig.workerEnvSchema.parse({ ...BASE_ENV, STORAGE_DRIVER: 's3' })).toThrow(
+      /STORAGE_S3_BUCKET is required when STORAGE_DRIVER=s3/,
+    );
   });
 });
 
