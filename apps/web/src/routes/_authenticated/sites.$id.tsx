@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   ArrowRight,
@@ -9,6 +9,7 @@ import {
   Download,
   FileDown,
   Gauge,
+  Loader2,
   Pencil,
   Play,
   Save,
@@ -27,6 +28,7 @@ import { Modal } from '#/components/modal';
 import { SelectInput } from '#/components/select-input';
 import { Skeleton } from '#/components/skeleton';
 import { TextInput } from '#/components/text-input';
+import { useToast } from '#/components/toast';
 import type { PaginatedResponse } from '@seotracker/shared-types';
 
 import { useAuth } from '../../lib/auth-context';
@@ -174,6 +176,7 @@ function ProjectDetailPage() {
   const { id } = Route.useParams();
   const auth = useAuth();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const timezoneOptions = useMemo(() => getTimezoneOptions(), []);
 
   const {
@@ -211,6 +214,9 @@ function ProjectDetailPage() {
     },
     enabled: Boolean(auth.accessToken),
     refetchInterval: pollWhileAnyAuditActive,
+    // Mantén la lista anterior visible al cambiar de filtro para evitar el
+    // parpadeo a esqueletos mientras llega la nueva página filtrada.
+    placeholderData: keepPreviousData,
   });
 
   const auditItems = audits.data?.items ?? [];
@@ -334,6 +340,16 @@ function ProjectDetailPage() {
     }) => auth.api.post(`/sites/${id}/exports`, { ...payload, format: 'CSV' }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['exports', id] });
+      toast.success(
+        'Exportación en cola',
+        'El CSV se generará en unos segundos y aparecerá en «Exportaciones».',
+      );
+    },
+    onError: (error) => {
+      toast.error(
+        'No se pudo generar la exportación',
+        error instanceof Error ? error.message : undefined,
+      );
     },
   });
 
@@ -442,11 +458,13 @@ function ProjectDetailPage() {
 
         <SearchConsoleCard siteId={id} />
 
-        <CompareAuditsPanel
-          audits={completedAudits.data?.items ?? []}
-          loading={completedAudits.isLoading}
-          onCompare={openComparison}
-        />
+        {(completedAudits.data?.items?.length ?? 0) >= 2 ? (
+          <CompareAuditsPanel
+            audits={completedAudits.data?.items ?? []}
+            loading={completedAudits.isLoading}
+            onCompare={openComparison}
+          />
+        ) : null}
 
         {/* Main grid */}
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -488,7 +506,11 @@ function ProjectDetailPage() {
               </div>
             </div>
 
-            <ul className="mt-4 divide-y divide-slate-100">
+            <ul
+              className={`mt-4 divide-y divide-slate-100 transition-opacity ${
+                audits.isPlaceholderData ? 'opacity-50' : ''
+              }`}
+            >
               {audits.isLoading
                 ? ['a1', 'a2', 'a3'].map((slot) => (
                     <li key={slot} className="py-3">
@@ -565,10 +587,19 @@ function ProjectDetailPage() {
                           onClick={() =>
                             createExport.mutate({ kind: 'ISSUES', auditRunId: audit.id })
                           }
-                          title="Descargar CSV de incidencias"
-                          className="inline-flex items-center justify-center rounded-md p-1.5 transition hover:bg-slate-100 hover:text-slate-900"
+                          disabled={
+                            createExport.isPending &&
+                            createExport.variables?.auditRunId === audit.id
+                          }
+                          title="Generar CSV de incidencias"
+                          className="inline-flex items-center justify-center rounded-md p-1.5 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          <FileDown size={14} aria-hidden="true" />
+                          {createExport.isPending &&
+                          createExport.variables?.auditRunId === audit.id ? (
+                            <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                          ) : (
+                            <FileDown size={14} aria-hidden="true" />
+                          )}
                         </button>
                       </div>
                     </div>
