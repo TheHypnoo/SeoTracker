@@ -92,7 +92,9 @@ const commonShape = {
   // only driver that survives redeploys and is shared across the separate API
   // and worker services in production.
   STORAGE_DRIVER: z.enum(['fs', 's3']).default('fs'),
-  STORAGE_FS_DIR: z.string().default('./storage'),
+  // API and worker processes run from different package directories in local
+  // dev, so the default must point both of them at the same repo-level folder.
+  STORAGE_FS_DIR: z.string().default('../../storage'),
   STORAGE_S3_ENDPOINT: z.preprocess(emptyStringToUndefined, z.url().optional()),
   // R2 and many S3-compatible providers accept/expect `auto`.
   STORAGE_S3_REGION: z.string().default('auto'),

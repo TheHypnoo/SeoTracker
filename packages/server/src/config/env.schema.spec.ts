@@ -214,7 +214,7 @@ describe('apiEnvSchema', () => {
   it('defaults the storage driver to fs and needs no S3 credentials', () => {
     const env = envConfig.apiEnvSchema.parse(BASE_ENV);
     expect(env.STORAGE_DRIVER).toBe('fs');
-    expect(env.STORAGE_FS_DIR).toBe('./storage');
+    expect(env.STORAGE_FS_DIR).toBe('../../storage');
     expect(env.STORAGE_S3_REGION).toBe('auto');
     expect(env.STORAGE_S3_FORCE_PATH_STYLE).toBe(false);
   });
