@@ -526,6 +526,10 @@ function ProjectDetailPage() {
               ) : null}
               {auditItems.map((audit, index) => {
                 const previousAudit = auditItems[index + 1] ?? null;
+                const isCreatingIssuesExport =
+                  createExport.isPending &&
+                  createExport.variables?.kind === 'ISSUES' &&
+                  createExport.variables?.auditRunId === audit.id;
                 return (
                   <li key={audit.id} className="py-3">
                     <div className="flex flex-wrap items-center gap-3">
@@ -587,15 +591,11 @@ function ProjectDetailPage() {
                           onClick={() =>
                             createExport.mutate({ kind: 'ISSUES', auditRunId: audit.id })
                           }
-                          disabled={
-                            createExport.isPending &&
-                            createExport.variables?.auditRunId === audit.id
-                          }
+                          disabled={isCreatingIssuesExport}
                           title="Generar CSV de incidencias"
                           className="inline-flex items-center justify-center rounded-md p-1.5 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {createExport.isPending &&
-                          createExport.variables?.auditRunId === audit.id ? (
+                          {isCreatingIssuesExport ? (
                             <Loader2 size={14} className="animate-spin" aria-hidden="true" />
                           ) : (
                             <FileDown size={14} aria-hidden="true" />
