@@ -12,15 +12,15 @@ import { usePlatformAdmin } from '#/lib/use-platform-admin';
 
 /**
  * Compact engine-observability entry point on the site detail page. Shows a glance of the
- * SEO engine's recent performance; the full dashboard lives at `/sites/:id/engine-health`.
+ * SEO engine's recent performance for this site; the full platform dashboard lives at `/engine-health`, with this card linking to a site-filtered drilldown.
  */
 export function EngineHealthCard({ siteId }: { siteId: string }) {
   const auth = useAuth();
   const isPlatformAdmin = usePlatformAdmin();
   const { data, isLoading } = useQuery({
     queryKey: ['engine-health-card', siteId],
-    queryFn: () => auth.api.get<EngineHealthSummary>(`/sites/${siteId}/audits/engine-health`),
-    enabled: Boolean(auth.accessToken && siteId && isPlatformAdmin),
+    queryFn: () => auth.api.get<EngineHealthSummary>(`/engine-health?siteId=${siteId}`),
+    enabled: Boolean(auth.user && siteId && isPlatformAdmin),
   });
 
   // Internal observability: invisible to anyone who is not a platform operator.
@@ -49,11 +49,11 @@ export function EngineHealthCard({ siteId }: { siteId: string }) {
           </div>
         </div>
         <Link
-          to="/sites/$id/engine-health"
-          params={{ id: siteId }}
+          to="/engine-health"
+          search={{ projectId: undefined, siteId }}
           className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-brand-700 transition hover:border-brand-200 hover:bg-brand-subtle focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
         >
-          Ver observabilidad
+          Ver en plataforma
           <ArrowRight size={14} aria-hidden="true" />
         </Link>
       </div>

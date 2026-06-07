@@ -20,6 +20,7 @@ import { Route as LegalSecurityRouteImport } from './routes/legal.security'
 import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
+import { Route as AuthenticatedEngineHealthRouteImport } from './routes/_authenticated/engine-health'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedSitesIdRouteImport } from './routes/_authenticated/sites.$id'
 import { Route as AuthenticatedSettingsTeamRouteImport } from './routes/_authenticated/settings.team'
@@ -88,6 +89,12 @@ const AuthenticatedNotificationsRoute =
   AuthenticatedNotificationsRouteImport.update({
     id: '/notifications',
     path: '/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedEngineHealthRoute =
+  AuthenticatedEngineHealthRouteImport.update({
+    id: '/engine-health',
+    path: '/engine-health',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -179,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/engine-health': typeof AuthenticatedEngineHealthRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -205,6 +213,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/engine-health': typeof AuthenticatedEngineHealthRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -233,6 +242,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/engine-health': typeof AuthenticatedEngineHealthRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -261,6 +271,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/dashboard'
+    | '/engine-health'
     | '/notifications'
     | '/invite/$token'
     | '/legal/privacy'
@@ -287,6 +298,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/dashboard'
+    | '/engine-health'
     | '/notifications'
     | '/invite/$token'
     | '/legal/privacy'
@@ -314,6 +326,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/_authenticated/dashboard'
+    | '/_authenticated/engine-health'
     | '/_authenticated/notifications'
     | '/invite/$token'
     | '/legal/privacy'
@@ -427,6 +440,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/engine-health': {
+      id: '/_authenticated/engine-health'
+      path: '/engine-health'
+      fullPath: '/engine-health'
+      preLoaderRoute: typeof AuthenticatedEngineHealthRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -530,6 +550,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedEngineHealthRoute: typeof AuthenticatedEngineHealthRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedProjectsNewRoute: typeof AuthenticatedProjectsNewRoute
   AuthenticatedSettingsActivityRoute: typeof AuthenticatedSettingsActivityRoute
@@ -548,6 +569,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedEngineHealthRoute: AuthenticatedEngineHealthRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedProjectsNewRoute: AuthenticatedProjectsNewRoute,
   AuthenticatedSettingsActivityRoute: AuthenticatedSettingsActivityRoute,

@@ -11,19 +11,22 @@ import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
 
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
-import { auditEngineTelemetry, auditRuns } from '../database/schema';
+import { auditEngineTelemetry, auditRuns, sites } from '../database/schema';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-export interface EngineHealthRange {
+export interface EngineHealthFilters {
   from?: string | undefined;
   to?: string | undefined;
+  siteId?: string | undefined;
+  projectId?: string | undefined;
 }
 
 /**
  * Read/aggregation layer over `audit_engine_telemetry`. Turns the per-stage
  * execution trace the SEO engine writes on every audit into two products:
- * a per-audit waterfall and an aggregate "engine health" dashboard per site.
+ * a per-audit waterfall and an aggregate "engine health" dashboard for the
+ * whole platform, optionally filtered by project or site.
  *
  * This is internal observability: every consuming endpoint is gated behind the
  * PlatformAdminGuard, so no per-project authorization is performed here — a
@@ -77,10 +80,10 @@ export class EngineTelemetryService {
     };
   }
 
-  /** Aggregate per-stage stats (p50/p95, error rate) for a site over a date range. */
-  async getSiteHealth(siteId: string, range: EngineHealthRange = {}): Promise<EngineHealthSummary> {
-    const { from, to } = this.resolveRange(range);
-    const where = this.siteRangeWhere(siteId, from, to);
+  /** Aggregate per-stage stats (p50/p95, error rate) over a date range. */
+  async getHealth(filters: EngineHealthFilters = {}): Promise<EngineHealthSummary> {
+    const { from, to } = this.resolveRange(filters);
+    const where = this.healthWhere(filters, from, to);
 
     const [totals] = await this.db
       .select({
@@ -89,6 +92,7 @@ export class EngineTelemetryService {
       })
       .from(auditEngineTelemetry)
       .innerJoin(auditRuns, eq(auditEngineTelemetry.auditRunId, auditRuns.id))
+      .innerJoin(sites, eq(auditRuns.siteId, sites.id))
       .where(where);
 
     const rows = await this.db
@@ -104,6 +108,7 @@ export class EngineTelemetryService {
       })
       .from(auditEngineTelemetry)
       .innerJoin(auditRuns, eq(auditEngineTelemetry.auditRunId, auditRuns.id))
+      .innerJoin(sites, eq(auditRuns.siteId, sites.id))
       .where(where)
       .groupBy(auditEngineTelemetry.stage);
 
@@ -122,7 +127,8 @@ export class EngineTelemetryService {
       .sort((a, b) => b.p95DurationMs - a.p95DurationMs);
 
     return {
-      siteId,
+      siteId: filters.siteId ?? null,
+      projectId: filters.projectId ?? null,
       from: from.toISOString(),
       to: to.toISOString(),
       runCount: Number(totals?.runCount ?? 0),
@@ -132,15 +138,14 @@ export class EngineTelemetryService {
   }
 
   /** Daily (date, stage) buckets for the engine-health time series. */
-  async getSiteHealthTimeseries(
-    siteId: string,
-    range: EngineHealthRange & { stage?: string | undefined } = {},
+  async getHealthTimeseries(
+    filters: EngineHealthFilters & { stage?: string | undefined } = {},
   ): Promise<EngineHealthTimeseriesPoint[]> {
-    const { from, to } = this.resolveRange(range);
+    const { from, to } = this.resolveRange(filters);
     const dayExpr = sql`date_trunc('day', ${auditEngineTelemetry.createdAt})`;
-    const clauses = [this.siteRangeWhere(siteId, from, to)];
-    if (range.stage) {
-      clauses.push(eq(auditEngineTelemetry.stage, range.stage));
+    const clauses = [this.healthWhere(filters, from, to)];
+    if (filters.stage) {
+      clauses.push(eq(auditEngineTelemetry.stage, filters.stage));
     }
 
     const rows = await this.db
@@ -154,6 +159,7 @@ export class EngineTelemetryService {
       })
       .from(auditEngineTelemetry)
       .innerJoin(auditRuns, eq(auditEngineTelemetry.auditRunId, auditRuns.id))
+      .innerJoin(sites, eq(auditRuns.siteId, sites.id))
       .where(and(...clauses))
       .groupBy(dayExpr, auditEngineTelemetry.stage)
       .orderBy(asc(dayExpr), asc(auditEngineTelemetry.stage));
@@ -170,10 +176,9 @@ export class EngineTelemetryService {
 
   /** Per-stage stats grouped by scoring model version (regression detection across versions). */
   async getModelVersionStats(
-    siteId: string,
-    range: EngineHealthRange = {},
+    filters: EngineHealthFilters = {},
   ): Promise<EngineModelVersionStats[]> {
-    const { from, to } = this.resolveRange(range);
+    const { from, to } = this.resolveRange(filters);
 
     const rows = await this.db
       .select({
@@ -186,7 +191,8 @@ export class EngineTelemetryService {
       })
       .from(auditEngineTelemetry)
       .innerJoin(auditRuns, eq(auditEngineTelemetry.auditRunId, auditRuns.id))
-      .where(this.siteRangeWhere(siteId, from, to))
+      .innerJoin(sites, eq(auditRuns.siteId, sites.id))
+      .where(this.healthWhere(filters, from, to))
       .groupBy(auditRuns.scoringModelVersion, auditEngineTelemetry.stage)
       .orderBy(desc(auditRuns.scoringModelVersion), asc(auditEngineTelemetry.stage));
 
@@ -200,12 +206,18 @@ export class EngineTelemetryService {
     }));
   }
 
-  private siteRangeWhere(siteId: string, from: Date, to: Date) {
-    return and(
-      eq(auditRuns.siteId, siteId),
+  private healthWhere(filters: EngineHealthFilters, from: Date, to: Date) {
+    const clauses = [
       gte(auditEngineTelemetry.createdAt, from),
       lte(auditEngineTelemetry.createdAt, to),
-    );
+    ];
+    if (filters.siteId) {
+      clauses.push(eq(auditRuns.siteId, filters.siteId));
+    }
+    if (filters.projectId) {
+      clauses.push(eq(sites.projectId, filters.projectId));
+    }
+    return and(...clauses);
   }
 
   private errorRateExpr() {
@@ -216,7 +228,7 @@ export class EngineTelemetryService {
     return sql<number>`coalesce(percentile_cont(${p}) within group (order by ${auditEngineTelemetry.durationMs}), 0)`;
   }
 
-  private resolveRange(range: EngineHealthRange): { from: Date; to: Date } {
+  private resolveRange(range: EngineHealthFilters): { from: Date; to: Date } {
     const to = range.to
       ? new Date(range.to.includes('T') ? range.to : `${range.to}T23:59:59.999Z`)
       : new Date();

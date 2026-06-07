@@ -7,6 +7,7 @@ import {
   Bell,
   FolderKanban,
   Globe,
+  Gauge,
   LayoutDashboard,
   LogOut,
   Play,
@@ -18,6 +19,7 @@ import type { ReactNode } from 'react';
 
 import { useAuth } from '../lib/auth-context';
 import { useProject } from '../lib/project-context';
+import { usePlatformAdmin } from '../lib/use-platform-admin';
 import { useToast } from './toast';
 
 type SiteRow = {
@@ -52,6 +54,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
   const project = useProject();
   const queryClient = useQueryClient();
   const toast = useToast();
+  const isPlatformAdmin = usePlatformAdmin();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   // The palette offers a contextual "run audit" action only when the user
@@ -130,6 +133,18 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                   label="Panel de control"
                   onSelect={goto(() => navigate({ to: '/dashboard' }))}
                 />
+                {isPlatformAdmin ? (
+                  <CommandRow
+                    icon={<Gauge size={14} />}
+                    label="Salud del motor"
+                    onSelect={goto(() =>
+                      navigate({
+                        to: '/engine-health',
+                        search: { projectId: undefined, siteId: undefined },
+                      }),
+                    )}
+                  />
+                ) : null}
                 {project.activeProjectId ? (
                   <CommandRow
                     icon={<Globe size={14} />}

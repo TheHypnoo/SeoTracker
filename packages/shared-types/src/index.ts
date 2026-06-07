@@ -413,7 +413,8 @@ export type EngineStageAggregate = {
 };
 
 export type EngineHealthSummary = {
-  siteId: string;
+  siteId: string | null;
+  projectId: string | null;
   from: string;
   to: string;
   runCount: number;

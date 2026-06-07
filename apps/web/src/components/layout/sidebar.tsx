@@ -3,6 +3,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Globe,
+  Gauge,
   LayoutDashboard,
   Settings2,
   Users2,
@@ -15,9 +16,11 @@ import { Permission } from '@seotracker/shared-types';
 
 import { useProject } from '../../lib/project-context';
 import { usePermissions } from '../../lib/use-permissions';
+import { usePlatformAdmin } from '../../lib/use-platform-admin';
 
 type SidebarLinkTarget =
   | '/dashboard'
+  | '/engine-health'
   | '/notifications'
   | '/settings/general'
   | '/settings/team'
@@ -28,12 +31,13 @@ type SidebarLinkTarget =
 type SidebarLinkProps = {
   to: SidebarLinkTarget;
   params?: { id: string };
+  search?: { projectId?: string | undefined; siteId?: string | undefined };
   label: string;
   icon: ReactNode;
   collapsed?: boolean;
 };
 
-function SidebarLink({ to, params, label, icon, collapsed }: SidebarLinkProps) {
+function SidebarLink({ to, params, search, label, icon, collapsed }: SidebarLinkProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   // Treat any deeper /projects/.../sites/* path as still being on "Dominios".
   const active =
@@ -45,6 +49,7 @@ function SidebarLink({ to, params, label, icon, collapsed }: SidebarLinkProps) {
     <Link
       to={to}
       params={params}
+      search={search}
       aria-current={active ? 'page' : undefined}
       title={collapsed ? label : undefined}
       className={`relative flex items-center gap-3 rounded-md px-3 py-2 text-sm no-underline transition ${
@@ -78,6 +83,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
   const project = useProject();
   const permissions = usePermissions(project.activeProjectId);
   const canViewActivity = permissions.can(Permission.ACTIVITY_READ);
+  const isPlatformAdmin = usePlatformAdmin();
   const sidebarWidth = collapsed ? 'lg:w-16' : 'lg:w-60';
 
   return (
@@ -129,6 +135,15 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
             icon={<LayoutDashboard size={16} aria-hidden="true" />}
             collapsed={collapsed}
           />
+          {isPlatformAdmin ? (
+            <SidebarLink
+              to="/engine-health"
+              search={{ projectId: undefined, siteId: undefined }}
+              label="Salud del motor"
+              icon={<Gauge size={16} aria-hidden="true" />}
+              collapsed={collapsed}
+            />
+          ) : null}
           {project.activeProjectId ? (
             <SidebarLink
               to="/projects/$id/sites"

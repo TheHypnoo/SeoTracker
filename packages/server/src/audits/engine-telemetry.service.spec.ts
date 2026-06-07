@@ -72,7 +72,7 @@ describe('engineTelemetryService', () => {
     await expect(makeService(db).getRunTimeline('missing')).rejects.toThrow('Audit not found');
   });
 
-  it('aggregates site engine health sorted by p95 desc', async () => {
+  it('aggregates global engine health sorted by p95 desc', async () => {
     const db = {
       select: jest
         .fn()
@@ -103,10 +103,12 @@ describe('engineTelemetryService', () => {
         ),
     };
 
-    const health = await makeService(db).getSiteHealth('site-1', {});
+    const health = await makeService(db).getHealth({});
     expect(health.stages[0]?.stage).toBe('crawl_pages');
     expect(health.runCount).toBe(4);
     expect(health.totalSamples).toBe(40);
+    expect(health.siteId).toBeNull();
+    expect(health.projectId).toBeNull();
   });
 
   it('returns the engine-health time series mapped to numbers', async () => {
@@ -124,7 +126,7 @@ describe('engineTelemetryService', () => {
         ]),
       ),
     };
-    const series = await makeService(db).getSiteHealthTimeseries('site-1', {});
+    const series = await makeService(db).getHealthTimeseries({});
     expect(series).toStrictEqual([
       {
         date: '2026-06-01',
@@ -139,7 +141,7 @@ describe('engineTelemetryService', () => {
 
   it('filters the time series by stage when provided', async () => {
     const db = { select: jest.fn().mockReturnValueOnce(query([])) };
-    await makeService(db).getSiteHealthTimeseries('site-1', { stage: 'scoring' });
+    await makeService(db).getHealthTimeseries({ siteId: 'site-1', stage: 'scoring' });
     expect(db.select).toHaveBeenCalledTimes(1);
   });
 
@@ -158,7 +160,7 @@ describe('engineTelemetryService', () => {
         ]),
       ),
     };
-    const rows = await makeService(db).getModelVersionStats('site-1', {});
+    const rows = await makeService(db).getModelVersionStats({ projectId: 'project-1' });
     expect(rows[0]).toMatchObject({ scoringModelVersion: 'v2', stage: 'scoring' });
   });
 });
