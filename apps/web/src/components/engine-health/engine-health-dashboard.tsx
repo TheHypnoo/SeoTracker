@@ -54,6 +54,12 @@ export function EngineHealthDashboard({
     enabled: Boolean(auth.user && isPlatformAdmin && siteId),
   });
 
+  const { data: projectData } = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => auth.api.get<{ id: string; name: string }>(`/projects/${projectId}`),
+    enabled: Boolean(auth.user && isPlatformAdmin && projectId),
+  });
+
   const { summary, timeseries, modelVersions } = useEngineHealth(rangeDays, isPlatformAdmin, {
     projectId,
     siteId,
@@ -83,12 +89,12 @@ export function EngineHealthDashboard({
   const title = siteId
     ? (siteData?.name ?? 'Cargando...')
     : projectId
-      ? 'Salud del motor por proyecto'
+      ? (projectData?.name ?? 'Salud del motor por proyecto')
       : 'Salud global del motor';
   const subtitle = siteId
     ? (siteData?.domain ?? 'Filtro por dominio')
     : projectId
-      ? `Proyecto ${projectId}`
+      ? 'Filtro por proyecto'
       : 'Todas las auditorías de todos los proyectos';
 
   return (

@@ -63,44 +63,4 @@ export class EngineTelemetryController {
       to: query.to,
     });
   }
-
-  @Get('sites/:siteId/audits/engine-health')
-  @ApiOperation({ summary: 'Salud del motor filtrada por dominio' })
-  siteHealth(@Param('siteId', UUID_V4_PIPE) siteId: string, @Query() query: EngineHealthQueryDto) {
-    return this.engineTelemetryService.getHealth({
-      from: query.from,
-      projectId: query.projectId,
-      siteId,
-      to: query.to,
-    });
-  }
-
-  @Get('sites/:siteId/audits/engine-health/timeseries')
-  @ApiOperation({ summary: 'Salud del motor filtrada por dominio: evolución diaria por etapa' })
-  siteTimeseries(
-    @Param('siteId', UUID_V4_PIPE) siteId: string,
-    @Query() query: EngineHealthTimeseriesQueryDto,
-  ) {
-    return this.engineTelemetryService.getHealthTimeseries({
-      from: query.from,
-      projectId: query.projectId,
-      siteId,
-      stage: query.stage,
-      to: query.to,
-    });
-  }
-
-  @Get('sites/:siteId/audits/engine-health/model-versions')
-  @ApiOperation({ summary: 'Salud del motor filtrada por dominio: comparación por versión' })
-  siteModelVersions(
-    @Param('siteId', UUID_V4_PIPE) siteId: string,
-    @Query() query: EngineHealthQueryDto,
-  ) {
-    return this.engineTelemetryService.getModelVersionStats({
-      from: query.from,
-      projectId: query.projectId,
-      siteId,
-      to: query.to,
-    });
-  }
 }
