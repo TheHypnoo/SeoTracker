@@ -19,7 +19,7 @@ export function EngineTelemetryPanel({ auditId }: { auditId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ['audit-engine-telemetry', auditId],
     queryFn: () => auth.api.get<EngineRunTimeline>(`/audits/${auditId}/engine-telemetry`),
-    enabled: Boolean(auth.accessToken && isPlatformAdmin),
+    enabled: Boolean(auth.user && isPlatformAdmin),
   });
 
   // Internal observability: only platform operators see the engine waterfall.
