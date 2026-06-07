@@ -17,7 +17,7 @@ import { usePlatformAdmin } from '#/lib/use-platform-admin';
 export function EngineHealthCard({ siteId }: { siteId: string }) {
   const auth = useAuth();
   const isPlatformAdmin = usePlatformAdmin();
-  const summary = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['engine-health-card', siteId],
     queryFn: () => auth.api.get<EngineHealthSummary>(`/sites/${siteId}/audits/engine-health`),
     enabled: Boolean(auth.accessToken && siteId && isPlatformAdmin),
@@ -26,7 +26,6 @@ export function EngineHealthCard({ siteId }: { siteId: string }) {
   // Internal observability: invisible to anyone who is not a platform operator.
   if (!isPlatformAdmin) return null;
 
-  const data = summary.data;
   const slowest = data?.stages.reduce<EngineHealthSummary['stages'][number] | null>(
     (max, stage) => (max && max.p95DurationMs >= stage.p95DurationMs ? max : stage),
     null,
@@ -59,7 +58,7 @@ export function EngineHealthCard({ siteId }: { siteId: string }) {
         </Link>
       </div>
 
-      {summary.isLoading ? (
+      {isLoading ? (
         <Skeleton className="mt-4 h-20 w-full" />
       ) : hasData ? (
         <div className="mt-4 grid gap-2 sm:grid-cols-3">

@@ -13,7 +13,7 @@ export function usePlatformAdmin(): boolean {
   const me = useQuery({
     queryKey: ['auth-me'],
     queryFn: () => auth.api.get<{ isPlatformAdmin: boolean }>('/auth/me'),
-    enabled: Boolean(auth.accessToken),
+    enabled: Boolean(auth.user),
     staleTime: 5 * 60_000,
   });
   return me.data?.isPlatformAdmin ?? false;

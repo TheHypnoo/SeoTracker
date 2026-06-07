@@ -47,7 +47,7 @@ function SiteEngineHealthPage() {
   const [rangeDays, setRangeDays] = useState(30);
   const isPlatformAdmin = usePlatformAdmin();
 
-  const site = useQuery({
+  const { data: siteData } = useQuery({
     queryKey: ['site', id],
     queryFn: () => auth.api.get<Site>(`/sites/${id}`),
     enabled: Boolean(auth.accessToken && isPlatformAdmin),
@@ -100,9 +100,9 @@ function SiteEngineHealthPage() {
             Observabilidad del motor
           </div>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-            {site.data?.name ?? 'Cargando...'}
+            {siteData?.name ?? 'Cargando...'}
           </h1>
-          <div className="mt-0.5 font-mono text-sm text-slate-500">{site.data?.domain ?? '—'}</div>
+          <div className="mt-0.5 font-mono text-sm text-slate-500">{siteData?.domain ?? '—'}</div>
         </div>
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
           {RANGE_OPTIONS.map((option) => (
@@ -196,7 +196,15 @@ function SiteEngineHealthPage() {
                   Sin datos suficientes para dibujar la evolución.
                 </p>
               ) : (
-                <MultiSeriesTrendChart data={chartData} series={chartSeries} height={280} />
+                <MultiSeriesTrendChart
+                  data={chartData}
+                  series={chartSeries}
+                  height={280}
+                  yDomain={[0, 'auto']}
+                  yAxisWidth={48}
+                  yTickFormatter={(value) => formatDuration(Number(value))}
+                  tooltipValueFormatter={(value) => formatDuration(Number(value))}
+                />
               )}
             </div>
           )}

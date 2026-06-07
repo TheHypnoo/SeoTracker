@@ -16,7 +16,7 @@ import { formatDuration } from './audit-detail-formatters';
 export function EngineTelemetryPanel({ auditId }: { auditId: string }) {
   const auth = useAuth();
   const isPlatformAdmin = usePlatformAdmin();
-  const telemetry = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['audit-engine-telemetry', auditId],
     queryFn: () => auth.api.get<EngineRunTimeline>(`/audits/${auditId}/engine-telemetry`),
     enabled: Boolean(auth.accessToken && isPlatformAdmin),
@@ -25,13 +25,12 @@ export function EngineTelemetryPanel({ auditId }: { auditId: string }) {
   // Internal observability: only platform operators see the engine waterfall.
   if (!isPlatformAdmin) return null;
 
-  const data = telemetry.data;
   const stages = data?.stages ?? [];
   const maxDuration = stages.reduce((max, s) => Math.max(max, s.durationMs), 0);
 
   return (
     <CollapsibleSection title="Rendimiento del motor" count={stages.length}>
-      {telemetry.isLoading ? (
+      {isLoading ? (
         <p className="text-sm text-slate-500">Cargando telemetría del motor…</p>
       ) : stages.length === 0 ? (
         <p className="text-sm text-slate-500">Esta auditoría no registró telemetría por etapa.</p>
