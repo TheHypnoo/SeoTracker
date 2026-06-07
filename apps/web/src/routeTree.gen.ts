@@ -20,6 +20,7 @@ import { Route as LegalSecurityRouteImport } from './routes/legal.security'
 import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
+import { Route as AuthenticatedEngineHealthRouteImport } from './routes/_authenticated/engine-health'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedSitesIdRouteImport } from './routes/_authenticated/sites.$id'
 import { Route as AuthenticatedSettingsTeamRouteImport } from './routes/_authenticated/settings.team'
@@ -28,6 +29,7 @@ import { Route as AuthenticatedSettingsGeneralRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsActivityRouteImport } from './routes/_authenticated/settings.activity'
 import { Route as AuthenticatedProjectsNewRouteImport } from './routes/_authenticated/projects.new'
 import { Route as AuthenticatedSitesIdSearchRouteImport } from './routes/_authenticated/sites_.$id.search'
+import { Route as AuthenticatedSitesIdEngineHealthRouteImport } from './routes/_authenticated/sites_.$id.engine-health'
 import { Route as AuthenticatedProjectsIdSitesRouteImport } from './routes/_authenticated/projects.$id.sites'
 import { Route as AuthenticatedProjectsIdIssuesRouteImport } from './routes/_authenticated/projects.$id.issues'
 import { Route as AuthenticatedProjectsIdExportsRouteImport } from './routes/_authenticated/projects.$id.exports'
@@ -89,6 +91,12 @@ const AuthenticatedNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedEngineHealthRoute =
+  AuthenticatedEngineHealthRouteImport.update({
+    id: '/engine-health',
+    path: '/engine-health',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -135,6 +143,12 @@ const AuthenticatedSitesIdSearchRoute =
     path: '/sites/$id/search',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSitesIdEngineHealthRoute =
+  AuthenticatedSitesIdEngineHealthRouteImport.update({
+    id: '/sites_/$id/engine-health',
+    path: '/sites/$id/engine-health',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedProjectsIdSitesRoute =
   AuthenticatedProjectsIdSitesRouteImport.update({
     id: '/projects/$id/sites',
@@ -172,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/engine-health': typeof AuthenticatedEngineHealthRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -188,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/projects/$id/exports': typeof AuthenticatedProjectsIdExportsRoute
   '/projects/$id/issues': typeof AuthenticatedProjectsIdIssuesRoute
   '/projects/$id/sites': typeof AuthenticatedProjectsIdSitesRoute
+  '/sites/$id/engine-health': typeof AuthenticatedSitesIdEngineHealthRoute
   '/sites/$id/search': typeof AuthenticatedSitesIdSearchRoute
   '/sites/$id/audits/$auditId': typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
@@ -197,6 +213,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/engine-health': typeof AuthenticatedEngineHealthRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -213,6 +230,7 @@ export interface FileRoutesByTo {
   '/projects/$id/exports': typeof AuthenticatedProjectsIdExportsRoute
   '/projects/$id/issues': typeof AuthenticatedProjectsIdIssuesRoute
   '/projects/$id/sites': typeof AuthenticatedProjectsIdSitesRoute
+  '/sites/$id/engine-health': typeof AuthenticatedSitesIdEngineHealthRoute
   '/sites/$id/search': typeof AuthenticatedSitesIdSearchRoute
   '/sites/$id/audits/$auditId': typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
@@ -224,6 +242,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/engine-health': typeof AuthenticatedEngineHealthRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -240,6 +259,7 @@ export interface FileRoutesById {
   '/_authenticated/projects/$id/exports': typeof AuthenticatedProjectsIdExportsRoute
   '/_authenticated/projects/$id/issues': typeof AuthenticatedProjectsIdIssuesRoute
   '/_authenticated/projects/$id/sites': typeof AuthenticatedProjectsIdSitesRoute
+  '/_authenticated/sites_/$id/engine-health': typeof AuthenticatedSitesIdEngineHealthRoute
   '/_authenticated/sites_/$id/search': typeof AuthenticatedSitesIdSearchRoute
   '/_authenticated/sites_/$id/audits/$auditId': typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
@@ -251,6 +271,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/dashboard'
+    | '/engine-health'
     | '/notifications'
     | '/invite/$token'
     | '/legal/privacy'
@@ -267,6 +288,7 @@ export interface FileRouteTypes {
     | '/projects/$id/exports'
     | '/projects/$id/issues'
     | '/projects/$id/sites'
+    | '/sites/$id/engine-health'
     | '/sites/$id/search'
     | '/sites/$id/audits/$auditId'
   fileRoutesByTo: FileRoutesByTo
@@ -276,6 +298,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/dashboard'
+    | '/engine-health'
     | '/notifications'
     | '/invite/$token'
     | '/legal/privacy'
@@ -292,6 +315,7 @@ export interface FileRouteTypes {
     | '/projects/$id/exports'
     | '/projects/$id/issues'
     | '/projects/$id/sites'
+    | '/sites/$id/engine-health'
     | '/sites/$id/search'
     | '/sites/$id/audits/$auditId'
   id:
@@ -302,6 +326,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/_authenticated/dashboard'
+    | '/_authenticated/engine-health'
     | '/_authenticated/notifications'
     | '/invite/$token'
     | '/legal/privacy'
@@ -318,6 +343,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projects/$id/exports'
     | '/_authenticated/projects/$id/issues'
     | '/_authenticated/projects/$id/sites'
+    | '/_authenticated/sites_/$id/engine-health'
     | '/_authenticated/sites_/$id/search'
     | '/_authenticated/sites_/$id/audits/$auditId'
   fileRoutesById: FileRoutesById
@@ -414,6 +440,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/engine-health': {
+      id: '/_authenticated/engine-health'
+      path: '/engine-health'
+      fullPath: '/engine-health'
+      preLoaderRoute: typeof AuthenticatedEngineHealthRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -470,6 +503,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSitesIdSearchRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/sites_/$id/engine-health': {
+      id: '/_authenticated/sites_/$id/engine-health'
+      path: '/sites/$id/engine-health'
+      fullPath: '/sites/$id/engine-health'
+      preLoaderRoute: typeof AuthenticatedSitesIdEngineHealthRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/projects/$id/sites': {
       id: '/_authenticated/projects/$id/sites'
       path: '/projects/$id/sites'
@@ -510,6 +550,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedEngineHealthRoute: typeof AuthenticatedEngineHealthRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedProjectsNewRoute: typeof AuthenticatedProjectsNewRoute
   AuthenticatedSettingsActivityRoute: typeof AuthenticatedSettingsActivityRoute
@@ -521,12 +562,14 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProjectsIdExportsRoute: typeof AuthenticatedProjectsIdExportsRoute
   AuthenticatedProjectsIdIssuesRoute: typeof AuthenticatedProjectsIdIssuesRoute
   AuthenticatedProjectsIdSitesRoute: typeof AuthenticatedProjectsIdSitesRoute
+  AuthenticatedSitesIdEngineHealthRoute: typeof AuthenticatedSitesIdEngineHealthRoute
   AuthenticatedSitesIdSearchRoute: typeof AuthenticatedSitesIdSearchRoute
   AuthenticatedSitesIdAuditsAuditIdRoute: typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedEngineHealthRoute: AuthenticatedEngineHealthRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedProjectsNewRoute: AuthenticatedProjectsNewRoute,
   AuthenticatedSettingsActivityRoute: AuthenticatedSettingsActivityRoute,
@@ -539,6 +582,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProjectsIdExportsRoute: AuthenticatedProjectsIdExportsRoute,
   AuthenticatedProjectsIdIssuesRoute: AuthenticatedProjectsIdIssuesRoute,
   AuthenticatedProjectsIdSitesRoute: AuthenticatedProjectsIdSitesRoute,
+  AuthenticatedSitesIdEngineHealthRoute: AuthenticatedSitesIdEngineHealthRoute,
   AuthenticatedSitesIdSearchRoute: AuthenticatedSitesIdSearchRoute,
   AuthenticatedSitesIdAuditsAuditIdRoute:
     AuthenticatedSitesIdAuditsAuditIdRoute,

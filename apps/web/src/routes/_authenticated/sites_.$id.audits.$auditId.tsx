@@ -34,6 +34,7 @@ import {
   TriggerBadge,
 } from '#/components/audit-detail/badges';
 import { CollapsibleSection } from '#/components/audit-detail/collapsible-section';
+import { EngineTelemetryPanel } from '#/components/audit-detail/engine-telemetry-panel';
 import { ExportMenu } from '#/components/audit-detail/export-menu';
 import { IssueDetailDrawer } from '#/components/audit-detail/issue-detail-drawer';
 import { IssueGroupCard } from '#/components/audit-detail/issue-group-card';
@@ -705,6 +706,8 @@ function AuditDetailPage() {
                   </dl>
                 )}
               </CollapsibleSection>
+
+              <EngineTelemetryPanel auditId={auditId} />
             </div>
           ) : null}
 

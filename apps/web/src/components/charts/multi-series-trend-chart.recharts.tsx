@@ -16,6 +16,11 @@ export interface SeriesDef {
   emphasize?: boolean;
 }
 
+export type YAxisDomain = [
+  number | 'auto' | 'dataMin' | 'dataMax',
+  number | 'auto' | 'dataMin' | 'dataMax',
+];
+
 export interface MultiSeriesPoint {
   id: string;
   timestamp: string;
@@ -27,14 +32,25 @@ type MultiSeriesTrendChartProps = {
   data: MultiSeriesPoint[];
   series: SeriesDef[];
   height: number;
+  yDomain?: YAxisDomain;
+  yAxisWidth?: number;
+  yTickFormatter?: (value: number) => string;
+  tooltipValueFormatter?: (value: unknown) => string;
 };
 
 export default function MultiSeriesTrendChartRecharts({
   data,
   series,
   height,
+  yDomain = [0, 100],
+  yAxisWidth = 28,
+  yTickFormatter,
+  tooltipValueFormatter,
 }: MultiSeriesTrendChartProps) {
   const dataWithLabel = data.map((p) => ({ ...p, label: formatShortDate(p.timestamp) }));
+  const tooltipFormatter = tooltipValueFormatter
+    ? (value: unknown, name: unknown) => [tooltipValueFormatter(value), String(name)]
+    : undefined;
 
   return (
     <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 300, height }}>
@@ -53,12 +69,13 @@ export default function MultiSeriesTrendChartRecharts({
           minTickGap={20}
         />
         <YAxis
-          domain={[0, 100]}
-          ticks={[0, 25, 50, 75, 100]}
+          domain={yDomain}
+          ticks={yDomain[1] === 100 ? [0, 25, 50, 75, 100] : undefined}
+          tickFormatter={yTickFormatter}
           tick={{ fontSize: 10, fill: '#94a3b8' }}
           axisLine={false}
           tickLine={false}
-          width={28}
+          width={yAxisWidth}
         />
         <Tooltip
           cursor={{ stroke: '#cbd5e1', strokeDasharray: '2 3' }}
@@ -70,6 +87,7 @@ export default function MultiSeriesTrendChartRecharts({
             padding: '6px 10px',
           }}
           labelStyle={{ color: '#475569', fontWeight: 600 }}
+          formatter={tooltipFormatter}
         />
         {series.map((s) => (
           <Line

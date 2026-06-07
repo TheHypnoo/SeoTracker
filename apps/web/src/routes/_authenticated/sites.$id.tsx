@@ -22,6 +22,7 @@ import type { ReactNode } from 'react';
 import { Button } from '#/components/button';
 import { PublicBadgeCard } from '#/components/site-detail/public-badge-card';
 import { CompareAuditsPanel } from '#/components/site-detail/comparisons';
+import { EngineHealthCard } from '#/components/site-detail/engine-health-card';
 import { SearchConsoleCard } from '#/components/site-detail/search-console-card';
 import { TrendsPanel } from '#/components/site-detail/trends-panel';
 import { Modal } from '#/components/modal';
@@ -457,6 +458,8 @@ function ProjectDetailPage() {
         ) : null}
 
         <SearchConsoleCard siteId={id} />
+
+        <EngineHealthCard siteId={id} />
 
         {(completedAudits.data?.items?.length ?? 0) >= 2 ? (
           <CompareAuditsPanel

@@ -373,6 +373,75 @@ export type ScoreBreakdown = {
   topDeductions: ScoreDeduction[];
 };
 
+/**
+ * Engine telemetry (observability of the SEO engine) shapes shared between the
+ * server (which reads `audit_engine_telemetry`) and the web app (which renders
+ * the per-audit waterfall and the aggregate "engine health" dashboard).
+ */
+export type EngineStageStatus = 'success' | 'error';
+
+/** One stage of a single audit run, in execution order (per-audit waterfall). */
+export type EngineStageTimelineEntry = {
+  id: string;
+  stage: string;
+  status: EngineStageStatus;
+  durationMs: number;
+  error: string | null;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export type EngineRunTimeline = {
+  auditId: string;
+  scoringModelVersion: string | null;
+  totalDurationMs: number;
+  stageCount: number;
+  errorCount: number;
+  stages: EngineStageTimelineEntry[];
+};
+
+/** Aggregate stats for one engine stage across many runs of a site. */
+export type EngineStageAggregate = {
+  stage: string;
+  sampleCount: number;
+  errorCount: number;
+  errorRate: number;
+  p50DurationMs: number;
+  p95DurationMs: number;
+  avgDurationMs: number;
+  maxDurationMs: number;
+};
+
+export type EngineHealthSummary = {
+  siteId: string | null;
+  projectId: string | null;
+  from: string;
+  to: string;
+  runCount: number;
+  totalSamples: number;
+  stages: EngineStageAggregate[];
+};
+
+/** One (day, stage) bucket for the engine-health time series. */
+export type EngineHealthTimeseriesPoint = {
+  date: string;
+  stage: string;
+  sampleCount: number;
+  errorRate: number;
+  p50DurationMs: number;
+  p95DurationMs: number;
+};
+
+/** Per-stage stats grouped by scoring model version, to spot regressions across versions. */
+export type EngineModelVersionStats = {
+  scoringModelVersion: string | null;
+  stage: string;
+  sampleCount: number;
+  errorRate: number;
+  p50DurationMs: number;
+  p95DurationMs: number;
+};
+
 export interface ApiError {
   message: string;
   statusCode: number;

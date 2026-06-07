@@ -182,6 +182,12 @@ export const apiEnvSchema = z
     //  - Railway only:         1
     //  - Railway + Cloudflare: 2
     TRUST_PROXY: z.coerce.number().int().nonnegative().default(0),
+    // Comma-separated allowlist of e-mails that are platform administrators
+    // (operators of SEOTracker itself, not project members). Grants access to
+    // internal observability such as the SEO engine health dashboard. A
+    // deployment-level concern: it can never be granted to a customer via the
+    // per-project role/permission model.
+    PLATFORM_ADMIN_EMAILS: z.preprocess(emptyStringToUndefined, z.string().optional()),
   })
   // Fail closed in production: a forgotten COOKIE_SECURE=true would let the
   // HttpOnly refresh cookie travel over plain HTTP and be sniffed on the wire.
