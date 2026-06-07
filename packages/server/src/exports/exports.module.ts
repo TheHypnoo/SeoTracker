@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { ProjectsModule } from '../projects/projects.module';
 import { SitesModule } from '../sites/sites.module';
+import { StorageModule } from '../storage/storage.module';
 import { ExportsController } from './exports.controller';
 import { ExportsProcessor } from './exports.processor';
 import { ExportsService } from './exports.service';
@@ -17,7 +18,7 @@ import {
 } from './strategies';
 
 @Module({
-  imports: [SitesModule, ProjectsModule],
+  imports: [SitesModule, ProjectsModule, StorageModule],
   controllers: [ExportsController],
   providers: [
     ExportsService,

@@ -40,6 +40,33 @@ API_PROXY_TARGET=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:4000
 SERVER_API_URL=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:4000/api/v1
 ```
 
+## Export file storage (object storage)
+
+Generated export files (CSV/…) are produced by the `worker` and downloaded
+through the `api`. On Railway these are **separate services with separate,
+ephemeral disks**, and Railway volumes cannot be shared between services — so a
+local directory does not work and files would vanish on every redeploy. Use an
+S3-compatible bucket instead.
+
+1. Create a bucket on any S3-compatible provider (Cloudflare R2, AWS S3 or
+   Backblaze B2 all work — the app only speaks the S3 API).
+2. Set these variables on **both** the `api` and `worker` services (identical
+   values, so the worker writes where the API reads):
+
+   ```bash
+   STORAGE_DRIVER=s3
+   STORAGE_S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com  # omit for AWS S3
+   STORAGE_S3_REGION=auto                                          # e.g. eu-west-1 on AWS
+   STORAGE_S3_BUCKET=seotracker-exports
+   STORAGE_S3_ACCESS_KEY_ID=<key>
+   STORAGE_S3_SECRET_ACCESS_KEY=<secret>
+   STORAGE_S3_FORCE_PATH_STYLE=false                               # true for MinIO/self-hosted gateways
+   ```
+
+No Railway volume is required. Expired files are pruned hourly by the worker's
+`reapExpiredExports` cron (`EXPORT_TTL_HOURS`, default 48), so the bucket does
+not grow unbounded.
+
 If you use Railpack instead of Dockerfile, configure equivalent commands:
 
 | Service  | Build command                   | Start command                |

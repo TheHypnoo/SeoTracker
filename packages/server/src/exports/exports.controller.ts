@@ -1,7 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { createReadStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -77,7 +76,8 @@ export class ExportsController {
     response.setHeader('Content-Type', 'text/csv; charset=utf-8');
     response.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
 
-    await pipeline(createReadStream(file.storagePath), response);
+    const stream = await this.exportsService.openDownloadStream(file.storageKey);
+    await pipeline(stream, response);
   }
 
   @Post('exports/:exportId/retry')

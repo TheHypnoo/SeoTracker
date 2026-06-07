@@ -52,7 +52,10 @@ function makeService(db = makeDb()) {
   const notificationsService = {
     reconcilePendingEmailDeliveries: jest.fn().mockResolvedValue({ reconciled: 0 }),
   };
-  const exportsService = { reconcilePendingExports: jest.fn().mockResolvedValue({ requeued: 0 }) };
+  const exportsService = {
+    reapExpiredExports: jest.fn().mockResolvedValue({ reaped: 0 }),
+    reconcilePendingExports: jest.fn().mockResolvedValue({ requeued: 0 }),
+  };
   const outboundWebhooksService = {
     reconcilePendingDeliveries: jest.fn().mockResolvedValue({ requeued: 0 }),
   };
@@ -306,8 +309,32 @@ describe('schedulingService', () => {
 
     await service.reconcileEmailDeliveries();
     await service.reconcileQueuedWork();
+    await service.reapExpiredExports();
 
     expect(true).toBe(true);
+  });
+
+  it('reaps expired exports under its own lock and logs when any are reaped', async () => {
+    const { distributedLockService, exportsService, service } = makeService();
+    exportsService.reapExpiredExports.mockResolvedValueOnce({ reaped: 3 });
+
+    await service.reapExpiredExports();
+
+    expect(distributedLockService.withLock).toHaveBeenCalledWith(
+      'scheduler:expired-exports',
+      90_000,
+      expect.any(Function),
+    );
+    expect(exportsService.reapExpiredExports).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips expired-export reaping when another instance owns the lock', async () => {
+    const { distributedLockService, exportsService, service } = makeService();
+    distributedLockService.withLock.mockResolvedValueOnce(null);
+
+    await service.reapExpiredExports();
+
+    expect(exportsService.reapExpiredExports).not.toHaveBeenCalled();
   });
 
   it('reconciles email deliveries and queued work under separate locks', async () => {
