@@ -78,6 +78,10 @@ export async function safeFetchWithRetry(
       await waitBeforeRetry(attempt);
     }
   }
+  // Defensive fallback: the loop above always returns (success / non-retriable
+  // status) or throws (last attempt) on its final iteration, so this is only a
+  // type-narrowing guarantee that the function never falls through to undefined.
+  /* istanbul ignore next -- unreachable defensive fallback */
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 

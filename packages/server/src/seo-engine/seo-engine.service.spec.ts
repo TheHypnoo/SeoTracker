@@ -255,6 +255,36 @@ describe('seoEngineService', () => {
     );
   });
 
+  it('projects scored top deductions into the scoring telemetry event', async () => {
+    jest.mocked(safeFetch).mockResolvedValueOnce(
+      new Response('<html><head></head><body>ok</body></html>', {
+        headers: { 'content-type': 'text/html' },
+        status: 200,
+      }),
+    );
+    jest.mocked(scoreAudit).mockReturnValueOnce({
+      breakdown: {
+        criticalRisk: { issueCodes: [], level: 'NONE', reasons: [] },
+        topDeductions: [{ cappedDeduction: 7, issueCode: IssueCode.THIN_CONTENT }],
+      },
+      categoryScores: { TECHNICAL: 90 },
+      crawlConfidenceScore: 80,
+      criticalRisk: 'NONE',
+      modelVersion: 'v2.0',
+      pageScores: new Map([['https://example.com', 90]]),
+      score: 90,
+      seoScore: 91,
+    } as never);
+    const service = new SeoEngineService(configService as never);
+
+    const result = await service.analyzeDomain('example.com');
+
+    const scoring = result.engineTelemetry.find((event) => event.stage === 'scoring');
+    expect(scoring?.details?.topDeductions).toStrictEqual([
+      { issueCode: IssueCode.THIN_CONTENT, points: 7 },
+    ]);
+  });
+
   it('returns a critical unreachable issue when the homepage fetch is blocked', async () => {
     jest.mocked(safeFetch).mockRejectedValueOnce(new SsrfBlockedError('blocked'));
     const service = new SeoEngineService(configService as never);
