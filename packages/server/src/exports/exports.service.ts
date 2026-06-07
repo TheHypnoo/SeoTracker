@@ -9,10 +9,7 @@ import {
 } from '@seotracker/shared-types';
 import { stringify as csvStringifyStream } from 'csv-stringify';
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
-import { createWriteStream } from 'node:fs';
-import { mkdir, stat } from 'node:fs/promises';
-import path from 'node:path';
-import { pipeline } from 'node:stream/promises';
+import type { Readable } from 'node:stream';
 
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -30,6 +27,14 @@ export function sanitizeCsvCell(cell: string | number): string | number {
   return CSV_FORMULA_PREFIX_RE.test(cell) ? `'${cell}` : cell;
 }
 
+/**
+ * Object key for a generated export. Grouping by site keeps the bucket
+ * browsable and lets per-site lifecycle rules be added later if needed.
+ */
+export function buildStorageKey(siteId: string, exportId: string, fileName: string): string {
+  return `exports/${siteId}/${exportId}/${fileName}`;
+}
+
 import type { PaginationInput } from '../common/dto/pagination.dto';
 import { assertPresent } from '../common/utils/assert';
 import type { Env } from '../config/env.schema';
@@ -40,6 +45,7 @@ import { auditComparisons, auditExports, auditRuns, sites } from '../database/sc
 import { ProjectsService } from '../projects/projects.service';
 import { SitesService } from '../sites/sites.service';
 import { QueueService } from '../queue/queue.service';
+import { type ObjectStorage, OBJECT_STORAGE } from '../storage/object-storage';
 import { SystemLogsService } from '../system-logs/system-logs.service';
 import { CSV_BUILDER_STRATEGIES, type CsvBuilderStrategy, type CsvData } from './strategies';
 
@@ -57,6 +63,7 @@ export class ExportsService {
     private readonly projectsService: ProjectsService,
     private readonly queueService: QueueService,
     private readonly systemLogsService: SystemLogsService,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(CSV_BUILDER_STRATEGIES) strategies: CsvBuilderStrategy[],
   ) {
     this.strategiesByKind = new Map(strategies.map((s) => [s.kind, s]));
@@ -228,6 +235,52 @@ export class ExportsService {
     return { requeued };
   }
 
+  /**
+   * Deletes the backing files of exports whose `expiresAt` has passed and marks
+   * them EXPIRED, so the bucket does not accumulate stale CSV/PDFs indefinitely.
+   * Storage deletion is best-effort: a delete failure is logged but the row is
+   * still flagged EXPIRED (and can be regenerated via {@link retry}).
+   */
+  async reapExpiredExports(options: { limit?: number } = {}) {
+    const candidates = await this.db
+      .select({
+        id: auditExports.id,
+        siteId: auditExports.siteId,
+        storagePath: auditExports.storagePath,
+      })
+      .from(auditExports)
+      .where(
+        and(
+          eq(auditExports.status, ExportStatus.COMPLETED),
+          lt(auditExports.expiresAt, new Date()),
+        ),
+      )
+      .limit(options.limit ?? 100);
+
+    let reaped = 0;
+    for (const exportRecord of candidates) {
+      try {
+        if (exportRecord.storagePath) {
+          await this.storage.delete([exportRecord.storagePath]);
+        }
+        await this.db
+          .update(auditExports)
+          .set({ status: ExportStatus.EXPIRED, storagePath: null, fileName: null })
+          .where(eq(auditExports.id, exportRecord.id));
+        reaped += 1;
+      } catch (error) {
+        await this.systemLogsService.error(
+          ExportsService.name,
+          'Expired export could not be reaped',
+          error,
+          { exportId: exportRecord.id, siteId: exportRecord.siteId },
+        );
+      }
+    }
+
+    return { reaped };
+  }
+
   async listForProject(
     siteId: string,
     userId: string,
@@ -287,12 +340,19 @@ export class ExportsService {
       throw new BadRequestException('Export has expired');
     }
 
-    await stat(exportRecord.storagePath);
+    if (!(await this.storage.exists(exportRecord.storagePath))) {
+      throw new BadRequestException('Export is not ready');
+    }
 
     return {
       fileName: exportRecord.fileName,
-      storagePath: exportRecord.storagePath,
+      storageKey: exportRecord.storagePath,
     };
+  }
+
+  /** Open the generated file for streaming back to the client. */
+  openDownloadStream(storageKey: string): Promise<Readable> {
+    return this.storage.getStream(storageKey);
   }
 
   async processQueuedExport(exportId: string) {
@@ -330,15 +390,10 @@ export class ExportsService {
         .where(eq(auditExports.id, exportId));
 
       const csvData = await this.buildCsv(exportRecord);
-      const storageDir = path.resolve(
-        this.configService.get('EXPORT_STORAGE_DIR', { infer: true }),
-      );
-      const exportDir = path.join(storageDir, exportId);
-      await mkdir(exportDir, { recursive: true });
-
       const fileName = `${exportRecord.kind.toLowerCase()}-${exportId}.csv`;
-      const storagePath = path.join(exportDir, fileName);
-      await this.writeCsv(storagePath, csvData);
+      const storageKey = buildStorageKey(exportRecord.siteId, exportId, fileName);
+      const body = await this.renderCsv(csvData);
+      await this.storage.put(storageKey, body, { contentType: 'text/csv; charset=utf-8' });
 
       const expiresAt = new Date(
         Date.now() + this.configService.get('EXPORT_TTL_HOURS', { infer: true }) * 60 * 60 * 1000,
@@ -349,7 +404,7 @@ export class ExportsService {
         .set({
           status: ExportStatus.COMPLETED,
           fileName,
-          storagePath,
+          storagePath: storageKey,
           expiresAt,
           completedAt: new Date(),
         })
@@ -376,14 +431,23 @@ export class ExportsService {
     }
   }
 
-  private writeCsv(storagePath: string, data: CsvData) {
-    const stringifier = csvStringifyStream({ header: true, columns: data.headers });
-    const writeStream = createWriteStream(storagePath, { encoding: 'utf-8' });
-    for (const row of data.rows) {
-      stringifier.write(row.map(sanitizeCsvCell));
-    }
-    stringifier.end();
-    return pipeline(stringifier, writeStream);
+  /**
+   * Render the CSV into an in-memory buffer. Export sizes are bounded by the
+   * audit crawl caps, so buffering is cheaper and more portable than streaming
+   * to object storage (which would need a known length or multipart upload).
+   */
+  private renderCsv(data: CsvData): Promise<Buffer> {
+    return new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      const stringifier = csvStringifyStream({ header: true, columns: data.headers });
+      stringifier.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+      stringifier.on('error', reject);
+      stringifier.on('end', () => resolve(Buffer.concat(chunks)));
+      for (const row of data.rows) {
+        stringifier.write(row.map(sanitizeCsvCell));
+      }
+      stringifier.end();
+    });
   }
 
   private async validateScope(

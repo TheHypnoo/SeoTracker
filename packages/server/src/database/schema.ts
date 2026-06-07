@@ -855,7 +855,8 @@ export const auditComparisonChanges = pgTable(
 
 /**
  * User-requested exports (CSV/PDF/JSON of history, single runs, comparisons, issues or metrics).
- * Processed asynchronously by the exports queue; the final file lives at `storagePath` until `expiresAt`.
+ * Processed asynchronously by the exports queue; `storagePath` holds the object-storage key of the
+ * generated file (see StorageModule), valid until `expiresAt` when the reaper deletes it.
  */
 export const auditExports = pgTable(
   'audit_exports',

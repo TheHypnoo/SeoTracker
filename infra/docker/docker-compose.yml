@@ -60,6 +60,12 @@ services:
       SMTP_FROM: 'SEOTracker <no-reply@seotracker.local>'
       EMAIL_CONCURRENCY: 3
       EMAIL_QUEUE_ATTEMPTS: 5
+      # Exports are written by the worker and read here; the shared named volume
+      # below lets both containers see the same files (Railway uses S3 instead).
+      STORAGE_DRIVER: fs
+      STORAGE_FS_DIR: /app/storage
+    volumes:
+      - exports_data:/app/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,6 +97,12 @@ services:
       SMTP_FROM: 'SEOTracker <no-reply@seotracker.local>'
       EMAIL_CONCURRENCY: 3
       EMAIL_QUEUE_ATTEMPTS: 5
+      # Shares the exports volume with the API so generated files are readable
+      # on the download endpoint (Railway uses S3 instead — see infra/railway).
+      STORAGE_DRIVER: fs
+      STORAGE_FS_DIR: /app/storage
+    volumes:
+      - exports_data:/app/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,3 +131,4 @@ services:
 
 volumes:
   postgres18_data:
+  exports_data:

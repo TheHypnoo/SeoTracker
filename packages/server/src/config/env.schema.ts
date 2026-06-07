@@ -85,8 +85,27 @@ const commonShape = {
   AUDIT_USER_AGENT: z
     .string()
     .default('SEOTrackerBot/1.0 (+https://github.com/TheHypnoo/SeoTracker)'),
-  EXPORT_STORAGE_DIR: z.string().default('./storage/exports'),
   EXPORT_TTL_HOURS: z.coerce.number().int().positive().default(48),
+  // Object-storage backend for generated export files. `fs` writes to a local
+  // directory (dev, or docker-compose with a shared named volume); `s3` targets
+  // any S3-compatible bucket (Cloudflare R2 / AWS S3 / Backblaze B2) and is the
+  // only driver that survives redeploys and is shared across the separate API
+  // and worker services in production.
+  STORAGE_DRIVER: z.enum(['fs', 's3']).default('fs'),
+  // API and worker processes run from different package directories in local
+  // dev, so the default must point both of them at the same repo-level folder.
+  STORAGE_FS_DIR: z.string().default('../../storage'),
+  STORAGE_S3_ENDPOINT: z.preprocess(emptyStringToUndefined, z.url().optional()),
+  // R2 and many S3-compatible providers accept/expect `auto`.
+  STORAGE_S3_REGION: z.string().default('auto'),
+  STORAGE_S3_BUCKET: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  STORAGE_S3_ACCESS_KEY_ID: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  STORAGE_S3_SECRET_ACCESS_KEY: z.preprocess(emptyStringToUndefined, z.string().optional()),
+  // Path-style addressing (bucket in the path, not the host) — required by
+  // MinIO and some self-hosted gateways; harmless for R2/S3 over virtual hosts.
+  STORAGE_S3_FORCE_PATH_STYLE: z
+    .preprocess((value) => (typeof value === 'string' ? value === 'true' : value), z.boolean())
+    .default(false),
   // process.env always serialises to a string, so an unset variable in the
   // .env file (e.g. `METRICS_TOKEN=`) arrives as '' rather than undefined.
   // Coerce empty strings to undefined so the optional chain reads them as
@@ -117,6 +136,32 @@ const commonShape = {
 
 export const commonEnvSchema = z.object(commonShape);
 export type CommonEnv = z.infer<typeof commonEnvSchema>;
+
+// Fail closed when the S3 driver is selected without the credentials it needs,
+// so a misconfigured production deploy is caught at boot rather than on the
+// first export. Shared by the API and worker schemas.
+function refineStorageDriver(
+  env: { STORAGE_DRIVER: 'fs' | 's3' } & Record<string, unknown>,
+  ctx: z.RefinementCtx,
+): void {
+  if (env.STORAGE_DRIVER !== 's3') {
+    return;
+  }
+  const required = [
+    'STORAGE_S3_BUCKET',
+    'STORAGE_S3_ACCESS_KEY_ID',
+    'STORAGE_S3_SECRET_ACCESS_KEY',
+  ] as const;
+  for (const key of required) {
+    if (!env[key]) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `${key} is required when STORAGE_DRIVER=s3`,
+        path: [key],
+      });
+    }
+  }
+}
 
 // API-only fields. The worker must NOT validate these — @nestjs/config writes
 // validate() output back into process.env, so listing PORT here would inject
@@ -155,18 +200,21 @@ export const apiEnvSchema = z
         path: ['COOKIE_SECURE'],
       });
     }
+    refineStorageDriver(env, ctx);
   });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 
 // Worker-only fields. Likewise, the API must not validate these.
-export const workerEnvSchema = z.object({
-  ...commonShape,
-  JOBS_HTTP_PORT: z.coerce.number().int().positive().default(4101),
-  SCHEDULER_HTTP_PORT: z.coerce.number().int().positive().default(4102),
-  SCHEDULER_LOCK_KEY: z.string().default('scheduler:run-due-schedules'),
-  SCHEDULER_LOCK_TTL_MS: z.coerce.number().int().positive().default(90_000),
-  SCHEDULER_DUE_WINDOW_MINUTES: z.coerce.number().int().positive().default(5),
-});
+export const workerEnvSchema = z
+  .object({
+    ...commonShape,
+    JOBS_HTTP_PORT: z.coerce.number().int().positive().default(4101),
+    SCHEDULER_HTTP_PORT: z.coerce.number().int().positive().default(4102),
+    SCHEDULER_LOCK_KEY: z.string().default('scheduler:run-due-schedules'),
+    SCHEDULER_LOCK_TTL_MS: z.coerce.number().int().positive().default(90_000),
+    SCHEDULER_DUE_WINDOW_MINUTES: z.coerce.number().int().positive().default(5),
+  })
+  .superRefine(refineStorageDriver);
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
 
 // Convenience union used by `packages/server` modules that are reused by both

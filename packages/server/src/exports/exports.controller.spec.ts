@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import { Writable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 
 import { ExportsController } from './exports.controller';
 import { ExportsService } from './exports.service';
@@ -21,6 +18,7 @@ describe('exportsController', () => {
       listForProjectScope: jest.fn().mockResolvedValue([]),
       getById: jest.fn().mockResolvedValue('one'),
       resolveDownload: jest.fn(),
+      openDownloadStream: jest.fn(),
       retry: jest.fn().mockResolvedValue({ id: 'e1', status: 'PENDING' }),
     };
     const moduleRef = await Test.createTestingModule({
@@ -75,37 +73,31 @@ describe('exportsController', () => {
   });
 
   it('download resolves the file, sets CSV headers and streams the content', async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'seotracker-controller-export-'));
-    const storagePath = path.join(dir, 'history.csv');
-    let streamed = '';
+    const storageKey = 'exports/site-1/abc/history.csv';
+    service.resolveDownload.mockResolvedValueOnce({ fileName: 'history.csv', storageKey });
+    service.openDownloadStream.mockResolvedValueOnce(Readable.from('Name\nExample\n'));
 
-    try {
-      await writeFile(storagePath, 'Name\nExample\n', 'utf-8');
-      service.resolveDownload.mockResolvedValueOnce({ fileName: 'history.csv', storagePath });
-      const chunks: Buffer[] = [];
-      const response = Object.assign(
-        new Writable({
-          write(chunk: Buffer, _encoding, callback) {
-            chunks.push(Buffer.from(chunk));
-            callback();
-          },
-        }),
-        { setHeader: jest.fn() },
-      );
+    const chunks: Buffer[] = [];
+    const response = Object.assign(
+      new Writable({
+        write(chunk: Buffer, _encoding, callback) {
+          chunks.push(Buffer.from(chunk));
+          callback();
+        },
+      }),
+      { setHeader: jest.fn() },
+    );
 
-      await controller.download(USER, 'e1', response as never);
-      streamed = Buffer.concat(chunks).toString('utf-8');
+    await controller.download(USER, 'e1', response as never);
+    const streamed = Buffer.concat(chunks).toString('utf-8');
 
-      expect(service.resolveDownload).toHaveBeenCalledWith('e1', 'u-1');
-      expect(response.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
-      expect(response.setHeader).toHaveBeenCalledWith(
-        'Content-Disposition',
-        'attachment; filename="history.csv"',
-      );
-    } finally {
-      await rm(dir, { force: true, recursive: true });
-    }
-
+    expect(service.resolveDownload).toHaveBeenCalledWith('e1', 'u-1');
+    expect(service.openDownloadStream).toHaveBeenCalledWith(storageKey);
+    expect(response.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+    expect(response.setHeader).toHaveBeenCalledWith(
+      'Content-Disposition',
+      'attachment; filename="history.csv"',
+    );
     expect(streamed).toBe('Name\nExample\n');
   });
 });
