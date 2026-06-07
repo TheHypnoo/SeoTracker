@@ -28,6 +28,7 @@ import { Route as AuthenticatedSettingsGeneralRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsActivityRouteImport } from './routes/_authenticated/settings.activity'
 import { Route as AuthenticatedProjectsNewRouteImport } from './routes/_authenticated/projects.new'
 import { Route as AuthenticatedSitesIdSearchRouteImport } from './routes/_authenticated/sites_.$id.search'
+import { Route as AuthenticatedSitesIdEngineHealthRouteImport } from './routes/_authenticated/sites_.$id.engine-health'
 import { Route as AuthenticatedProjectsIdSitesRouteImport } from './routes/_authenticated/projects.$id.sites'
 import { Route as AuthenticatedProjectsIdIssuesRouteImport } from './routes/_authenticated/projects.$id.issues'
 import { Route as AuthenticatedProjectsIdExportsRouteImport } from './routes/_authenticated/projects.$id.exports'
@@ -135,6 +136,12 @@ const AuthenticatedSitesIdSearchRoute =
     path: '/sites/$id/search',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSitesIdEngineHealthRoute =
+  AuthenticatedSitesIdEngineHealthRouteImport.update({
+    id: '/sites_/$id/engine-health',
+    path: '/sites/$id/engine-health',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedProjectsIdSitesRoute =
   AuthenticatedProjectsIdSitesRouteImport.update({
     id: '/projects/$id/sites',
@@ -188,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/projects/$id/exports': typeof AuthenticatedProjectsIdExportsRoute
   '/projects/$id/issues': typeof AuthenticatedProjectsIdIssuesRoute
   '/projects/$id/sites': typeof AuthenticatedProjectsIdSitesRoute
+  '/sites/$id/engine-health': typeof AuthenticatedSitesIdEngineHealthRoute
   '/sites/$id/search': typeof AuthenticatedSitesIdSearchRoute
   '/sites/$id/audits/$auditId': typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
@@ -213,6 +221,7 @@ export interface FileRoutesByTo {
   '/projects/$id/exports': typeof AuthenticatedProjectsIdExportsRoute
   '/projects/$id/issues': typeof AuthenticatedProjectsIdIssuesRoute
   '/projects/$id/sites': typeof AuthenticatedProjectsIdSitesRoute
+  '/sites/$id/engine-health': typeof AuthenticatedSitesIdEngineHealthRoute
   '/sites/$id/search': typeof AuthenticatedSitesIdSearchRoute
   '/sites/$id/audits/$auditId': typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
@@ -240,6 +249,7 @@ export interface FileRoutesById {
   '/_authenticated/projects/$id/exports': typeof AuthenticatedProjectsIdExportsRoute
   '/_authenticated/projects/$id/issues': typeof AuthenticatedProjectsIdIssuesRoute
   '/_authenticated/projects/$id/sites': typeof AuthenticatedProjectsIdSitesRoute
+  '/_authenticated/sites_/$id/engine-health': typeof AuthenticatedSitesIdEngineHealthRoute
   '/_authenticated/sites_/$id/search': typeof AuthenticatedSitesIdSearchRoute
   '/_authenticated/sites_/$id/audits/$auditId': typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
@@ -267,6 +277,7 @@ export interface FileRouteTypes {
     | '/projects/$id/exports'
     | '/projects/$id/issues'
     | '/projects/$id/sites'
+    | '/sites/$id/engine-health'
     | '/sites/$id/search'
     | '/sites/$id/audits/$auditId'
   fileRoutesByTo: FileRoutesByTo
@@ -292,6 +303,7 @@ export interface FileRouteTypes {
     | '/projects/$id/exports'
     | '/projects/$id/issues'
     | '/projects/$id/sites'
+    | '/sites/$id/engine-health'
     | '/sites/$id/search'
     | '/sites/$id/audits/$auditId'
   id:
@@ -318,6 +330,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projects/$id/exports'
     | '/_authenticated/projects/$id/issues'
     | '/_authenticated/projects/$id/sites'
+    | '/_authenticated/sites_/$id/engine-health'
     | '/_authenticated/sites_/$id/search'
     | '/_authenticated/sites_/$id/audits/$auditId'
   fileRoutesById: FileRoutesById
@@ -470,6 +483,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSitesIdSearchRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/sites_/$id/engine-health': {
+      id: '/_authenticated/sites_/$id/engine-health'
+      path: '/sites/$id/engine-health'
+      fullPath: '/sites/$id/engine-health'
+      preLoaderRoute: typeof AuthenticatedSitesIdEngineHealthRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/projects/$id/sites': {
       id: '/_authenticated/projects/$id/sites'
       path: '/projects/$id/sites'
@@ -521,6 +541,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProjectsIdExportsRoute: typeof AuthenticatedProjectsIdExportsRoute
   AuthenticatedProjectsIdIssuesRoute: typeof AuthenticatedProjectsIdIssuesRoute
   AuthenticatedProjectsIdSitesRoute: typeof AuthenticatedProjectsIdSitesRoute
+  AuthenticatedSitesIdEngineHealthRoute: typeof AuthenticatedSitesIdEngineHealthRoute
   AuthenticatedSitesIdSearchRoute: typeof AuthenticatedSitesIdSearchRoute
   AuthenticatedSitesIdAuditsAuditIdRoute: typeof AuthenticatedSitesIdAuditsAuditIdRoute
 }
@@ -539,6 +560,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProjectsIdExportsRoute: AuthenticatedProjectsIdExportsRoute,
   AuthenticatedProjectsIdIssuesRoute: AuthenticatedProjectsIdIssuesRoute,
   AuthenticatedProjectsIdSitesRoute: AuthenticatedProjectsIdSitesRoute,
+  AuthenticatedSitesIdEngineHealthRoute: AuthenticatedSitesIdEngineHealthRoute,
   AuthenticatedSitesIdSearchRoute: AuthenticatedSitesIdSearchRoute,
   AuthenticatedSitesIdAuditsAuditIdRoute:
     AuthenticatedSitesIdAuditsAuditIdRoute,

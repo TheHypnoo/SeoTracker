@@ -16,6 +16,7 @@ import type { Request, Response } from 'express';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { isPlatformAdmin } from '../common/platform-admin.util';
 import type { Env } from '../config/env.schema';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -110,6 +111,10 @@ export class AuthController {
     return {
       email: user.email,
       id: user.sub,
+      isPlatformAdmin: isPlatformAdmin(
+        user.email,
+        this.configService.get('PLATFORM_ADMIN_EMAILS', { infer: true }),
+      ),
     };
   }
 }

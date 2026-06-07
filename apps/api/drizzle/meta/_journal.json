@@ -92,6 +92,13 @@
       "when": 1780772720416,
       "tag": "0012_active_seo_score_model",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780836404411,
+      "tag": "0013_engine_telemetry_stage_index",
+      "breakpoints": true
     }
   ]
 }

@@ -640,6 +640,9 @@ export const auditEngineTelemetry = pgTable(
   (table) => [
     index('audit_engine_telemetry_run_idx').on(table.auditRunId),
     index('audit_engine_telemetry_run_stage_idx').on(table.auditRunId, table.stage),
+    // Supports the aggregate "engine health" queries that scan by stage over a
+    // time range (p50/p95, error-rate, model-version comparison).
+    index('audit_engine_telemetry_stage_created_idx').on(table.stage, table.createdAt),
   ],
 );
 

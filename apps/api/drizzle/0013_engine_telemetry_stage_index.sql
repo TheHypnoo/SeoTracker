@@ -1,0 +1,1 @@
+CREATE INDEX "audit_engine_telemetry_stage_created_idx" ON "audit_engine_telemetry" USING btree ("stage","created_at");

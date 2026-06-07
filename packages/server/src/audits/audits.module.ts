@@ -12,6 +12,8 @@ import { AuditProcessingService } from './audit-processing.service';
 import { AuditReadingService } from './audit-reading.service';
 import { AuditsController } from './audits.controller';
 import { AuditsService } from './audits.service';
+import { EngineTelemetryController } from './engine-telemetry.controller';
+import { EngineTelemetryService } from './engine-telemetry.service';
 import { ProjectScopedAuditsController } from './project-scoped.controller';
 import { ProjectComparisonsController } from './site-comparisons.controller';
 import { ProjectAuditsController } from './site-audits.controller';
@@ -26,6 +28,7 @@ import { SeoActionPlanService } from './seo-action-plan.service';
     ProjectIssuesController,
     ProjectScopedAuditsController,
     AuditsController,
+    EngineTelemetryController,
   ],
   exports: [
     AuditsService,
@@ -35,6 +38,7 @@ import { SeoActionPlanService } from './seo-action-plan.service';
     AuditReadingService,
     SeoActionPlanService,
     ProjectIssuesService,
+    EngineTelemetryService,
   ],
   imports: [
     SitesModule,
@@ -52,6 +56,7 @@ import { SeoActionPlanService } from './seo-action-plan.service';
     SeoActionPlanService,
     AuditsService,
     ProjectIssuesService,
+    EngineTelemetryService,
   ],
 })
 export class AuditsModule {}

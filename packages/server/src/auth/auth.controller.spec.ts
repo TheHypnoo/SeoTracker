@@ -110,9 +110,17 @@ describe('authController', () => {
   });
 
   describe('me', () => {
-    it('returns the authenticated user as { id, email }', () => {
+    it('returns the authenticated user with a non-admin flag by default', () => {
       const out = controller.me({ sub: 'u-1', email: 'a@b.c' });
-      expect(out).toStrictEqual({ id: 'u-1', email: 'a@b.c' });
+      expect(out).toStrictEqual({ id: 'u-1', email: 'a@b.c', isPlatformAdmin: false });
+    });
+
+    it('flags the user as platform admin when their email is in PLATFORM_ADMIN_EMAILS', () => {
+      config.get.mockImplementation((key: string) =>
+        key === 'PLATFORM_ADMIN_EMAILS' ? 'a@b.c' : 'csrf_token',
+      );
+      const out = controller.me({ sub: 'u-1', email: 'a@b.c' });
+      expect(out).toStrictEqual({ id: 'u-1', email: 'a@b.c', isPlatformAdmin: true });
     });
 
     it('throws UnauthorizedException when CurrentUser is missing', () => {
