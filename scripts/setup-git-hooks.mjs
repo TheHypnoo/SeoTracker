@@ -1,10 +1,13 @@
-import { existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { existsSync, statSync } from 'node:fs';
 
-const hasGitMetadata = existsSync('.git');
+if (!existsSync('.git')) {
+  console.log('[INFO] No .git metadata found, skipping git hook install');
+  process.exit(0);
+}
 
-if (!hasGitMetadata) {
-  console.log('[INFO] No .git directory found, skipping git hook install');
+if (!statSync('.git').isDirectory()) {
+  console.log('[INFO] Git metadata is a worktree file, skipping git hook install');
   process.exit(0);
 }
 

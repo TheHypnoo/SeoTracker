@@ -159,7 +159,7 @@ export class SchedulingService implements OnModuleInit {
     );
 
     if (executed === null) {
-      this.logger.debug('Skipping scheduler tick because another jobs instance owns the lock');
+      this.logger.debug('Skipping scheduler tick because another worker instance owns the lock');
     }
   }
 

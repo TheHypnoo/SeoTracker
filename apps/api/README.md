@@ -8,8 +8,8 @@ Most reusable backend code (modules, services, the Drizzle schema, queue binding
 
 - HTTP layer: controllers, validation, throttling, CSRF and Helmet.
 - Authentication (`/auth/*`): register, login, refresh-token rotation, password reset, SSR session lookup.
-- Domain endpoints: projects, members, invites, sites, schedules, alerts, audits, comparisons, exports, webhooks, notifications.
-- Health (`/health/live`, `/health/ready`) and Prometheus metrics (`/metrics`).
+- Domain endpoints: projects, members, invites, sites, schedules, alerts, audits, comparisons, exports, webhooks, notifications, Search Console integrations and public badges.
+- Health (`/api/v1/health/liveness`, `/api/v1/health/readiness`) and Prometheus metrics (`/api/v1/metrics`).
 - Swagger UI at `/docs` (only when `NODE_ENV !== 'production'`).
 
 ## Scripts
@@ -48,17 +48,18 @@ Key variables:
 | `COOKIE_DOMAIN` / `COOKIE_SECURE`          | Cookie scope and security flags                          |
 | `SMTP_*`                                   | Outbound email configuration                             |
 | `APP_URL`                                  | Public URL of the web frontend (used in emails and CORS) |
-| `AUDIT_*` / `SCHEDULER_*`                  | Worker tuning                                            |
+| `AUDIT_*` / `SCHEDULER_*`                  | Audit engine and worker scheduler tuning                 |
+| `PLATFORM_ADMIN_EMAILS`                    | Enables internal engine-health views for platform admins |
 
 ## Database migrations
 
-Migrations are **not** executed at process boot. Run them as a one-shot deploy step before scaling up replicas:
+The API calls `runDatabaseMigrations()` during bootstrap and applies any pending migrations it can find in `apps/api/drizzle/`. Still run migrations explicitly before starting or scaling production replicas so schema changes happen as a controlled deploy step:
 
 ```bash
 pnpm db:migrate
 ```
 
-This avoids races between concurrent api/worker instances trying to apply the same DDL.
+The worker never runs migrations. Avoid starting multiple fresh API replicas simultaneously before the migration step has completed.
 
 ## API docs
 

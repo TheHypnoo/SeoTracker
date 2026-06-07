@@ -5,8 +5,8 @@ User-facing frontend built with [TanStack Start](https://tanstack.com/start) + R
 ## What it does
 
 - Public pages: landing, login, register, forgot/reset password, accept invite, legal.
-- Authenticated app (under the `_authenticated` layout): dashboard, projects, sites, audits, comparisons, settings (team + integrations), notifications.
-- Manual and bulk audit triggers, score/issue history, comparison views, async export downloads.
+- Authenticated app (under the `_authenticated` layout): dashboard, projects, sites, audits, comparisons, Search Console views, settings (general, team, integrations, activity), notifications and platform-admin engine health.
+- Manual and bulk audit triggers, score/issue history, comparison views, async export downloads, public badge configuration and per-audit engine telemetry waterfalls.
 
 The UI strings visible to end users are in Spanish by design (target audience is Spanish-speaking). Code, comments, JSDoc and commit messages are in English.
 
@@ -33,11 +33,15 @@ pnpm typecheck
 
 Copy `.env.example` to `.env`.
 
-| Variable                | Purpose                                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------------------------------ |
-| `VITE_API_URL`          | Public API base path used by the browser (defaults to `/api/v1` to flow through the same-origin proxy) |
-| `SERVER_API_URL`        | Absolute API URL used by Node fetch during SSR (relative paths cannot be resolved server-side)         |
-| `VITE_CSRF_COOKIE_NAME` | Must match the API's `CSRF_COOKIE_NAME`                                                                |
+| Variable                   | Purpose                                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `VITE_API_URL`             | Browser-facing API base path (defaults to `/api/v1` through the same-origin proxy).             |
+| `VITE_PUBLIC_API_URL`      | Absolute public API URL for browser-rendered assets that cannot rely on the dev proxy.          |
+| `VITE_PUBLIC_SITE_URL`     | Canonical public origin for SEO metadata; empty in local development.                           |
+| `SERVER_API_URL`           | Absolute API URL used by Node fetch during SSR (relative paths cannot be resolved server-side). |
+| `API_PROXY_TARGET`         | Upstream target for Nitro `/api/**` proxy; use the private API service origin in Railway.       |
+| `VITE_REFRESH_COOKIE_NAME` | Must match the API's `REFRESH_COOKIE_NAME`.                                                     |
+| `VITE_CSRF_COOKIE_NAME`    | Must match the API's `CSRF_COOKIE_NAME`.                                                        |
 
 ## Development notes
 
