@@ -43,10 +43,10 @@ export function TextInput({
       onKeyDown={handleKeyDown}
       {...props}
       className={cn(
-        'app-text-input h-12 w-full rounded-lg border-2 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition-colors placeholder:font-normal placeholder:text-slate-400 focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 disabled:opacity-70',
+        'app-text-input h-12 w-full rounded-md border bg-white px-4 text-sm font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 disabled:opacity-70',
         effectiveInvalid
-          ? 'border-rose-500 focus:border-rose-600'
-          : 'border-slate-300 hover:border-slate-400 focus:border-brand-600',
+          ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/15'
+          : 'border-slate-300 hover:border-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15',
         className,
       )}
     />

@@ -556,7 +556,7 @@ function AuditDetailPage() {
                         setIssuePage(1);
                       }}
                       placeholder="Buscar por tipo, mensaje o URL"
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+                      className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
                     />
                   </label>
                   <label className="block">
@@ -567,7 +567,7 @@ function AuditDetailPage() {
                         setSeverityFilter(event.target.value as Severity | 'ALL');
                         setIssuePage(1);
                       }}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+                      className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
                     >
                       <option value="ALL">Todas las severidades</option>
                       <option value="CRITICAL">Críticas</option>
@@ -584,7 +584,7 @@ function AuditDetailPage() {
                         setStateFilter(event.target.value as IssueState | 'ALL');
                         setIssuePage(1);
                       }}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+                      className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
                     >
                       <option value="ALL">Todos los estados</option>
                       <option value="OPEN">Abiertas</option>
@@ -864,7 +864,7 @@ function IndexabilityPanel({
               onChange={(event) =>
                 onStatusFilterChange(event.target.value as IndexabilityStatus | 'ALL')
               }
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
             >
               <option value="ALL">Todos los estados</option>
               {INDEXABILITY_STATUSES.map((status) => (
@@ -879,7 +879,7 @@ function IndexabilityPanel({
             <select
               value={sourceFilter}
               onChange={(event) => onSourceFilterChange(event.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
             >
               <option value="ALL">Todas las fuentes</option>
               {INDEXABILITY_SOURCES.map((source) => (
