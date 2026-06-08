@@ -94,7 +94,9 @@ export function summaryFor(entry: {
     case ActivityAction.MEMBER_INVITED:
       return typeof meta.email === 'string' ? `Invitó a ${meta.email}` : 'Envió una invitación';
     case ActivityAction.MEMBER_INVITE_REVOKED:
-      return typeof meta.email === 'string' ? `Revocó la invitación a ${meta.email}` : '';
+      return typeof meta.email === 'string'
+        ? `Revocó la invitación a ${meta.email}`
+        : 'Revocó una invitación';
     case ActivityAction.MEMBER_ACCEPTED:
       return typeof meta.email === 'string'
         ? `Aceptó la invitación (${meta.email})`
