@@ -32,11 +32,11 @@ describe('activityLogController', () => {
     expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u-1', Permission.ACTIVITY_READ);
   });
 
-  it('parses limit and forwards as resolved pagination', async () => {
+  it('parses limit and forwards it', async () => {
     await controller.list(USER, 'p1', '25');
     expect(activity.listForProject).toHaveBeenCalledWith(
       'p1',
-      expect.objectContaining({ pagination: expect.objectContaining({ limit: 25 }) }),
+      expect.objectContaining({ limit: 25 }),
     );
   });
 
