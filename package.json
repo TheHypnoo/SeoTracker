@@ -26,7 +26,8 @@
     "db:migrate": "pnpm --filter api db:migrate",
     "db:studio": "pnpm --filter api db:studio",
     "test:e2e": "pnpm --filter api test:e2e",
-    "fix": "NODE_OPTIONS=--experimental-strip-types ultracite fix"
+    "fix": "NODE_OPTIONS=--experimental-strip-types ultracite fix",
+    "ci:web-smoke": "pnpm --filter web test:smoke"
   },
   "devDependencies": {
     "oxfmt": "0.48.0",

@@ -1,9 +1,18 @@
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@seotracker/shared-types': fileURLToPath(
+        new URL('../../packages/shared-types/src/index.ts', import.meta.url),
+      ),
+    },
+  },
   test: {
     environment: 'jsdom',
     passWithNoTests: true,
+    setupFiles: ['./src/test/setup.ts'],
     coverage: {
       // v8 is the fastest provider for coverage in vitest >=1; doesn't need
       // instrumentation in the source files at runtime.

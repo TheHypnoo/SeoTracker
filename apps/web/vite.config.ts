@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { fileURLToPath, URL } from 'node:url';
 import { devtools } from '@tanstack/devtools-vite';
 
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
@@ -27,6 +28,11 @@ const config = defineConfig({
     viteReact(),
   ],
   resolve: {
+    alias: {
+      '@seotracker/shared-types': fileURLToPath(
+        new URL('../../packages/shared-types/src/index.ts', import.meta.url),
+      ),
+    },
     tsconfigPaths: true,
   },
 });

@@ -93,6 +93,19 @@ jobs:
       - name: Build packages and apps
         run: pnpm ci:build
 
+  frontend-smoke:
+    name: Frontend smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Build and start frontend
+        run: pnpm ci:web-smoke
+
   api-e2e:
     name: API e2e
     runs-on: ubuntu-latest
