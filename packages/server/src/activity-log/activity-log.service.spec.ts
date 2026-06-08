@@ -108,7 +108,7 @@ describe('activityLogService', () => {
         orderBy: jest.fn().mockReturnValue({ limit: limitSpy }),
       });
 
-      await service.listForProject('p1', { pagination: { limit: 9999, offset: 0 } });
+      await service.listForProject('p1', { limit: 9999 });
 
       expect(limitSpy).toHaveBeenCalledWith(200);
     });
@@ -120,7 +120,7 @@ describe('activityLogService', () => {
       });
       const before = new Date('2026-01-01T00:00:00.000Z');
 
-      await service.listForProject('p1', { before, pagination: { limit: 10, offset: 0 } });
+      await service.listForProject('p1', { before, limit: 10 });
 
       expect(limitSpy).toHaveBeenCalledWith(10);
     });

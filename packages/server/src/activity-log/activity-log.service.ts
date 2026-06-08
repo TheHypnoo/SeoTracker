@@ -2,7 +2,6 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ActivityAction, type Role } from '@seotracker/shared-types';
 import { and, desc, eq, lt } from 'drizzle-orm';
 
-import type { PaginationInput } from '../common/dto/pagination.dto';
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
 import { activityLog, projectMembers, users } from '../database/schema';
@@ -55,9 +54,9 @@ export class ActivityLogService {
    */
   async listForProject(
     projectId: string,
-    options: { pagination?: PaginationInput; before?: Date | undefined } = {},
+    options: { limit?: number; before?: Date | undefined } = {},
   ) {
-    const limit = Math.min(options.pagination?.limit ?? 50, 200);
+    const limit = Math.min(options.limit ?? 50, 200);
 
     const whereClauses = [eq(activityLog.projectId, projectId)];
     if (options.before) whereClauses.push(lt(activityLog.createdAt, options.before));

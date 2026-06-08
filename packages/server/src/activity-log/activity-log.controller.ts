@@ -3,7 +3,6 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Permission } from '@seotracker/shared-types';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { resolvePagination } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ProjectsService } from '../projects/projects.service';
 import { ActivityLogService } from './activity-log.service';
@@ -36,9 +35,7 @@ export class ActivityLogController {
     const beforeDate = before ? new Date(before) : undefined;
 
     return this.activityLogService.listForProject(projectId, {
-      pagination: resolvePagination({
-        limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
-      }),
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
       before: beforeDate && !Number.isNaN(beforeDate.valueOf()) ? beforeDate : undefined,
     });
   }
