@@ -130,6 +130,43 @@ export class InvitationsService {
     }));
   }
 
+  async revokeInvite(projectId: string, inviteId: string, actorUserId: string) {
+    await this.projectsService.assertPermission(projectId, actorUserId, Permission.MEMBERS_INVITE);
+
+    const [invite] = await this.db
+      .select({
+        id: projectInvites.id,
+        email: projectInvites.email,
+        role: projectInvites.role,
+      })
+      .from(projectInvites)
+      .where(
+        and(
+          eq(projectInvites.id, inviteId),
+          eq(projectInvites.projectId, projectId),
+          isNull(projectInvites.acceptedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!invite) {
+      throw new NotFoundException('Invite not found');
+    }
+
+    await this.db.delete(projectInvites).where(eq(projectInvites.id, invite.id));
+
+    this.emitActivity({
+      projectId,
+      userId: actorUserId,
+      action: ActivityAction.MEMBER_INVITE_REVOKED,
+      resourceType: 'invite',
+      resourceId: invite.id,
+      metadata: { email: invite.email, role: invite.role },
+    });
+
+    return { success: true };
+  }
+
   async acceptInvite(actorUserId: string, input: AcceptInviteDto) {
     const tokenHash = hashToken(input.token);
 

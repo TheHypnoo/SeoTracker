@@ -29,6 +29,7 @@ type DbMock = {
   returning: jest.Mock;
   update: jest.Mock;
   set: jest.Mock;
+  delete: jest.Mock;
 };
 
 function makeDb(): DbMock {
@@ -41,6 +42,7 @@ function makeDb(): DbMock {
     returning: jest.fn(),
     update: jest.fn().mockReturnThis(),
     set: jest.fn().mockReturnThis(),
+    delete: jest.fn().mockReturnThis(),
   };
 }
 
@@ -186,6 +188,28 @@ describe('invitationsService', () => {
       ]);
       expect(out[0]).not.toHaveProperty('token');
       expect(out[0]).not.toHaveProperty('tokenHash');
+    });
+  });
+
+  describe('revokeInvite', () => {
+    it('throws NotFoundException when the pending invite does not exist', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await expect(service.revokeInvite('p1', 'i1', 'u-owner')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('deletes the pending invite and returns success', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'i1', email: 'mate@x.test', role: Role.MEMBER }]))
+        .mockResolvedValueOnce(undefined);
+
+      const out = await service.revokeInvite('p1', 'i1', 'u-owner');
+
+      expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u-owner', expect.any(String));
+      expect(db.delete).toHaveBeenCalledTimes(1);
+      expect(out).toStrictEqual({ success: true });
     });
   });
 

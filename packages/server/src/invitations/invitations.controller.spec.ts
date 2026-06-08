@@ -15,6 +15,7 @@ describe('invitationsController', () => {
       createInvite: jest.fn().mockResolvedValue('created'),
       acceptInvite: jest.fn().mockResolvedValue('accepted'),
       listProjectInvites: jest.fn().mockResolvedValue('invites'),
+      revokeInvite: jest.fn().mockResolvedValue('revoked'),
     };
     const moduleRef = await Test.createTestingModule({
       controllers: [InvitationsController],
@@ -36,5 +37,10 @@ describe('invitationsController', () => {
   it('listProjectInvites delegates to invitationsService.listProjectInvites', () => {
     void controller.listProjectInvites(USER, 'p1');
     expect(service.listProjectInvites).toHaveBeenCalledWith('p1', 'u-1');
+  });
+
+  it('revokeInvite delegates to invitationsService.revokeInvite', () => {
+    void controller.revokeInvite(USER, 'p1', 'i1');
+    expect(service.revokeInvite).toHaveBeenCalledWith('p1', 'i1', 'u-1');
   });
 });

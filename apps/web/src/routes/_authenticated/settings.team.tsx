@@ -191,7 +191,7 @@ function TeamSettingsPage() {
               </div>
             </div>
 
-            {canInvite ? <PendingInvitesPanel invites={invites} /> : null}
+            {canInvite ? <PendingInvitesPanel projectId={projectId} invites={invites} /> : null}
           </div>
         </article>
       ) : (
@@ -360,7 +360,22 @@ function InvitePanel({
   );
 }
 
-function PendingInvitesPanel({ invites }: { invites: UseQueryResult<ProjectInvite[]> }) {
+function PendingInvitesPanel({
+  projectId,
+  invites,
+}: {
+  projectId: string;
+  invites: UseQueryResult<ProjectInvite[]>;
+}) {
+  const auth = useAuth();
+  const queryClient = useQueryClient();
+  const revoke = useMutation({
+    mutationFn: (inviteId: string) => auth.api.delete(`/projects/${projectId}/invites/${inviteId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['project-invites', projectId] });
+    },
+  });
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
       <div className="flex items-center gap-3">
@@ -397,7 +412,12 @@ function PendingInvitesPanel({ invites }: { invites: UseQueryResult<ProjectInvit
           {(list) => (
             <ul className="space-y-3">
               {list.map((invite) => (
-                <PendingInviteRow key={invite.id} invite={invite} />
+                <PendingInviteRow
+                  key={invite.id}
+                  invite={invite}
+                  isRevoking={revoke.isPending && revoke.variables === invite.id}
+                  onRevoke={() => revoke.mutate(invite.id)}
+                />
               ))}
             </ul>
           )}
@@ -407,7 +427,15 @@ function PendingInvitesPanel({ invites }: { invites: UseQueryResult<ProjectInvit
   );
 }
 
-function PendingInviteRow({ invite }: { invite: ProjectInvite }) {
+function PendingInviteRow({
+  invite,
+  isRevoking,
+  onRevoke,
+}: {
+  invite: ProjectInvite;
+  isRevoking: boolean;
+  onRevoke: () => void;
+}) {
   const overrideSummary = summarizeOverrides(invite.extraPermissions, invite.revokedPermissions);
   const expired = invite.status === 'expired';
 
@@ -441,6 +469,19 @@ function PendingInviteRow({ invite }: { invite: ProjectInvite }) {
         <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">
           {ROLE_LABELS[invite.role]}
         </span>
+        <button
+          type="button"
+          disabled={isRevoking}
+          onClick={() => {
+            if (window.confirm(`¿Revocar la invitación a ${invite.email}?`)) {
+              onRevoke();
+            }
+          }}
+          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+        >
+          <Trash2 size={12} aria-hidden="true" />
+          {isRevoking ? 'Revocando...' : 'Revocar'}
+        </button>
       </div>
     </li>
   );

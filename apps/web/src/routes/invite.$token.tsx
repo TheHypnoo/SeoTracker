@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -12,6 +12,7 @@ function InviteTokenPage() {
   const { token } = Route.useParams();
   const auth = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -37,12 +38,14 @@ function InviteTokenPage() {
 
           void auth.api
             .post<{ projectId: string; success: true }>('/projects/invites/accept', { token })
-            .then(async () => {
+            .then(async (result) => {
+              await auth.api.patch('/users/preferences', { activeProjectId: result.projectId });
               await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['projects'] }),
                 queryClient.invalidateQueries({ queryKey: ['user-preferences', auth.user?.id] }),
               ]);
               setMessage('Invitación aceptada. Ya tienes acceso al proyecto.');
+              await navigate({ to: '/settings/team', search: { projectId: result.projectId } });
             })
             .catch((caughtError) =>
               setError(
