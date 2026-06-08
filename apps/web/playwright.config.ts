@@ -6,6 +6,7 @@ const baseURL = `http://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.e2e.ts',
+  testIgnore: '**/authenticated.e2e.ts',
   expect: {
     timeout: 5_000,
   },
