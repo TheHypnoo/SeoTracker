@@ -1,3 +1,4 @@
+import type { PaginatedResponse } from '@seotracker/shared-types';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -28,7 +29,7 @@ function NotificationsPage() {
 
   const notifications = useQuery({
     queryKey: ['notifications'],
-    queryFn: () => auth.api.get<Notification[]>('/notifications'),
+    queryFn: () => auth.api.get<PaginatedResponse<Notification>>('/notifications'),
     enabled: Boolean(auth.accessToken),
     refetchInterval: REFETCH_INTERVALS.NOTIFICATIONS_MS,
   });
@@ -41,8 +42,8 @@ function NotificationsPage() {
   });
 
   const sorted = useMemo(() => {
-    if (!notifications.data) return notifications.data;
-    return notifications.data.toSorted((a, b) => {
+    if (!notifications.data) return undefined;
+    return notifications.data.items.toSorted((a, b) => {
       const aUnread = a.readAt === null;
       const bUnread = b.readAt === null;
       if (aUnread !== bUnread) return aUnread ? -1 : 1;
@@ -51,7 +52,7 @@ function NotificationsPage() {
   }, [notifications.data]);
 
   const unreadCount = useMemo(
-    () => (notifications.data ?? []).filter((n) => n.readAt === null).length,
+    () => (notifications.data?.items ?? []).filter((n) => n.readAt === null).length,
     [notifications.data],
   );
 
