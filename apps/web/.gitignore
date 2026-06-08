@@ -11,3 +11,7 @@ dist-ssr
 .vinxi
 __unconfig*
 todos.json
+
+# Playwright artifacts
+test-results/
+playwright-report/
