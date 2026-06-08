@@ -31,9 +31,11 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 /** Membership role inside a project. OWNER can invite/remove members; MEMBER is read/write; VIEWER is read-only. */
 export const roleEnum = pgEnum('role', [Role.OWNER, Role.MEMBER, Role.VIEWER]);
@@ -286,6 +288,9 @@ export const projectInvites = pgTable(
     unique('project_invites_token_hash_uk').on(table.tokenHash),
     index('project_invites_project_idx').on(table.projectId),
     index('project_invites_email_idx').on(table.email),
+    uniqueIndex('project_invites_project_email_pending_uk')
+      .on(table.projectId, table.email)
+      .where(sql`${table.acceptedAt} is null`),
     // Backs the "recent invites for this project" listing which filters by
     // projectId and orders by createdAt desc.
     index('project_invites_project_created_idx').on(table.projectId, table.createdAt.desc()),

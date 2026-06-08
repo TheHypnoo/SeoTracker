@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -23,6 +28,7 @@ function thenable<T>(rows: T) {
 type DbMock = {
   select: jest.Mock;
   from: jest.Mock;
+  innerJoin: jest.Mock;
   where: jest.Mock;
   insert: jest.Mock;
   values: jest.Mock;
@@ -36,6 +42,7 @@ function makeDb(): DbMock {
   return {
     select: jest.fn().mockReturnThis(),
     from: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
     where: jest.fn(),
     insert: jest.fn().mockReturnThis(),
     values: jest.fn().mockReturnThis(),
@@ -84,6 +91,7 @@ describe('invitationsService', () => {
 
   describe('createInvite', () => {
     it('asserts owner, persists with hashed token (NOT plaintext) and emails the invitee', async () => {
+      db.where.mockReturnValueOnce(thenable([])).mockReturnValueOnce(thenable([]));
       db.returning.mockResolvedValueOnce([
         {
           id: 'i1',
@@ -125,6 +133,7 @@ describe('invitationsService', () => {
     });
 
     it('uses the explicit non-owner role when provided (does NOT default to MEMBER)', async () => {
+      db.where.mockReturnValueOnce(thenable([])).mockReturnValueOnce(thenable([]));
       db.returning.mockResolvedValueOnce([
         { id: 'i1', projectId: 'p1', email: 'a@b.c', role: Role.VIEWER, expiresAt: new Date() },
       ]);
@@ -132,6 +141,39 @@ describe('invitationsService', () => {
       await service.createInvite('p1', 'u-owner', { email: 'a@b.c', role: Role.VIEWER });
 
       expect(db.values).toHaveBeenCalledWith(expect.objectContaining({ role: Role.VIEWER }));
+    });
+
+    it('rejects duplicate unaccepted invites for the same normalized project email', async () => {
+      db.where.mockReturnValueOnce(thenable([{ id: 'i-existing' }]));
+
+      await expect(
+        service.createInvite('p1', 'u-owner', { email: ' Mate@X.Test ' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(notifications.enqueueEmailDelivery).not.toHaveBeenCalled();
+    });
+
+    it('rejects inviting an email that is already a project member', async () => {
+      db.where.mockReturnValueOnce(thenable([])).mockReturnValueOnce(thenable([{ userId: 'u2' }]));
+
+      await expect(
+        service.createInvite('p1', 'u-owner', { email: 'mate@x.test' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(notifications.enqueueEmailDelivery).not.toHaveBeenCalled();
+    });
+
+    it('translates database unique violations into ConflictException', async () => {
+      db.where.mockReturnValueOnce(thenable([])).mockReturnValueOnce(thenable([]));
+      db.returning.mockRejectedValueOnce({ code: '23505' });
+
+      await expect(
+        service.createInvite('p1', 'u-owner', { email: 'mate@x.test' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(notifications.enqueueEmailDelivery).not.toHaveBeenCalled();
     });
 
     it('rejects OWNER invites because ownership transfer is not supported here', async () => {

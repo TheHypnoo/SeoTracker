@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -16,12 +17,21 @@ import { assertPresent } from '../common/utils/assert';
 import { hashToken, randomToken } from '../common/utils/security';
 import { DRIZZLE } from '../database/database.constants';
 import type { Db } from '../database/database.types';
-import { users, projectInvites } from '../database/schema';
+import { users, projectInvites, projectMembers } from '../database/schema';
 import type { Env } from '../config/env.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ProjectsService } from '../projects/projects.service';
 import type { AcceptInviteDto } from './dto/accept-invite.dto';
 import type { CreateInviteDto } from './dto/create-invite.dto';
+
+function isUniqueViolation(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === '23505'
+  );
+}
 
 @Injectable()
 export class InvitationsService {
@@ -45,36 +55,80 @@ export class InvitationsService {
       throw new BadRequestException('Cannot invite OWNER role');
     }
 
+    const email = input.email.toLowerCase().trim();
     const extraPermissions = input.extraPermissions ?? [];
     const revokedPermissions = input.revokedPermissions ?? [];
     // Reuse the same validation rules from member updates so the invite cannot
     // describe a permission set that updateMemberPermissions would later reject.
     this.projectsService.validateOverrides(role, extraPermissions, revokedPermissions);
 
+    const [existingInvite] = await this.db
+      .select({ id: projectInvites.id })
+      .from(projectInvites)
+      .where(
+        and(
+          eq(projectInvites.projectId, projectId),
+          eq(projectInvites.email, email),
+          isNull(projectInvites.acceptedAt),
+        ),
+      )
+      .limit(1);
+    if (existingInvite) {
+      throw new ConflictException('This email already has a pending invitation');
+    }
+
+    const [existingMember] = await this.db
+      .select({ userId: projectMembers.userId })
+      .from(projectMembers)
+      .innerJoin(users, eq(users.id, projectMembers.userId))
+      .where(and(eq(projectMembers.projectId, projectId), eq(users.email, email)))
+      .limit(1);
+    if (existingMember) {
+      throw new ConflictException('This email is already a project member');
+    }
+
     const token = randomToken(32);
     const tokenHash = hashToken(token);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    const [invite] = await this.db
-      .insert(projectInvites)
-      .values({
-        projectId,
-        email: input.email.toLowerCase().trim(),
-        role,
-        extraPermissions,
-        revokedPermissions,
-        tokenHash,
-        expiresAt,
-      })
-      .returning({
-        id: projectInvites.id,
-        projectId: projectInvites.projectId,
-        email: projectInvites.email,
-        role: projectInvites.role,
-        extraPermissions: projectInvites.extraPermissions,
-        revokedPermissions: projectInvites.revokedPermissions,
-        expiresAt: projectInvites.expiresAt,
-      });
+    let invite:
+      | {
+          id: string;
+          projectId: string;
+          email: string;
+          role: Role;
+          extraPermissions: string[];
+          revokedPermissions: string[];
+          expiresAt: Date;
+        }
+      | undefined;
+    try {
+      [invite] = await this.db
+        .insert(projectInvites)
+        .values({
+          projectId,
+          email,
+          role,
+          extraPermissions,
+          revokedPermissions,
+          tokenHash,
+          expiresAt,
+        })
+        .returning({
+          id: projectInvites.id,
+          projectId: projectInvites.projectId,
+          email: projectInvites.email,
+          role: projectInvites.role,
+          extraPermissions: projectInvites.extraPermissions,
+          revokedPermissions: projectInvites.revokedPermissions,
+          expiresAt: projectInvites.expiresAt,
+        });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ConflictException('This email already has a pending invitation');
+      }
+      throw error;
+    }
 
     const savedInvite = assertPresent(invite, 'Project invite creation did not return a row');
     const inviteUrl = `${this.configService.get('APP_URL', { infer: true })}/invite/${token}`;
