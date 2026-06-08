@@ -9,6 +9,7 @@ const ACTION_LABELS: Record<ActivityAction, string> = {
   [ActivityAction.PROJECT_CREATED]: 'Proyecto creado',
   [ActivityAction.PROJECT_UPDATED]: 'Proyecto actualizado',
   [ActivityAction.MEMBER_INVITED]: 'Invitación enviada',
+  [ActivityAction.MEMBER_INVITE_REVOKED]: 'Invitación revocada',
   [ActivityAction.MEMBER_ACCEPTED]: 'Invitación aceptada',
   [ActivityAction.MEMBER_REMOVED]: 'Miembro expulsado',
   [ActivityAction.MEMBER_PERMS_UPDATED]: 'Permisos actualizados',
@@ -40,6 +41,7 @@ const ROLE_LABELS: Record<Role, string> = {
 
 const TONE_BY_ACTION: Record<string, 'neutral' | 'positive' | 'warning' | 'danger'> = {
   [ActivityAction.SITE_DELETED]: 'danger',
+  [ActivityAction.MEMBER_INVITE_REVOKED]: 'danger',
   [ActivityAction.MEMBER_REMOVED]: 'danger',
   [ActivityAction.AUDIT_FAILED]: 'danger',
   [ActivityAction.AUDIT_COMPLETED]: 'positive',
@@ -91,6 +93,10 @@ export function summaryFor(entry: {
   switch (entry.action) {
     case ActivityAction.MEMBER_INVITED:
       return typeof meta.email === 'string' ? `Invitó a ${meta.email}` : 'Envió una invitación';
+    case ActivityAction.MEMBER_INVITE_REVOKED:
+      return typeof meta.email === 'string'
+        ? `Revocó la invitación a ${meta.email}`
+        : 'Revocó una invitación';
     case ActivityAction.MEMBER_ACCEPTED:
       return typeof meta.email === 'string'
         ? `Aceptó la invitación (${meta.email})`

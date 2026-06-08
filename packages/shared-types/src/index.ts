@@ -124,6 +124,7 @@ export enum ActivityAction {
   PROJECT_CREATED = 'project.created',
   PROJECT_UPDATED = 'project.updated',
   MEMBER_INVITED = 'member.invited',
+  MEMBER_INVITE_REVOKED = 'member.invite_revoked',
   MEMBER_ACCEPTED = 'member.accepted',
   MEMBER_REMOVED = 'member.removed',
   MEMBER_PERMS_UPDATED = 'member.perms_updated',

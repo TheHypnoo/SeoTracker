@@ -13,6 +13,7 @@ import { InvitationsService } from './invitations.service';
 function thenable<T>(rows: T) {
   return {
     limit: jest.fn().mockResolvedValue(rows),
+    orderBy: jest.fn().mockReturnThis(),
     returning: jest.fn().mockResolvedValue(rows),
     then: (resolve: (v: T) => unknown, reject?: (r?: unknown) => unknown): unknown =>
       Promise.resolve(rows).then(resolve, reject),
@@ -28,6 +29,7 @@ type DbMock = {
   returning: jest.Mock;
   update: jest.Mock;
   set: jest.Mock;
+  delete: jest.Mock;
 };
 
 function makeDb(): DbMock {
@@ -40,6 +42,7 @@ function makeDb(): DbMock {
     returning: jest.fn(),
     update: jest.fn().mockReturnThis(),
     set: jest.fn().mockReturnThis(),
+    delete: jest.fn().mockReturnThis(),
   };
 }
 
@@ -139,6 +142,77 @@ describe('invitationsService', () => {
     });
   });
 
+  describe('listProjectInvites', () => {
+    it('returns unaccepted invites with pending/expired status and no token', async () => {
+      const future = new Date(Date.now() + 60_000);
+      const past = new Date(Date.now() - 60_000);
+      db.where.mockReturnValueOnce(
+        thenable([
+          {
+            id: 'i-pending',
+            projectId: 'p1',
+            email: 'pending@x.test',
+            role: Role.MEMBER,
+            extraPermissions: null,
+            revokedPermissions: null,
+            expiresAt: future,
+            createdAt: new Date('2026-01-02T00:00:00.000Z'),
+          },
+          {
+            id: 'i-expired',
+            projectId: 'p1',
+            email: 'expired@x.test',
+            role: Role.VIEWER,
+            extraPermissions: [],
+            revokedPermissions: [],
+            expiresAt: past,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        ]),
+      );
+
+      const out = await service.listProjectInvites('p1', 'u-owner');
+
+      expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u-owner', expect.any(String));
+      expect(out).toStrictEqual([
+        expect.objectContaining({
+          email: 'pending@x.test',
+          extraPermissions: [],
+          revokedPermissions: [],
+          status: 'pending',
+        }),
+        expect.objectContaining({
+          email: 'expired@x.test',
+          status: 'expired',
+        }),
+      ]);
+      expect(out[0]).not.toHaveProperty('token');
+      expect(out[0]).not.toHaveProperty('tokenHash');
+    });
+  });
+
+  describe('revokeInvite', () => {
+    it('throws NotFoundException when the pending invite does not exist', async () => {
+      db.where.mockReturnValueOnce(thenable([]));
+
+      await expect(service.revokeInvite('p1', 'i1', 'u-owner')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('deletes the pending invite and returns success', async () => {
+      db.where
+        .mockReturnValueOnce(thenable([{ id: 'i1', email: 'mate@x.test', role: Role.MEMBER }]))
+        .mockResolvedValueOnce(undefined);
+
+      const out = await service.revokeInvite('p1', 'i1', 'u-owner');
+
+      expect(projects.assertPermission).toHaveBeenCalledWith('p1', 'u-owner', expect.any(String));
+      expect(db.delete).toHaveBeenCalledTimes(1);
+      expect(out).toStrictEqual({ success: true });
+    });
+  });
+
   describe('acceptInvite', () => {
     it('throws NotFoundException when the token is unknown / expired / used', async () => {
       db.where.mockReturnValueOnce(thenable([])); // invite lookup empty
@@ -196,7 +270,7 @@ describe('invitationsService', () => {
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({ acceptedAt: expect.any(Date) }),
       );
-      expect(out).toStrictEqual({ success: true });
+      expect(out).toStrictEqual({ projectId: 'p1', success: true });
     });
   });
 });
