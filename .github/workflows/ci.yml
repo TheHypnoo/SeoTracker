@@ -119,6 +119,42 @@ jobs:
       - name: Run frontend browser smoke tests
         run: pnpm ci:web-e2e
 
+  frontend-auth-e2e:
+    name: Frontend authenticated e2e
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.3-alpine3.23
+        env:
+          POSTGRES_DB: seotracker_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d seotracker_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:8.6.2-alpine3.23
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run authenticated frontend flow
+        run: pnpm ci:web-auth-e2e
+
   api-e2e:
     name: API e2e
     runs-on: ubuntu-latest

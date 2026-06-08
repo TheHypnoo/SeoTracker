@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node .output/server/index.mjs",
     "test:smoke": "pnpm build && node scripts/smoke-start.mjs",
-    "test:e2e": "playwright test --config playwright.config.ts"
+    "test:e2e": "playwright test --config playwright.config.ts",
+    "test:e2e:auth": "playwright test --config playwright.auth.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

@@ -28,7 +28,8 @@
     "test:e2e": "pnpm --filter api test:e2e",
     "fix": "NODE_OPTIONS=--experimental-strip-types ultracite fix",
     "ci:web-smoke": "pnpm --filter web test:smoke",
-    "ci:web-e2e": "pnpm --filter web exec playwright install --with-deps chromium && pnpm --filter web test:e2e"
+    "ci:web-e2e": "pnpm --filter web exec playwright install --with-deps chromium && pnpm --filter web test:e2e",
+    "ci:web-auth-e2e": "pnpm --filter web exec playwright install --with-deps chromium && pnpm --filter web test:e2e:auth"
   },
   "devDependencies": {
     "oxfmt": "0.48.0",
