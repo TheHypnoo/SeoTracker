@@ -6,6 +6,7 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { ChevronDown, MailPlus, Pencil, SlidersHorizontal, Trash2, Users2 } from 'lucide-react';
 import { useMemo, useReducer, useState } from 'react';
 import { Button } from '#/components/button';
+import { ConfirmActionModal } from '#/components/confirm-action-modal';
 import { EmptyState } from '#/components/empty-state';
 import { Modal } from '#/components/modal';
 import { Notice } from '#/components/notice';
@@ -369,10 +370,17 @@ function PendingInvitesPanel({
 }) {
   const auth = useAuth();
   const queryClient = useQueryClient();
+  const [inviteToRevoke, setInviteToRevoke] = useState<ProjectInvite | null>(null);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
   const revoke = useMutation({
     mutationFn: (inviteId: string) => auth.api.delete(`/projects/${projectId}/invites/${inviteId}`),
     onSuccess: async () => {
+      setInviteToRevoke(null);
+      setRevokeError(null);
       await queryClient.invalidateQueries({ queryKey: ['project-invites', projectId] });
+    },
+    onError: (error) => {
+      setRevokeError(error instanceof Error ? error.message : 'No se pudo revocar la invitación');
     },
   });
 
@@ -416,13 +424,49 @@ function PendingInvitesPanel({
                   key={invite.id}
                   invite={invite}
                   isRevoking={revoke.isPending && revoke.variables === invite.id}
-                  onRevoke={() => revoke.mutate(invite.id)}
+                  onRevoke={() => {
+                    setRevokeError(null);
+                    setInviteToRevoke(invite);
+                  }}
                 />
               ))}
             </ul>
           )}
         </QueryState>
       </div>
+
+      <ConfirmActionModal
+        open={Boolean(inviteToRevoke)}
+        onOpenChange={(open) => {
+          if (revoke.isPending) return;
+          if (!open) {
+            setInviteToRevoke(null);
+            setRevokeError(null);
+          }
+        }}
+        title="Revocar invitación"
+        description={
+          inviteToRevoke
+            ? `Vas a revocar la invitación enviada a ${inviteToRevoke.email}.`
+            : undefined
+        }
+        consequences={[
+          'El enlace de invitación dejará de funcionar.',
+          'La persona invitada no será añadida al proyecto.',
+          'Podrás enviar una nueva invitación a este correo más adelante.',
+        ]}
+        consequencesTitle="Al revocar esta invitación:"
+        confirmLabel="Revocar invitación"
+        pendingLabel="Revocando..."
+        pending={revoke.isPending}
+        error={revokeError}
+        variant="danger"
+        onConfirm={() => {
+          if (inviteToRevoke) {
+            revoke.mutate(inviteToRevoke.id);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -472,11 +516,7 @@ function PendingInviteRow({
         <button
           type="button"
           disabled={isRevoking}
-          onClick={() => {
-            if (window.confirm(`¿Revocar la invitación a ${invite.email}?`)) {
-              onRevoke();
-            }
-          }}
+          onClick={onRevoke}
           className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
         >
           <Trash2 size={12} aria-hidden="true" />
