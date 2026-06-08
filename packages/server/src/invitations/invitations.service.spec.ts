@@ -36,10 +36,11 @@ type DbMock = {
   update: jest.Mock;
   set: jest.Mock;
   delete: jest.Mock;
+  transaction: jest.Mock;
 };
 
 function makeDb(): DbMock {
-  return {
+  const mock: DbMock = {
     select: jest.fn().mockReturnThis(),
     from: jest.fn().mockReturnThis(),
     innerJoin: jest.fn().mockReturnThis(),
@@ -50,7 +51,9 @@ function makeDb(): DbMock {
     update: jest.fn().mockReturnThis(),
     set: jest.fn().mockReturnThis(),
     delete: jest.fn().mockReturnThis(),
+    transaction: jest.fn(async (callback: (tx: DbMock) => Promise<unknown>) => callback(mock)),
   };
+  return mock;
 }
 
 describe('invitationsService', () => {
