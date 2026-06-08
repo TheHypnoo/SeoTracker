@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -23,6 +23,15 @@ export class InvitationsController {
     @Body() body: CreateInviteDto,
   ) {
     return this.invitationsService.createInvite(projectId, user.sub, body);
+  }
+
+  @Get(':projectId/invites')
+  @ApiOperation({ summary: 'Listar invitaciones pendientes del project' })
+  listProjectInvites(
+    @CurrentUser() user: { sub: string },
+    @Param('projectId', UUID_V4_PIPE) projectId: string,
+  ) {
+    return this.invitationsService.listProjectInvites(projectId, user.sub);
   }
 
   @Post('invites/accept')

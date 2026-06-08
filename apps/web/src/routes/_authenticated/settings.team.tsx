@@ -2,6 +2,7 @@ import { Permission, Role, computeEffectivePermissions } from '@seotracker/share
 import { useForm } from '@tanstack/react-form';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { UseQueryResult } from '@tanstack/react-query';
 import { ChevronDown, MailPlus, Pencil, SlidersHorizontal, Trash2, Users2 } from 'lucide-react';
 import { useMemo, useReducer, useState } from 'react';
 import { Button } from '#/components/button';
@@ -38,6 +39,22 @@ type Member = {
   createdAt: string;
   email: string;
   name: string;
+};
+
+type ProjectInvite = {
+  id: string;
+  projectId: string;
+  email: string;
+  role: Role;
+  extraPermissions: Permission[];
+  revokedPermissions: Permission[];
+  status: 'pending' | 'expired';
+  createdAt: string;
+  expiresAt: string;
+};
+
+type CreateInviteResponse = Omit<ProjectInvite, 'createdAt' | 'status'> & {
+  token: string;
 };
 
 type EditMemberState = {
@@ -95,6 +112,11 @@ function TeamSettingsPage() {
     queryFn: () => auth.api.get<Member[]>(`/projects/${projectId}/members`),
     enabled: Boolean(auth.accessToken && projectId),
   });
+  const invites = useQuery({
+    queryKey: ['project-invites', projectId],
+    queryFn: () => auth.api.get<ProjectInvite[]>(`/projects/${projectId}/invites`),
+    enabled: Boolean(auth.accessToken && projectId && canInvite),
+  });
 
   return (
     <section className="space-y-6">
@@ -120,50 +142,56 @@ function TeamSettingsPage() {
             </article>
           )}
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
-            <div className="flex items-center gap-3">
-              <Users2 size={18} className="text-brand-500" />
-              <h2 className="text-xl font-bold tracking-tight text-slate-900">Miembros actuales</h2>
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <Users2 size={18} className="text-brand-500" />
+                <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                  Miembros actuales
+                </h2>
+              </div>
+              <div className="mt-6">
+                <QueryState
+                  status={members.status}
+                  data={members.data}
+                  error={members.error}
+                  onRetry={() => members.refetch()}
+                  isEmpty={(list) => list.length === 0}
+                  loading={
+                    <ul className="space-y-3">
+                      {['m1', 'm2', 'm3'].map((slot) => (
+                        <li key={slot} className="rounded-2xl border border-slate-200 px-4 py-4">
+                          <Skeleton className="h-4 w-2/3" />
+                          <Skeleton className="mt-2 h-3 w-1/4" />
+                        </li>
+                      ))}
+                    </ul>
+                  }
+                  empty={
+                    <EmptyState
+                      title="Sin miembros"
+                      description="Invita a alguien con el formulario de la izquierda para empezar."
+                    />
+                  }
+                >
+                  {(list) => (
+                    <ul className="space-y-3">
+                      {list.map((member) => (
+                        <MemberRow
+                          key={member.userId}
+                          projectId={projectId}
+                          member={member}
+                          canEdit={canInvite}
+                          canRemove={canRemove}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                </QueryState>
+              </div>
             </div>
-            <div className="mt-6">
-              <QueryState
-                status={members.status}
-                data={members.data}
-                error={members.error}
-                onRetry={() => members.refetch()}
-                isEmpty={(list) => list.length === 0}
-                loading={
-                  <ul className="space-y-3">
-                    {['m1', 'm2', 'm3'].map((slot) => (
-                      <li key={slot} className="rounded-2xl border border-slate-200 px-4 py-4">
-                        <Skeleton className="h-4 w-2/3" />
-                        <Skeleton className="mt-2 h-3 w-1/4" />
-                      </li>
-                    ))}
-                  </ul>
-                }
-                empty={
-                  <EmptyState
-                    title="Sin miembros"
-                    description="Invita a alguien con el formulario de la izquierda para empezar."
-                  />
-                }
-              >
-                {(list) => (
-                  <ul className="space-y-3">
-                    {list.map((member) => (
-                      <MemberRow
-                        key={member.userId}
-                        projectId={projectId}
-                        member={member}
-                        canEdit={canInvite}
-                        canRemove={canRemove}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </QueryState>
-            </div>
+
+            {canInvite ? <PendingInvitesPanel invites={invites} /> : null}
           </div>
         </article>
       ) : (
@@ -184,6 +212,7 @@ function InvitePanel({
 }) {
   const auth = useAuth();
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
   const [role, setRole] = useState<Role>(Role.MEMBER);
   const [effective, setEffective] = useState<Set<Permission>>(
     () => new Set(computeEffectivePermissions(Role.MEMBER)),
@@ -203,7 +232,7 @@ function InvitePanel({
   const invite = useMutation({
     mutationFn: (email: string) => {
       const { extra, revoked } = diffAgainstRoleDefaults(role, effective);
-      return auth.api.post(`/projects/${projectId}/invites`, {
+      return auth.api.post<CreateInviteResponse>(`/projects/${projectId}/invites`, {
         email,
         role,
         extraPermissions: extra,
@@ -212,7 +241,10 @@ function InvitePanel({
     },
     onSuccess: async () => {
       setInviteError(null);
-      await queryClient.invalidateQueries({ queryKey: ['members', projectId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['members', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['project-invites', projectId] }),
+      ]);
     },
   });
 
@@ -222,7 +254,11 @@ function InvitePanel({
     },
     onSubmit: async ({ value }) => {
       setInviteError(null);
-      await invite.mutateAsync(value.email.trim());
+      setInviteSuccess(null);
+      const sentInvite = await invite.mutateAsync(value.email.trim());
+      setInviteSuccess(
+        `Invitación enviada a ${sentInvite.email}. Aparecerá como pendiente hasta que acepte el enlace.`,
+      );
     },
   });
 
@@ -238,6 +274,7 @@ function InvitePanel({
           try {
             await inviteForm.handleSubmit();
           } catch (error) {
+            setInviteSuccess(null);
             setInviteError(
               error instanceof Error ? error.message : 'No se pudo enviar la invitación',
             );
@@ -310,6 +347,7 @@ function InvitePanel({
         </div>
 
         {inviteError ? <Notice tone="danger">{inviteError}</Notice> : null}
+        {inviteSuccess ? <Notice tone="success">{inviteSuccess}</Notice> : null}
         <inviteForm.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
           {([canSubmit, isSubmitting]) => (
             <Button type="submit" disabled={!canSubmit}>
@@ -320,6 +358,110 @@ function InvitePanel({
       </form>
     </div>
   );
+}
+
+function PendingInvitesPanel({ invites }: { invites: UseQueryResult<ProjectInvite[]> }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
+      <div className="flex items-center gap-3">
+        <MailPlus size={18} className="text-brand-500" />
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">Invitaciones enviadas</h2>
+      </div>
+      <p className="mt-2 text-sm text-slate-500">
+        Usuarios invitados que todavía no han aceptado el enlace de acceso.
+      </p>
+      <div className="mt-6">
+        <QueryState
+          status={invites.status}
+          data={invites.data}
+          error={invites.error}
+          onRetry={() => invites.refetch()}
+          isEmpty={(list) => list.length === 0}
+          loading={
+            <ul className="space-y-3">
+              {['i1', 'i2'].map((slot) => (
+                <li key={slot} className="rounded-2xl border border-slate-200 px-4 py-4">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="mt-2 h-3 w-1/3" />
+                </li>
+              ))}
+            </ul>
+          }
+          empty={
+            <EmptyState
+              title="Sin invitaciones pendientes"
+              description="Cuando envíes una invitación, se mostrará aquí como solicitud enviada."
+            />
+          }
+        >
+          {(list) => (
+            <ul className="space-y-3">
+              {list.map((invite) => (
+                <PendingInviteRow key={invite.id} invite={invite} />
+              ))}
+            </ul>
+          )}
+        </QueryState>
+      </div>
+    </div>
+  );
+}
+
+function PendingInviteRow({ invite }: { invite: ProjectInvite }) {
+  const overrideSummary = summarizeOverrides(invite.extraPermissions, invite.revokedPermissions);
+  const expired = invite.status === 'expired';
+
+  return (
+    <li className="flex items-start justify-between gap-4 rounded-2xl border border-dashed border-slate-200 px-4 py-4">
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold text-slate-900">{invite.email}</div>
+        <div className="mt-0.5 text-xs text-slate-500">
+          Enviada el {formatDate(invite.createdAt)} · Caduca el {formatDate(invite.expiresAt)}
+        </div>
+        {overrideSummary ? (
+          <div
+            className="mt-1.5 text-[11px] text-slate-500"
+            title={[
+              ...invite.extraPermissions.map((p) => `+ ${PERMISSION_LABELS[p]}`),
+              ...invite.revokedPermissions.map((p) => `− ${PERMISSION_LABELS[p]}`),
+            ].join('\n')}
+          >
+            {overrideSummary}
+          </div>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-2">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
+            expired ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+          }`}
+        >
+          {expired ? 'Expirada' : 'Solicitud enviada'}
+        </span>
+        <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">
+          {ROLE_LABELS[invite.role]}
+        </span>
+      </div>
+    </li>
+  );
+}
+
+function summarizeOverrides(extraPermissions: Permission[], revokedPermissions: Permission[]) {
+  const extras = extraPermissions.length;
+  const revoked = revokedPermissions.length;
+  if (extras === 0 && revoked === 0) return null;
+  const parts: string[] = [];
+  if (extras > 0) parts.push(`+${extras} extra`);
+  if (revoked > 0) parts.push(`-${revoked} revoked`);
+  return parts.join(' · ');
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(value));
 }
 
 function MemberRow({
@@ -343,16 +485,10 @@ function MemberRow({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['members', projectId] }),
   });
 
-  const overrideSummary = useMemo(() => {
-    if (isOwner) return null;
-    const extras = member.extraPermissions.length;
-    const revoked = member.revokedPermissions.length;
-    if (extras === 0 && revoked === 0) return null;
-    const parts: string[] = [];
-    if (extras > 0) parts.push(`+${extras} extra`);
-    if (revoked > 0) parts.push(`-${revoked} revoked`);
-    return parts.join(' · ');
-  }, [isOwner, member.extraPermissions.length, member.revokedPermissions.length]);
+  const overrideSummary = useMemo(
+    () => (isOwner ? null : summarizeOverrides(member.extraPermissions, member.revokedPermissions)),
+    [isOwner, member.extraPermissions, member.revokedPermissions],
+  );
 
   return (
     <li className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 px-4 py-4">

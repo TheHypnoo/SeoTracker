@@ -11,8 +11,14 @@ import { AuthFooter, AuthPage } from '../components/auth-page';
 import { RedirectIfAuthed } from '../components/redirect-if-authed';
 import { useAuth } from '../lib/auth-context';
 import { displayFormError, useFormSubmitHandler } from '../lib/forms';
+import { safeRedirectPath } from '../lib/safe-redirect';
+
+type RegisterSearch = { redirect?: string };
 
 export const Route = createFileRoute('/register')({
+  validateSearch: (search): RegisterSearch => ({
+    redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
+  }),
   beforeLoad: redirectIfAuthed,
   component: RegisterPage,
 });
@@ -21,6 +27,7 @@ function RegisterPage() {
   const auth = useAuth();
   const navigate = useNavigate();
   const goToDashboard = navigate;
+  const { redirect: redirectTo } = Route.useSearch();
   const form = useForm({
     defaultValues: {
       name: '',
@@ -38,7 +45,7 @@ function RegisterPage() {
         email: value.email,
         password: value.password,
       });
-      await goToDashboard({ to: '/dashboard' });
+      await goToDashboard({ to: safeRedirectPath(redirectTo) });
     },
   });
   const { error, onSubmit } = useFormSubmitHandler(form, {
@@ -53,7 +60,11 @@ function RegisterPage() {
         footer={
           <>
             ¿Ya tienes cuenta?{' '}
-            <Link to="/login" className="font-semibold text-brand-600 no-underline hover:underline">
+            <Link
+              to="/login"
+              search={redirectTo ? { redirect: redirectTo } : undefined}
+              className="font-semibold text-brand-600 no-underline hover:underline"
+            >
               Iniciar sesión
             </Link>
           </>

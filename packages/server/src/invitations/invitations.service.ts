@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ActivityAction, Permission, Role } from '@seotracker/shared-types';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull } from 'drizzle-orm';
 
 import { ACTIVITY_RECORDED_EVENT, type ActivityEvent } from '../activity-log/activity-log.listener';
 
@@ -102,6 +102,34 @@ export class InvitationsService {
     };
   }
 
+  async listProjectInvites(projectId: string, actorUserId: string) {
+    await this.projectsService.assertPermission(projectId, actorUserId, Permission.MEMBERS_INVITE);
+
+    const now = new Date();
+    const rows = await this.db
+      .select({
+        id: projectInvites.id,
+        projectId: projectInvites.projectId,
+        email: projectInvites.email,
+        role: projectInvites.role,
+        extraPermissions: projectInvites.extraPermissions,
+        revokedPermissions: projectInvites.revokedPermissions,
+        expiresAt: projectInvites.expiresAt,
+        createdAt: projectInvites.createdAt,
+      })
+      .from(projectInvites)
+      .where(and(eq(projectInvites.projectId, projectId), isNull(projectInvites.acceptedAt)))
+      .orderBy(desc(projectInvites.createdAt))
+      .limit(50);
+
+    return rows.map((invite) => ({
+      ...invite,
+      extraPermissions: (invite.extraPermissions ?? []) as Permission[],
+      revokedPermissions: (invite.revokedPermissions ?? []) as Permission[],
+      status: invite.expiresAt > now ? 'pending' : 'expired',
+    }));
+  }
+
   async acceptInvite(actorUserId: string, input: AcceptInviteDto) {
     const tokenHash = hashToken(input.token);
 
@@ -153,6 +181,6 @@ export class InvitationsService {
       metadata: { email: invite.email, role: invite.role, inviteId: invite.id },
     });
 
-    return { success: true };
+    return { projectId: invite.projectId, success: true };
   }
 }

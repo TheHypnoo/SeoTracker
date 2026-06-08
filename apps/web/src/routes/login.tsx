@@ -52,6 +52,7 @@ function LoginPage() {
             ¿No tienes cuenta?{' '}
             <Link
               to="/register"
+              search={redirectTo ? { redirect: redirectTo } : undefined}
               className="font-semibold text-brand-600 no-underline hover:underline"
             >
               Crear cuenta
